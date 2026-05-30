@@ -151,13 +151,37 @@ ${context}`;
     setPickingTarget(null);
   };
 
+  // Merge duplicate exercises (same matchedId) within each workout
+  const mergeExercises = (workouts: ParsedWorkout[]): ParsedWorkout[] => {
+    return workouts.map(w => {
+      const seen = new Map<string, number>(); // matchedId → index in merged array
+      const merged: typeof w.exercises = [];
+      for (const ex of w.exercises) {
+        if (ex.matchedId && seen.has(ex.matchedId)) {
+          // Append sets to existing entry
+          merged[seen.get(ex.matchedId)!].sets.push(...ex.sets);
+        } else {
+          seen.set(ex.matchedId ?? `__${merged.length}`, merged.length);
+          merged.push({ ...ex, sets: [...ex.sets] });
+        }
+      }
+      return { ...w, exercises: merged };
+    });
+  };
+
+  const handleMergeAll = () => {
+    if (!parsedWorkouts) return;
+    setParsedWorkouts(mergeExercises(parsedWorkouts));
+  };
+
   const handleSaveImport = async () => {
     if (!parsedWorkouts || !user) return;
     setSaving(true);
     let savedCount = 0;
     try {
-      for (const workout of parsedWorkouts) {
-        // Insert workout
+      // Auto-merge duplicates before saving
+      const merged = mergeExercises(parsedWorkouts);
+      for (const workout of merged) {
         const { data: wRow, error: wErr } = await supabase
           .from('workouts')
           .insert({
@@ -170,7 +194,6 @@ ${context}`;
           .single();
         if (wErr || !wRow) continue;
 
-        // Insert sets
         const setsToInsert: any[] = [];
         for (const ex of workout.exercises) {
           if (!ex.matchedId) continue;
@@ -427,23 +450,58 @@ ${context}`;
                 </View>
 
                 {/* Summary row */}
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                  {[
-                    { label: 'Workouts', value: parsedWorkouts.length },
-                    { label: 'Matched', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
-                    { label: 'Sets', value: parsedWorkouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) },
-                  ].map((s, i) => (
-                    <View key={i} style={{
-                      flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
-                      padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
-                    }}>
-                      <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                      <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>{s.value}</Text>
-                    </View>
-                  ))}
-                </View>
+                {(() => {
+                  const hasDupes = parsedWorkouts.some(w => {
+                    const ids = w.exercises.filter(e => e.matchedId).map(e => e.matchedId);
+                    return ids.length !== new Set(ids).size;
+                  });
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: hasDupes ? 10 : 16 }}>
+                        {[
+                          { label: 'Workouts', value: parsedWorkouts.length },
+                          { label: 'Matched', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
+                          { label: 'Sets', value: parsedWorkouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) },
+                        ].map((s, i) => (
+                          <View key={i} style={{
+                            flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
+                            padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+                          }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
+                            <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>{s.value}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      {hasDupes && (
+                        <TouchableOpacity
+                          onPress={handleMergeAll}
+                          style={{
+                            backgroundColor: Colors.accentDim,
+                            borderRadius: 10,
+                            padding: 12,
+                            marginBottom: 16,
+                            borderWidth: 1,
+                            borderColor: Colors.accent + '40',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 10,
+                          }}
+                        >
+                          <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
+                            Duplicate exercises detected — tap to merge sets
+                          </Text>
+                          <Text style={{ color: Colors.accent, fontWeight: '800' }}>Merge →</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  );
+                })()}
 
-                {parsedWorkouts.map((w, wi) => (
+                {parsedWorkouts.map((w, wi) => {
+                  // Find duplicate matchedIds in this workout
+                  const idCounts = new Map<string, number>();
+                  w.exercises.forEach(e => { if (e.matchedId) idCounts.set(e.matchedId, (idCounts.get(e.matchedId) ?? 0) + 1); });
+                  return (
                   <View key={wi} style={{
                     backgroundColor: Colors.surface,
                     borderRadius: 14,
@@ -469,6 +527,7 @@ ${context}`;
                     {/* All exercises — matched and unmatched */}
                     {w.exercises.map((ex, ei) => {
                       const isMatched = !!ex.matchedId;
+                      const isDuplicate = isMatched && (idCounts.get(ex.matchedId!) ?? 0) > 1;
                       const topWeight = ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0);
                       return (
                         <TouchableOpacity
@@ -511,17 +570,18 @@ ${context}`;
                               {topWeight > 0 ? ` · ${topWeight} lbs` : ''}
                             </Text>
                             <Text style={{
-                              color: isMatched ? Colors.textMuted : Colors.gold,
+                              color: isDuplicate ? Colors.accent : isMatched ? Colors.textMuted : Colors.gold,
                               fontSize: 10, marginTop: 2,
                             }}>
-                              {isMatched ? 'tap to change' : 'tap to match →'}
+                              {isDuplicate ? 'duplicate — will merge' : isMatched ? 'tap to change' : 'tap to match →'}
                             </Text>
                           </View>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
-                ))}
+                  );
+                })}
 
                 {/* Exercise picker modal */}
                 {pickerOpen && (

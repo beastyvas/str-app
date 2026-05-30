@@ -23,9 +23,11 @@ export interface ParsedWorkout {
 
 // ── WEIGHT HELPERS ─────────────────────────────────────────────────────────
 
-// "3.25plates" → 337.5 lbs  (standard: N plates/side on 45lb bar)
+// "3.25plates" → 146.25 lbs  (N × 45, machine plate loading)
+// Note: barbell users typically write actual numbers (225, 315)
+// so this formula is intentionally for plate-loaded machines
 function platesToLbs(n: number): number {
-  return Math.round((2 * n + 1) * 45 * 10) / 10;
+  return Math.round(n * 45 * 10) / 10;
 }
 
 function parseWeight(raw: string): number | null {
