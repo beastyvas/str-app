@@ -10,8 +10,8 @@ export const Colors = {
   textSecondary: '#888888',
   textMuted: '#555555',
 
-  accent: '#FF4500',
-  accentDim: 'rgba(255, 69, 0, 0.12)',
+  accent: '#D4197A',
+  accentDim: 'rgba(212, 25, 122, 0.12)',
 
   gold: '#FFB800',
   goldDim: 'rgba(255, 184, 0, 0.12)',
