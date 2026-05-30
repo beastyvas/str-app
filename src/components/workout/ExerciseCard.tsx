@@ -6,8 +6,8 @@ import { SetInputRow, LoggedSetRow } from './SetRow';
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
-  prevSets?: LoggedSet[];       // last session's sets for this exercise
-  prMap?: Record<string, boolean>; // localId → isPR
+  prevSets?: LoggedSet[];
+  prMap?: Record<string, boolean>;
   workoutId: string;
   userId: string;
   onLogSet: (
@@ -15,6 +15,8 @@ interface ExerciseCardProps {
     data: { weight: number; reps: number; rpe?: number; note?: string }
   ) => Promise<{ isPR: boolean }>;
   onRemove: (exerciseId: string) => void;
+  onDeleteSet: (exerciseId: string, localId: string) => void;
+  onEditSet: (exerciseId: string, localId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => void;
   onNavigateToDetail: (exerciseId: string) => void;
 }
 
@@ -26,6 +28,8 @@ export function ExerciseCard({
   userId,
   onLogSet,
   onRemove,
+  onDeleteSet,
+  onEditSet,
   onNavigateToDetail,
 }: ExerciseCardProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -144,7 +148,13 @@ export function ExerciseCard({
 
           {/* Logged sets */}
           {exercise.sets.map(s => (
-            <LoggedSetRow key={s.localId} set={s} isPR={prMap[s.localId]} />
+            <LoggedSetRow
+              key={s.localId}
+              set={s}
+              isPR={prMap[s.localId]}
+              onDelete={(localId) => onDeleteSet(exercise.exerciseId, localId)}
+              onEdit={(localId, data) => onEditSet(exercise.exerciseId, localId, data)}
+            />
           ))}
 
           {/* Divider before input row */}

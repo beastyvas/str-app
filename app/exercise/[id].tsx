@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LineChart } from 'react-native-gifted-charts';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, TierName } from '@/constants/colors';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -66,6 +69,18 @@ export default function ExerciseDetailScreen() {
     acc[key].push(s);
     return acc;
   }, {});
+
+  // Build chart data — max weight per session, chronological
+  const chartData = Object.entries(byWorkout)
+    .map(([name, sets]) => ({
+      name,
+      date: sets[0]?.workouts?.started_at ?? '',
+      maxWeight: Math.max(...(sets as any[]).map((s: any) => s.weight)),
+    }))
+    .filter(d => d.date)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(-10)
+    .map(d => ({ value: d.maxWeight }));
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -182,6 +197,44 @@ export default function ExerciseDetailScreen() {
             <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 22 }}>
               {exercise.form_cues}
             </Text>
+          </View>
+        )}
+
+        {/* Progress Chart */}
+        {chartData.length >= 2 && (
+          <View style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 16,
+            borderWidth: 1,
+            borderColor: Colors.border,
+            overflow: 'hidden',
+          }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 }}>
+              Top Set Weight — Last {chartData.length} Sessions
+            </Text>
+            <LineChart
+              data={chartData}
+              width={SCREEN_WIDTH - 80}
+              height={120}
+              color={Colors.accent}
+              thickness={2}
+              dataPointsColor={Colors.accent}
+              dataPointsRadius={4}
+              startFillColor={Colors.accent}
+              endFillColor={Colors.bg}
+              startOpacity={0.15}
+              endOpacity={0}
+              areaChart
+              hideAxesAndRules
+              hideYAxisText
+              hideDataPoints={chartData.length > 6}
+              curved
+              yAxisLabelWidth={0}
+              initialSpacing={8}
+              endSpacing={8}
+            />
           </View>
         )}
 

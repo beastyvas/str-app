@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, Animated } from 'react-native';
+import { View, Text } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 
 interface RestTimerProps {
@@ -9,17 +10,31 @@ interface RestTimerProps {
 export function RestTimer({ lastSetLoggedAt }: RestTimerProps) {
   const [elapsed, setElapsed] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hapticFiredRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!lastSetLoggedAt) {
       setElapsed(0);
+      hapticFiredRef.current.clear();
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
 
-    // Start counting immediately
+    hapticFiredRef.current.clear();
+
     const tick = () => {
-      setElapsed(Math.floor((Date.now() - lastSetLoggedAt.getTime()) / 1000));
+      const secs = Math.floor((Date.now() - lastSetLoggedAt.getTime()) / 1000);
+      setElapsed(secs);
+
+      // Haptic nudge at 90s and 180s — only once each
+      if (secs === 90 && !hapticFiredRef.current.has(90)) {
+        hapticFiredRef.current.add(90);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+      if (secs === 180 && !hapticFiredRef.current.has(180)) {
+        hapticFiredRef.current.add(180);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     };
     tick();
     intervalRef.current = setInterval(tick, 1000);

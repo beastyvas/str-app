@@ -29,6 +29,8 @@ export default function WorkoutTab() {
     addExercise,
     removeExercise,
     logSet,
+    updateSet,
+    deleteSet,
     finishWorkout,
     discardWorkout,
     clearPRs,
@@ -44,6 +46,7 @@ export default function WorkoutTab() {
   const [finishNotes, setFinishNotes] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
+  const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
 
   // Duration timer
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -69,19 +72,54 @@ export default function WorkoutTab() {
     }
   }, [newPRs]);
 
+  // ─── LOAD LAST WORKOUT EXERCISES ─────────────────────────────────────────
+  useEffect(() => {
+    if (!user || activeWorkout) return;
+    supabase
+      .from('workouts')
+      .select('workout_sets(exercise_id, exercises(id, name, muscle_group))')
+      .eq('user_id', user.id)
+      .not('ended_at', 'is', null)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        const seen = new Set<string>();
+        const exercises: { id: string; name: string; muscle_group: string }[] = [];
+        for (const s of (data.workout_sets as any[]) ?? []) {
+          const ex = s.exercises;
+          if (ex && !seen.has(ex.id)) {
+            seen.add(ex.id);
+            exercises.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group });
+          }
+        }
+        setLastWorkoutExercises(exercises);
+      });
+  }, [user, activeWorkout]);
+
   // ─── START WORKOUT ────────────────────────────────────────────────────────
   const handleStartPress = () => {
-    // Pre-fill with current day name
     const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     setWorkoutName(`${day} Workout`);
     setShowNameModal(true);
   };
 
-  const handleStartConfirm = async () => {
+  const handleRepeatLast = async () => {
+    if (!user || lastWorkoutExercises.length === 0) return;
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    setWorkoutName(`${day} Workout`);
+    setShowNameModal(true);
+  };
+
+  const handleStartConfirm = async (repeatLast = false) => {
     if (!user || !workoutName.trim()) return;
     setShowNameModal(false);
     try {
       await startWorkout(workoutName.trim(), user.id);
+      if (repeatLast && lastWorkoutExercises.length > 0) {
+        lastWorkoutExercises.forEach(ex => addExercise(ex));
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not start workout');
     }
@@ -193,12 +231,30 @@ export default function WorkoutTab() {
               borderRadius: 16,
               paddingVertical: 18,
               paddingHorizontal: 48,
+              marginBottom: 14,
             }}
           >
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>
               START WORKOUT
             </Text>
           </TouchableOpacity>
+          {lastWorkoutExercises.length > 0 && (
+            <TouchableOpacity
+              onPress={handleRepeatLast}
+              style={{
+                borderRadius: 16,
+                paddingVertical: 14,
+                paddingHorizontal: 32,
+                borderWidth: 1,
+                borderColor: Colors.border,
+                backgroundColor: Colors.surface,
+              }}
+            >
+              <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: '700' }}>
+                ↩ Repeat last workout
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Name modal */}
@@ -253,7 +309,7 @@ export default function WorkoutTab() {
                   <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={handleStartConfirm}
+                  onPress={() => handleStartConfirm(false)}
                   disabled={!workoutName.trim()}
                   style={{
                     flex: 2,
@@ -388,6 +444,8 @@ export default function WorkoutTab() {
             userId={user!.id}
             onLogSet={handleLogSet}
             onRemove={removeExercise}
+            onDeleteSet={deleteSet}
+            onEditSet={updateSet}
             onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
           />
         ))}
