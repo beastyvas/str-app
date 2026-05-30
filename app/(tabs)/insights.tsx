@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
@@ -42,15 +43,16 @@ export default function InsightsTab() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
 
-  // Pick up pre-fill from home screen "Ask coach" button
-  useEffect(() => {
+  // Pick up pre-fill whenever screen comes into focus
+  useFocusEffect(useCallback(() => {
     const preFill = (global as any).__coachPreFill;
-    if (preFill && tab === 'coach') {
+    if (preFill) {
       (global as any).__coachPreFill = null;
       setTab('coach');
-      sendMessage(preFill);
+      // Small delay so tab switch renders first
+      setTimeout(() => sendMessage(preFill), 100);
     }
-  }, [tab]);
+  }, []));
 
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([

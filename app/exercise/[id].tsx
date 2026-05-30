@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, TierName } from '@/constants/colors';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+import { MuscleMap } from '@/components/MuscleMap';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -229,7 +230,26 @@ export default function ExerciseDetailScreen() {
           </View>
         )}
 
-        {/* Form Cues */}
+        {/* Muscle Map */}
+        <View style={{
+          backgroundColor: Colors.surface,
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 16,
+          borderWidth: 1,
+          borderColor: Colors.border,
+          alignItems: 'center',
+        }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14, alignSelf: 'flex-start' }}>
+            Muscles Targeted
+          </Text>
+          <MuscleMap
+            primaryMuscle={exercise.muscle_group}
+            secondaryMuscle={exercise.secondary_muscle}
+          />
+        </View>
+
+        {/* Form Cues — formatted as numbered steps */}
         {exercise.form_cues && (
           <View style={{
             backgroundColor: Colors.surface,
@@ -239,12 +259,28 @@ export default function ExerciseDetailScreen() {
             borderWidth: 1,
             borderColor: Colors.border,
           }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-              Form Cues
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
+              How To Do It
             </Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 22 }}>
-              {exercise.form_cues}
-            </Text>
+            {exercise.form_cues.split('. ').filter((c: string) => c.trim()).map((cue: string, i: number) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                <View style={{
+                  width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: Colors.accent + '20',
+                  borderWidth: 1,
+                  borderColor: Colors.accent + '40',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}>
+                  <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800' }}>{i + 1}</Text>
+                </View>
+                <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 22, flex: 1 }}>
+                  {cue.trim().replace(/\.$/, '')}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
 
