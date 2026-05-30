@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors, TierName } from '@/constants/colors';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { MuscleMap } from '@/components/MuscleMap';
+import { ExerciseAnimation } from '@/components/ExerciseAnimation';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -229,6 +230,26 @@ export default function ExerciseDetailScreen() {
             })}
           </View>
         )}
+
+        {/* Animated Exercise Demo */}
+        <View style={{
+          backgroundColor: Colors.surface,
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 16,
+          borderWidth: 1,
+          borderColor: Colors.border,
+          alignItems: 'center',
+        }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14, alignSelf: 'flex-start' }}>
+            Movement Demo
+          </Text>
+          <ExerciseAnimation
+            exerciseName={exercise.name}
+            muscleGroup={exercise.muscle_group}
+            equipmentType={exercise.equipment_type}
+          />
+        </View>
 
         {/* Muscle Map */}
         <View style={{
