@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
+  Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
 import { TIER_ORDER } from '@/constants/strengthStandards';
-import { getAnimeTierResult, getNextTierGap, AnimeTierResult } from '@/constants/animeTiers';
+import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES } from '@/constants/animeTiers';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -42,6 +46,11 @@ export default function HomeScreen() {
   const [lastWorkout, setLastWorkout] = useState<LastWorkout | null>(null);
   const [animeResult, setAnimeResult] = useState<AnimeTierResult | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // SBD manual entry
+  const [sbdModalOpen, setSbdModalOpen] = useState(false);
+  const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
+  const [sbdSaving, setSbdSaving] = useState(false);
 
   useEffect(() => {
     if (user) fetchData();
@@ -139,6 +148,54 @@ export default function HomeScreen() {
 
   const formatVolume = (v: number) =>
     v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+
+  const saveSBD = async () => {
+    if (!user) return;
+    const entries = [
+      { key: 'barbell back squats', val: sbdInputs.sq, name: 'Barbell Back Squats' },
+      { key: 'barbell bench press', val: sbdInputs.bp, name: 'Barbell Bench Press' },
+      { key: 'deadlifts',           val: sbdInputs.dl, name: 'Deadlifts' },
+    ].filter(e => parseFloat(e.val) > 0);
+
+    if (entries.length === 0) { Alert.alert('Enter at least one lift'); return; }
+    setSbdSaving(true);
+    try {
+      // Get exercise IDs
+      const { data: exRows } = await supabase
+        .from('exercises')
+        .select('id, name')
+        .in('name', entries.map(e => e.name));
+
+      if (!exRows?.length) throw new Error('Exercises not found');
+
+      for (const entry of entries) {
+        const ex = exRows.find(e => e.name.toLowerCase() === entry.key);
+        if (!ex) continue;
+        await supabase.from('personal_records').upsert({
+          user_id: user.id,
+          exercise_id: ex.id,
+          weight: parseFloat(entry.val),
+          reps: 1,
+          achieved_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,exercise_id' });
+      }
+
+      setSbdModalOpen(false);
+      setSbdInputs({ sq: '', bp: '', dl: '' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      fetchData(); // refresh
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSbdSaving(false);
+    }
+  };
+
+  const goToCoachWithQuestion = (question: string) => {
+    // Store in global so insights tab picks it up
+    (global as any).__coachPreFill = question;
+    router.push('/(tabs)/insights');
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -253,40 +310,76 @@ export default function HomeScreen() {
               })}
             </View>
 
-            {/* Next tier hint */}
-            {animeResult.nextAnimeTier && animeResult.lifts.some(l => l.weight > 0) && (
-              <View style={{
-                marginTop: 16,
-                paddingTop: 14,
-                borderTopWidth: 1,
-                borderTopColor: Colors.border,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>
-                    Next: {animeResult.nextAnimeTier.label}
-                  </Text>
-                  {getNextTierGap(animeResult) && (
-                    <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', marginTop: 3 }}>
-                      {getNextTierGap(animeResult)}
+            {/* Bottom actions */}
+            <View style={{
+              marginTop: 16,
+              paddingTop: 14,
+              borderTopWidth: 1,
+              borderTopColor: Colors.border,
+              gap: 10,
+            }}>
+              {/* Next tier hint */}
+              {animeResult.nextAnimeTier && animeResult.lifts.some(l => l.weight > 0) && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View>
+                    <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>
+                      Next: {animeResult.nextAnimeTier.label}
                     </Text>
+                    {getNextTierGap(animeResult) && (
+                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', marginTop: 2 }}>
+                        {getNextTierGap(animeResult)}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{
+                    paddingHorizontal: 10, paddingVertical: 5,
+                    borderRadius: 8, borderWidth: 1,
+                    borderColor: animeResult.nextAnimeTier.color + '40',
+                  }}>
+                    <Text style={{ color: animeResult.nextAnimeTier.color, fontSize: 11, fontWeight: '800' }}>
+                      {animeResult.nextAnimeTier.label}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Weakest lift → Coach */}
+              {animeResult.bottleneck && animeResult.bottleneck.weight > 0 && (
+                <TouchableOpacity
+                  onPress={() => goToCoachWithQuestion(
+                    `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs (${animeResult.bottleneck!.tier} tier). What's the most effective way to bring it up? Give me a real program adjustment, not generic advice.`
                   )}
-                </View>
-                <View style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: animeResult.nextAnimeTier.color + '40',
-                }}>
-                  <Text style={{ color: animeResult.nextAnimeTier.color, fontSize: 11, fontWeight: '800' }}>
-                    {animeResult.nextAnimeTier.label}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    backgroundColor: Colors.surface2,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 14 }}>⚡</Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
+                    Ask coach: how to bring up your {animeResult.bottleneck.label}
                   </Text>
-                </View>
-              </View>
-            )}
+                  <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>→</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Set SBD manually */}
+              <TouchableOpacity
+                onPress={() => setSbdModalOpen(true)}
+                style={{
+                  alignItems: 'center',
+                  paddingVertical: 8,
+                }}
+              >
+                <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '600' }}>
+                  {animeResult.lifts.some(l => l.weight > 0) ? 'Update your SBD maxes' : 'Set your SBD maxes manually →'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -423,6 +516,83 @@ export default function HomeScreen() {
             </View>
           ))
         )}
+        {/* SBD Entry Modal */}
+        <Modal visible={sbdModalOpen} transparent animationType="slide">
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}
+              activeOpacity={1}
+              onPress={() => setSbdModalOpen(false)}
+            />
+            <View style={{
+              backgroundColor: Colors.surface,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 24,
+              borderTopWidth: 1,
+              borderTopColor: Colors.border,
+              gap: 16,
+            }}>
+              <View>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Your SBD Maxes</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 4 }}>
+                  Enter your best single or a heavy set of 3-5. We'll use this to calculate your tier.
+                </Text>
+              </View>
+
+              {[
+                { label: 'Squat', key: 'sq' as const, placeholder: '315' },
+                { label: 'Bench', key: 'bp' as const, placeholder: '225' },
+                { label: 'Deadlift', key: 'dl' as const, placeholder: '405' },
+              ].map(({ label, key, placeholder }) => (
+                <View key={key}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
+                    {label} (lbs)
+                  </Text>
+                  <TextInput
+                    value={sbdInputs[key]}
+                    onChangeText={v => setSbdInputs(prev => ({ ...prev, [key]: v }))}
+                    keyboardType="number-pad"
+                    placeholder={placeholder}
+                    placeholderTextColor={Colors.textMuted}
+                    style={{
+                      backgroundColor: Colors.surface2,
+                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      color: Colors.text,
+                      fontSize: 28,
+                      fontWeight: '800',
+                      letterSpacing: -1,
+                      borderWidth: 1,
+                      borderColor: Colors.border,
+                    }}
+                  />
+                </View>
+              ))}
+
+              <TouchableOpacity
+                onPress={saveSBD}
+                disabled={sbdSaving}
+                style={{
+                  backgroundColor: Colors.accent,
+                  borderRadius: 14,
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                  marginTop: 4,
+                }}
+              >
+                {sbdSaving
+                  ? <ActivityIndicator color={Colors.text} />
+                  : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE & CALCULATE TIER</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );

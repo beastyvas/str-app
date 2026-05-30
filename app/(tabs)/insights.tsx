@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
@@ -42,6 +42,16 @@ export default function InsightsTab() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
 
+  // Pick up pre-fill from home screen "Ask coach" button
+  useEffect(() => {
+    const preFill = (global as any).__coachPreFill;
+    if (preFill && tab === 'coach') {
+      (global as any).__coachPreFill = null;
+      setTab('coach');
+      sendMessage(preFill);
+    }
+  }, [tab]);
+
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
       supabase
@@ -81,11 +91,18 @@ export default function InsightsTab() {
 
     try {
       const context = await buildContext();
-      const systemPrompt = `You are a knowledgeable, direct strength coach inside a training tracker app.
-You have access to the user's workout history, PRs, and per-set notes. Be concise — 2-4 short paragraphs max.
-No bullet lists. Talk like a coach who actually lifts, not a textbook. Call out specific patterns you see.
+      const systemPrompt = `You are Coach, a seasoned strength and physique coach with 20+ years in the weight room. You've coached everyone from raw beginners to competitive powerlifters and natural bodybuilders.
 
-User context:
+Your communication style:
+- Direct, no fluff, no corporate wellness speak
+- You talk like someone who's actually been under the bar thousands of times
+- You notice things — RPE trends, note patterns, recovery signals — and you call them out specifically
+- You give REAL advice, not generic "eat more protein and sleep more" filler
+- You know both worlds: powerlifting (SBD strength, peaking, periodization) AND bodybuilding (hypertrophy, muscle balance, aesthetics, weak points)
+- When someone's bench is behind their squat and deadlift, you say it and give them a fix
+- 2-4 short paragraphs max. No bullet lists. No headers. Talk.
+
+User data:
 ${context}`;
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke('ai-coach', {
