@@ -18,7 +18,9 @@ export function SetInputRow({
   prevSet?: LoggedSet;
   onLog: (data: { weight: number; reps: number; rpe?: number; note?: string }) => Promise<void>;
 }) {
-  const [weight, setWeight] = useState(prevSet?.weight?.toString() ?? '');
+  const prevIsBW = prevSet?.weight === 0;
+  const [isBW, setIsBW] = useState(prevIsBW);
+  const [weight, setWeight] = useState(prevIsBW ? '' : (prevSet?.weight?.toString() ?? ''));
   const [reps, setReps] = useState(prevSet?.reps?.toString() ?? '');
   const [rpe, setRpe] = useState<number | undefined>(prevSet?.rpe);
   const [note, setNote] = useState('');
@@ -26,10 +28,17 @@ export function SetInputRow({
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
 
+  const toggleBW = () => {
+    setIsBW(prev => {
+      if (!prev) setWeight('');
+      return !prev;
+    });
+  };
+
   const handleLog = async () => {
-    const w = parseFloat(weight);
+    const w = isBW ? 0 : parseFloat(weight);
     const r = parseInt(reps);
-    if (!w || !r) return;
+    if ((!isBW && !w && w !== 0) || !r) return;
     setLogging(true);
     try {
       await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined });
@@ -64,19 +73,46 @@ export function SetInputRow({
         <View style={{ flex: 1.4 }}>
           {prevSet && (
             <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 2 }}>
-              {prevSet.weight}
+              {prevSet.weight === 0 ? 'BW' : prevSet.weight}
             </Text>
           )}
-          <TextInput
-            value={weight}
-            onChangeText={setWeight}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={Colors.textMuted}
-            style={inputStyle}
-            selectTextOnFocus
-          />
+          {isBW ? (
+            <TouchableOpacity
+              onPress={toggleBW}
+              style={[inputStyle, { justifyContent: 'center', alignItems: 'center' }]}
+            >
+              <Text style={{ color: Colors.success, fontSize: 22, fontWeight: '900' }}>BW</Text>
+            </TouchableOpacity>
+          ) : (
+            <TextInput
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={Colors.textMuted}
+              style={inputStyle}
+              selectTextOnFocus
+            />
+          )}
         </View>
+
+        {/* BW toggle */}
+        <TouchableOpacity
+          onPress={toggleBW}
+          style={{
+            backgroundColor: isBW ? Colors.successDim : Colors.surface2,
+            borderRadius: 6,
+            paddingHorizontal: 5,
+            paddingVertical: 10,
+            borderWidth: 1,
+            borderColor: isBW ? Colors.success : Colors.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 28,
+          }}
+        >
+          <Text style={{ color: isBW ? Colors.success : Colors.textMuted, fontSize: 9, fontWeight: '800' }}>BW</Text>
+        </TouchableOpacity>
 
         <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300' }}>×</Text>
 
@@ -124,16 +160,16 @@ export function SetInputRow({
 
         <TouchableOpacity
           onPress={handleLog}
-          disabled={!weight || !reps || logging}
+          disabled={(!isBW && !weight) || !reps || logging}
           style={{
-            backgroundColor: weight && reps && !logging ? Colors.accent : Colors.surface2,
+            backgroundColor: (isBW || weight) && reps && !logging ? Colors.accent : Colors.surface2,
             borderRadius: 8,
             paddingHorizontal: 14,
             paddingVertical: 10,
           }}
         >
           <Text style={{
-            color: weight && reps && !logging ? Colors.text : Colors.textMuted,
+            color: (isBW || weight) && reps && !logging ? Colors.text : Colors.textMuted,
             fontWeight: '800', fontSize: 13,
           }}>
             {logging ? '...' : 'LOG'}
@@ -265,7 +301,7 @@ export function LoggedSetRow({
           {set.setNumber}
         </Text>
         <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '700', flex: 1 }}>
-          {set.weight} × {set.reps}
+          {set.weight === 0 ? 'BW' : set.weight} × {set.reps}
         </Text>
         {set.rpe && (
           <Text style={{ color: Colors.textMuted, fontSize: 12 }}>RPE {set.rpe}</Text>

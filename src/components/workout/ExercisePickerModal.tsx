@@ -24,7 +24,8 @@ interface Props {
 
 const MUSCLE_GROUPS = [
   'All', 'Chest', 'Shoulders', 'Triceps', 'Biceps',
-  'Mid-Upper Back', 'Lats', 'Quads', 'Hamstrings', 'Glutes', 'Overall',
+  'Mid-Upper Back', 'Lats', 'Quads', 'Hamstrings', 'Glutes',
+  'Core', 'Calves', 'Forearms', 'Overall',
 ];
 
 export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }: Props) {
