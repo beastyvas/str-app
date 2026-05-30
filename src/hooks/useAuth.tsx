@@ -53,7 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    const redirectUri = AuthSession.makeRedirectUri({ scheme: 'str' });
+    const redirectUri = AuthSession.makeRedirectUri();
+    console.log('[Auth] redirectUri:', redirectUri);
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -64,22 +66,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error || !data.url) throw error;
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+    console.log('[Auth] browser result type:', result.type);
     if (result.type === 'success') {
+      console.log('[Auth] success url:', result.url);
       const url = result.url;
-      const params = new URL(url).hash
+      // Handle both hash (#) and query (?) params depending on flow
+      const hashParams = new URL(url).hash
         .substring(1)
         .split('&')
         .reduce<Record<string, string>>((acc, param) => {
           const [k, v] = param.split('=');
-          acc[k] = decodeURIComponent(v);
+          if (k) acc[k] = decodeURIComponent(v ?? '');
           return acc;
         }, {});
+
+      const searchParams = Object.fromEntries(new URL(url).searchParams.entries());
+      const params = { ...searchParams, ...hashParams };
 
       if (params.access_token) {
         await supabase.auth.setSession({
           access_token: params.access_token,
           refresh_token: params.refresh_token,
         });
+      } else if (params.code) {
+        await supabase.auth.exchangeCodeForSession(params.code);
       }
     }
   };
