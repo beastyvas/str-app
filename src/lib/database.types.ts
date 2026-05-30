@@ -11,6 +11,7 @@ export interface Database {
           bodyweight_lbs: number | null;
           unit_pref: 'lbs' | 'kg';
           avatar_url: string | null;
+          training_notes: string | null;
           created_at: string;
         };
         Insert: {
@@ -20,6 +21,7 @@ export interface Database {
           bodyweight_lbs?: number | null;
           unit_pref?: 'lbs' | 'kg';
           avatar_url?: string | null;
+          training_notes?: string | null;
           created_at?: string;
         };
         Update: {
@@ -29,6 +31,7 @@ export interface Database {
           bodyweight_lbs?: number | null;
           unit_pref?: 'lbs' | 'kg';
           avatar_url?: string | null;
+          training_notes?: string | null;
           created_at?: string;
         };
       };

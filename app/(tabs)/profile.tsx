@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +35,11 @@ export default function ProfileScreen() {
   const [bodyweight, setBodyweight] = useState(profile?.bodyweight_lbs?.toString() ?? '');
   const [unit, setUnit] = useState<'lbs' | 'kg'>(profile?.unit_pref ?? 'lbs');
   const [saving, setSaving] = useState(false);
+
+  // Lifter DNA
+  const [dnaModalOpen, setDnaModalOpen] = useState(false);
+  const [dnaText, setDnaText] = useState(profile?.training_notes ?? '');
+  const [dnaSaving, setDnaSaving] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -95,6 +100,18 @@ export default function ProfileScreen() {
     if (error) Alert.alert('Error', error.message);
     else { await refreshProfile(); setEditing(false); }
     setSaving(false);
+  };
+
+  const saveDNA = async () => {
+    if (!user) return;
+    setDnaSaving(true);
+    const { error } = await supabase
+      .from('users')
+      .update({ training_notes: dnaText.trim() || null })
+      .eq('id', user.id);
+    if (error) Alert.alert('Error', error.message);
+    else { await refreshProfile(); setDnaModalOpen(false); }
+    setDnaSaving(false);
   };
 
   const bwDisplay = profile?.unit_pref === 'kg' && profile.bodyweight_lbs
@@ -294,6 +311,33 @@ export default function ProfileScreen() {
           <ActivityIndicator color={Colors.textMuted} style={{ marginVertical: 20 }} />
         )}
 
+        {/* Lifter DNA */}
+        <TouchableOpacity
+          onPress={() => { setDnaText(profile?.training_notes ?? ''); setDnaModalOpen(true); }}
+          style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 16,
+            borderWidth: 1,
+            borderColor: profile?.training_notes ? Colors.accent + '50' : Colors.border,
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
+              Lifter DNA
+            </Text>
+            <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+              {profile?.training_notes ? 'Edit' : 'Add →'}
+            </Text>
+          </View>
+          <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+            {profile?.training_notes
+              ? profile.training_notes.slice(0, 120) + (profile.training_notes.length > 120 ? '…' : '')
+              : 'Paste your lifting history, injuries, weaknesses, goals. Coach reads this before every response.'}
+          </Text>
+        </TouchableOpacity>
+
         {/* Sign Out */}
         <TouchableOpacity
           onPress={signOut}
@@ -309,6 +353,91 @@ export default function ProfileScreen() {
           <Text style={{ color: Colors.danger, fontWeight: '700', fontSize: 14 }}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Lifter DNA Modal */}
+      <Modal visible={dnaModalOpen} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              paddingHorizontal: 20, paddingVertical: 16,
+              borderBottomWidth: 1, borderBottomColor: Colors.border,
+            }}>
+              <View>
+                <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Lifter DNA</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                  Coach reads this before every response
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setDnaModalOpen(false)}>
+                <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+              <View style={{ padding: 20, gap: 16 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
+                  Dump everything here. Training history, injury history, what works for you, what doesn't,
+                  your weak points, your goals, your lifestyle (sleep, diet, stress). The more detail, the
+                  more personalized Coach's responses get.
+                </Text>
+
+                <View style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 10,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 6, fontWeight: '700' }}>
+                    EXAMPLE
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+                    "Training 3 years, mostly bodybuilding. Left shoulder impingement from overtraining bench — flat pressing bothers me at the bottom. Bench has always been my weakest SBD, probably 40 lbs behind where it should be for my squat and deadlift. I do better with high reps on isolation work. Goal is to compete in a local powerlifting meet within 2 years..."
+                  </Text>
+                </View>
+
+                <TextInput
+                  value={dnaText}
+                  onChangeText={setDnaText}
+                  multiline
+                  autoFocus
+                  placeholder="Start writing..."
+                  placeholderTextColor={Colors.textMuted}
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14,
+                    padding: 16,
+                    color: Colors.text,
+                    fontSize: 14,
+                    minHeight: 200,
+                    textAlignVertical: 'top',
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                    lineHeight: 22,
+                  }}
+                />
+
+                <TouchableOpacity
+                  onPress={saveDNA}
+                  disabled={dnaSaving}
+                  style={{
+                    backgroundColor: Colors.accent,
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    alignItems: 'center',
+                  }}
+                >
+                  {dnaSaving
+                    ? <ActivityIndicator color={Colors.text} />
+                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>SAVE</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

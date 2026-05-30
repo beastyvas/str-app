@@ -74,11 +74,17 @@ export default function InsightsTab() {
       return `${w.name} (${new Date(w.started_at).toLocaleDateString()}): ${sets.length} sets, ${vol} lbs volume${notes ? `, notes: ${notes}` : ''}`;
     }).join('\n');
 
-    return [
-      `User bodyweight: ${profile?.bodyweight_lbs ?? 'unknown'} lbs`,
-      `PRs: ${(prs ?? []).map((p: any) => `${p.exercises?.name} ${p.weight}lbs×${p.reps}`).join(', ')}`,
+    const sections = [
+      `Bodyweight: ${profile?.bodyweight_lbs ?? 'unknown'} lbs`,
+      `PRs: ${(prs ?? []).map((p: any) => `${p.exercises?.name} ${p.weight}lbs×${p.reps}`).join(', ') || 'none logged'}`,
       `Recent workouts:\n${workoutSummary}`,
-    ].join('\n\n');
+    ];
+
+    if (profile?.training_notes) {
+      sections.unshift(`LIFTER PROFILE (read this first):\n${profile.training_notes}`);
+    }
+
+    return sections.join('\n\n');
   };
 
   const sendMessage = async (text: string) => {
