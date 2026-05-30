@@ -1,171 +1,217 @@
-// Joint indices for the stick figure (side view, right side facing right)
-// 0:head, 1:neck, 2:shoulder, 3:elbow, 4:wrist,
-// 5:spine, 6:hips, 7:knee, 8:ankle, 9:toe
-// 10:rear_shoulder, 11:rear_elbow, 12:rear_wrist (optional far arm)
+// Exercise animation pose system
+// Canvas: 120×175 viewBox for standing, 140×120 for lying exercises
+// Joints: head(0) neck(1) near_shoulder(2) near_elbow(3) near_wrist(4)
+//         spine(5) hips(6) near_knee(7) near_ankle(8) near_toe(9)
+//         far_shoulder(10) far_elbow(11) far_wrist(12)
 
-export type Joints = [number, number][]; // [x, y] for each joint
+export type Joints = [number, number][];
 
 export interface ExercisePose {
   start: Joints;
   end: Joints;
-  speed?: number; // animation duration multiplier (default 1)
-  mirror?: boolean; // reverse start/end for eccentric-first exercises
+  speed?: number;
 }
 
-// Canvas: 120 wide, 180 tall, side view facing right
-// Joints: head(0) neck(1) shoulder(2) elbow(3) wrist(4)
-//         spine(5) hips(6) knee(7) ankle(8) toe(9)
-//         rear_shoulder(10) rear_elbow(11) rear_wrist(12)
-
+// ── STANDING BASELINE ──────────────────────────────────────────────────────
 const STANDING: Joints = [
   [60, 12],  // 0 head
   [60, 24],  // 1 neck
-  [50, 34],  // 2 shoulder (near)
-  [44, 52],  // 3 elbow (near)
-  [42, 68],  // 4 wrist (near)
-  [60, 58],  // 5 spine mid
-  [60, 78],  // 6 hips
-  [58, 110], // 7 knee (near)
-  [56, 142], // 8 ankle (near)
-  [56, 150], // 9 toe (near)
-  [68, 34],  // 10 rear shoulder
-  [74, 52],  // 11 rear elbow
-  [76, 68],  // 12 rear wrist
+  [46, 34],  // 2 near shoulder
+  [38, 56],  // 3 near elbow
+  [34, 72],  // 4 near wrist
+  [60, 58],  // 5 spine
+  [60, 80],  // 6 hips
+  [54, 114], // 7 near knee
+  [52, 148], // 8 near ankle
+  [50, 158], // 9 near toe
+  [72, 34],  // 10 far shoulder
+  [80, 56],  // 11 far elbow
+  [84, 72],  // 12 far wrist
 ];
 
 export const EXERCISE_POSES: Record<string, ExercisePose> = {
 
   // ── SQUAT ──────────────────────────────────────────────────────────────────
   squat: {
-    start: [ // standing with bar on back
-      [60, 12], [60, 24], [46, 32], [46, 44], [46, 56],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [72, 32], [72, 44], [72, 56],
+    start: [ // standing, bar on back
+      [60, 10], [60, 22], [46, 32], [46, 46], [46, 58],
+      [60, 54], [60, 76], [56, 110], [54, 144], [52, 154],
+      [72, 32], [72, 46], [72, 58],
     ],
-    end: [ // bottom of squat
-      [60, 54], [60, 64], [44, 72], [32, 80], [32, 90],
-      [56, 82], [52, 100], [30, 124], [42, 148], [48, 154],
-      [70, 72], [80, 80], [80, 90],
+    end: [ // bottom of squat — knees out, hips back, upright torso
+      [58, 50], [58, 62], [44, 72], [30, 88], [28, 100],
+      [58, 84], [52, 102], [28, 124], [38, 150], [44, 158],
+      [70, 72], [82, 88], [86, 100],
     ],
-    speed: 1.4,
+    speed: 1.3,
   },
 
   // ── DEADLIFT ────────────────────────────────────────────────────────────────
   deadlift: {
-    start: [ // bent over, bar at shins
-      [50, 72], [54, 62], [44, 52], [44, 80], [50, 100],
-      [62, 64], [68, 84], [66, 116], [64, 148], [62, 156],
-      [72, 50], [72, 78], [68, 98],
+    start: [ // bottom — bent over, bar at shins
+      [46, 68], [50, 58], [40, 48], [44, 76], [50, 98],
+      [60, 62], [66, 84], [62, 116], [60, 150], [58, 158],
+      [70, 46], [74, 74], [78, 96],
     ],
-    end: [ // lockout standing
-      [62, 14], [62, 26], [52, 36], [46, 54], [44, 70],
-      [62, 58], [62, 78], [60, 110], [58, 142], [56, 150],
-      [70, 36], [74, 54], [76, 70],
+    end: [ // lockout — standing tall
+      [60, 12], [60, 24], [46, 34], [40, 56], [36, 74],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [78, 56], [82, 74],
     ],
     speed: 1.2,
   },
 
-  // ── BENCH PRESS (side view, lying) ─────────────────────────────────────────
+  // ── BENCH PRESS (lying, side view) ─────────────────────────────────────────
   bench: {
     start: [ // arms bent, bar at chest
-      [22, 78], [34, 78], [52, 68], [68, 52], [80, 40],
-      [70, 80], [90, 80], [105, 75], [116, 70], [118, 74],
-      [52, 88], [68, 104], [80, 116],
+      [18, 80],  // head lying left
+      [30, 80],  // neck
+      [44, 80],  // near shoulder (at bench level)
+      [50, 62],  // near elbow (flared up and out)
+      [44, 46],  // near wrist (bar at chest)
+      [62, 82],  // spine
+      [82, 82],  // hips
+      [102, 76], // knee (feet flat)
+      [118, 70], // ankle
+      [122, 76], // toe
+      [44, 92],  // far shoulder
+      [50, 108], // far elbow
+      [44, 116], // far wrist
     ],
-    end: [ // arms extended up
-      [22, 78], [34, 78], [52, 68], [66, 44], [72, 28],
-      [70, 80], [90, 80], [105, 75], [116, 70], [118, 74],
-      [52, 88], [66, 112], [72, 128],
+    end: [ // arms locked out — bar straight up
+      [18, 80],
+      [30, 80],
+      [44, 80],
+      [44, 52],  // elbow straightening
+      [44, 18],  // wrist — bar fully overhead!
+      [62, 82],
+      [82, 82],
+      [102, 76],
+      [118, 70],
+      [122, 76],
+      [44, 92],
+      [44, 108],
+      [44, 116],
     ],
-    speed: 1.0,
+    speed: 0.9,
   },
 
   // ── OVERHEAD PRESS ──────────────────────────────────────────────────────────
   ohp: {
-    start: [ // bar at shoulders
-      [60, 12], [60, 24], [48, 34], [42, 46], [44, 34],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [70, 34], [76, 46], [74, 34],
+    start: [ // bar at shoulders, elbows forward
+      [60, 12], [60, 24], [46, 34], [44, 46], [46, 34],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [74, 46], [72, 34],
     ],
-    end: [ // bar overhead locked out
-      [60, 12], [60, 24], [48, 34], [48, 18], [50, 4],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [70, 34], [70, 18], [68, 4],
+    end: [ // bar locked out overhead — arms fully extended
+      [60, 12], [60, 24], [46, 34], [46, 20], [46, 4],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [72, 20], [72, 4],
     ],
     speed: 0.9,
   },
 
   // ── PULL-UP ─────────────────────────────────────────────────────────────────
   pullup: {
-    start: [ // dead hang
-      [60, 100], [60, 110], [50, 116], [44, 138], [44, 156],
-      [60, 128], [60, 148], [58, 168], [56, 174], [54, 176],
-      [68, 116], [74, 138], [74, 156],
+    start: [ // dead hang — arms straight overhead
+      [60, 110], [60, 120], [50, 108], [46, 90], [46, 72],
+      [60, 136], [60, 156], [56, 168], [54, 172], [52, 174],
+      [68, 108], [72, 90], [72, 72],
     ],
-    end: [ // chin at bar
-      [60, 30], [60, 40], [48, 18], [42, 10], [42, 4],
-      [60, 62], [60, 80], [58, 112], [56, 144], [54, 152],
-      [70, 18], [76, 10], [76, 4],
+    end: [ // chin above bar — body pulled up
+      [60, 30], [60, 42], [50, 16], [46, 8], [46, 4],
+      [60, 68], [60, 88], [58, 120], [56, 154], [54, 164],
+      [68, 16], [72, 8], [72, 4],
     ],
     speed: 1.3,
   },
 
-  // ── BARBELL ROW ─────────────────────────────────────────────────────────────
+  // ── ROW (barbell / cable) ───────────────────────────────────────────────────
   row: {
-    start: [ // arms extended down, bar hanging
-      [52, 70], [56, 60], [46, 50], [46, 78], [46, 100],
-      [62, 62], [68, 82], [66, 114], [64, 146], [62, 154],
-      [72, 48], [72, 76], [72, 98],
+    start: [ // hinged, arms hanging straight down
+      [44, 62], [50, 52], [40, 44], [42, 72], [44, 96],
+      [60, 62], [66, 84], [62, 116], [60, 150], [58, 158],
+      [70, 42], [72, 70], [74, 94],
     ],
-    end: [ // bar pulled to stomach
-      [52, 70], [56, 60], [46, 50], [36, 64], [38, 78],
-      [62, 62], [68, 82], [66, 114], [64, 146], [62, 154],
-      [72, 48], [80, 62], [80, 76],
+    end: [ // bar pulled to stomach, elbows back
+      [44, 62], [50, 52], [40, 44], [30, 58], [32, 72],
+      [60, 62], [66, 84], [62, 116], [60, 150], [58, 158],
+      [70, 42], [82, 56], [84, 70],
+    ],
+    speed: 1.0,
+  },
+
+  // ── LAT PULLDOWN ────────────────────────────────────────────────────────────
+  pulldown: {
+    start: [ // arms overhead reaching for bar
+      [60, 14], [60, 26], [46, 18], [44, 6], [44, 2],
+      [60, 58], [60, 78], [54, 110], [52, 140], [50, 150],
+      [72, 18], [74, 6], [74, 2],
+    ],
+    end: [ // bar pulled to upper chest, elbows driven down
+      [60, 14], [60, 26], [46, 34], [38, 54], [44, 42],
+      [60, 58], [60, 78], [54, 110], [52, 140], [50, 150],
+      [72, 34], [80, 54], [74, 42],
     ],
     speed: 1.0,
   },
 
   // ── BICEP CURL ──────────────────────────────────────────────────────────────
   curl: {
-    start: [ // arm extended down
-      [60, 12], [60, 24], [50, 34], [48, 54], [48, 74],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [70, 54], [70, 74],
+    start: [ // arm hanging straight down
+      [60, 12], [60, 24], [46, 34], [40, 58], [38, 80],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [78, 58], [80, 80],
     ],
-    end: [ // arm fully curled
-      [60, 12], [60, 24], [50, 34], [40, 46], [46, 30],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [76, 46], [70, 30],
+    end: [ // arm fully curled — wrist near shoulder
+      [60, 12], [60, 24], [46, 34], [36, 50], [42, 30],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [82, 50], [76, 30],
     ],
     speed: 0.8,
   },
 
   // ── TRICEP PUSHDOWN ─────────────────────────────────────────────────────────
   pushdown: {
-    start: [ // arms up, elbows bent
-      [60, 12], [60, 24], [50, 34], [42, 46], [48, 30],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [76, 46], [70, 30],
+    start: [ // elbows at sides, forearms bent up (rope at face)
+      [60, 12], [60, 24], [48, 34], [44, 52], [48, 34],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [70, 34], [74, 52], [70, 34],
     ],
-    end: [ // arms pushed down
-      [60, 12], [60, 24], [50, 34], [44, 48], [44, 68],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [74, 48], [74, 68],
+    end: [ // arms pushed straight down — full extension
+      [60, 12], [60, 24], [48, 34], [44, 52], [42, 76],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [70, 34], [74, 52], [76, 76],
     ],
-    speed: 0.7,
+    speed: 0.8,
+  },
+
+  // ── CABLE KICKBACK ──────────────────────────────────────────────────────────
+  kickback: {
+    start: [ // hinged forward, upper arm parallel to floor, forearm hanging down 90°
+      [30, 44], [42, 48], [56, 50], [78, 50], [74, 68],
+      [58, 66], [62, 84], [56, 116], [52, 148], [50, 156],
+      [60, 60], [80, 60], [76, 78],
+    ],
+    end: [ // arm fully extended BACK — forearm parallel to floor
+      [30, 44], [42, 48], [56, 50], [78, 50], [98, 46],
+      [58, 66], [62, 84], [56, 116], [52, 148], [50, 156],
+      [60, 60], [80, 60], [100, 56],
+    ],
+    speed: 0.8,
   },
 
   // ── PUSH-UP ─────────────────────────────────────────────────────────────────
   pushup: {
-    start: [ // chest to floor
-      [20, 74], [32, 72], [48, 66], [58, 80], [68, 88],
-      [68, 72], [88, 76], [104, 76], [116, 74], [118, 78],
-      [50, 76], [58, 90], [66, 100],
+    start: [ // chest near floor
+      [18, 78], [28, 76], [44, 72], [60, 78], [74, 96],
+      [66, 70], [86, 66], [104, 68], [118, 70], [122, 76],
+      [46, 82], [62, 88], [76, 104],
     ],
-    end: [ // arms extended
-      [20, 56], [30, 56], [46, 52], [60, 40], [70, 32],
-      [66, 58], [86, 62], [102, 64], [116, 64], [118, 68],
-      [48, 60], [60, 76], [70, 86],
+    end: [ // arms extended — body raised
+      [18, 58], [28, 58], [44, 54], [60, 50], [74, 86],
+      [66, 52], [86, 50], [104, 54], [118, 58], [122, 64],
+      [46, 64], [62, 60], [76, 94],
     ],
     speed: 0.9,
   },
@@ -173,25 +219,40 @@ export const EXERCISE_POSES: Record<string, ExercisePose> = {
   // ── LUNGE ───────────────────────────────────────────────────────────────────
   lunge: {
     start: STANDING,
-    end: [ // split stance, front knee bent
-      [52, 18], [54, 30], [44, 40], [40, 58], [40, 74],
-      [56, 62], [54, 82], [36, 108], [34, 140], [36, 148],
-      [70, 40], [74, 58], [76, 74],
+    end: [ // front knee bent deep, back knee near floor
+      [52, 16], [54, 28], [42, 38], [36, 58], [34, 74],
+      [54, 62], [50, 84], [26, 112], [30, 148], [36, 156],
+      [68, 38], [76, 58], [80, 74],
     ],
     speed: 1.1,
   },
 
-  // ── LEG PRESS (seated) ──────────────────────────────────────────────────────
+  // ── LEG PRESS (seated, reclined) ────────────────────────────────────────────
   legpress: {
     start: [ // legs bent, feet on plate
-      [20, 52], [28, 50], [44, 44], [50, 56], [62, 62],
-      [48, 58], [64, 68], [90, 62], [110, 56], [114, 60],
-      [46, 62], [56, 72], [68, 78],
+      [16, 56], [26, 56], [40, 50], [48, 62], [60, 68],
+      [46, 64], [60, 76], [86, 68], [108, 62], [116, 66],
+      [42, 64], [54, 74], [66, 80],
     ],
-    end: [ // legs extended
-      [20, 52], [28, 50], [44, 44], [50, 56], [62, 62],
-      [48, 58], [60, 70], [80, 88], [100, 80], [108, 82],
-      [46, 62], [56, 72], [68, 78],
+    end: [ // legs extended on plate
+      [16, 56], [26, 56], [40, 50], [48, 62], [60, 68],
+      [46, 64], [58, 78], [82, 94], [106, 84], [116, 88],
+      [42, 64], [54, 74], [66, 80],
+    ],
+    speed: 1.0,
+  },
+
+  // ── HIP THRUST ──────────────────────────────────────────────────────────────
+  hipthrust: {
+    start: [ // hips low, shoulders on bench
+      [22, 58], [30, 62], [44, 60], [56, 72], [68, 80],
+      [52, 74], [68, 90], [90, 96], [108, 86], [116, 90],
+      [46, 68], [60, 80], [72, 88],
+    ],
+    end: [ // hips fully extended, body in straight line
+      [22, 44], [30, 50], [42, 48], [54, 60], [66, 70],
+      [48, 60], [62, 64], [86, 70], [108, 76], [116, 80],
+      [44, 56], [58, 68], [70, 78],
     ],
     speed: 1.0,
   },
@@ -199,101 +260,82 @@ export const EXERCISE_POSES: Record<string, ExercisePose> = {
   // ── LATERAL RAISE ───────────────────────────────────────────────────────────
   lateralraise: {
     start: [ // arms at sides
-      [60, 12], [60, 24], [50, 34], [44, 52], [42, 68],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [74, 52], [76, 68],
+      [60, 12], [60, 24], [46, 34], [40, 56], [38, 74],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [78, 56], [80, 74],
     ],
-    end: [ // arms raised to 90°
-      [60, 12], [60, 24], [50, 34], [34, 34], [22, 34],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [82, 34], [94, 34],
+    end: [ // arms raised to shoulder height — T-pose
+      [60, 12], [60, 24], [46, 34], [24, 34], [10, 34],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [72, 34], [92, 34], [106, 34],
     ],
     speed: 0.8,
   },
 
-  // ── HIP THRUST ──────────────────────────────────────────────────────────────
-  hipthrust: {
-    start: [ // hips low, seated against bench
-      [30, 52], [36, 54], [48, 50], [56, 62], [66, 70],
-      [54, 68], [72, 82], [96, 84], [112, 76], [116, 80],
-      [50, 60], [60, 72], [70, 80],
-    ],
-    end: [ // hips at full extension
-      [28, 36], [34, 42], [44, 40], [52, 54], [62, 64],
-      [50, 54], [66, 56], [90, 62], [108, 70], [112, 76],
-      [46, 50], [56, 64], [66, 74],
-    ],
-    speed: 1.0,
-  },
-
-  // ── RDL / HINGE ─────────────────────────────────────────────────────────────
+  // ── RDL / HIP HINGE ─────────────────────────────────────────────────────────
   hinge: {
-    start: [ // top of movement, standing
-      [62, 14], [62, 26], [52, 36], [46, 54], [44, 70],
-      [62, 58], [62, 78], [60, 110], [58, 142], [56, 150],
-      [70, 36], [74, 54], [76, 70],
+    start: STANDING,
+    end: [ // hinged forward, bar at shin level
+      [44, 66], [50, 56], [38, 46], [40, 74], [44, 96],
+      [58, 62], [62, 84], [58, 118], [56, 152], [54, 160],
+      [68, 44], [70, 72], [74, 94],
     ],
-    end: [ // hinge, bar at shins
-      [50, 72], [54, 62], [44, 54], [44, 80], [48, 100],
-      [60, 66], [66, 86], [66, 118], [64, 150], [62, 158],
-      [72, 52], [72, 78], [68, 98],
-    ],
-    speed: 1.2,
+    speed: 1.1,
   },
 
-  // ── GENERIC PUSH (default for push exercises) ───────────────────────────────
+  // ── GENERIC PUSH ────────────────────────────────────────────────────────────
   generic_push: {
     start: STANDING,
-    end: [ // arms extended forward
-      [60, 12], [60, 24], [50, 34], [44, 44], [32, 44],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [74, 44], [86, 44],
+    end: [ // arms punching forward — clear movement
+      [60, 12], [60, 24], [48, 34], [40, 44], [22, 44],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [70, 34], [78, 44], [94, 44],
     ],
     speed: 0.9,
   },
 
   // ── GENERIC PULL ────────────────────────────────────────────────────────────
   generic_pull: {
-    start: [ // arms reaching
-      [60, 12], [60, 24], [50, 34], [44, 44], [32, 44],
-      [60, 56], [60, 76], [58, 108], [56, 140], [54, 148],
-      [68, 34], [74, 44], [86, 44],
+    start: [ // arms reaching forward
+      [60, 12], [60, 24], [48, 34], [40, 44], [22, 44],
+      [60, 58], [60, 80], [54, 114], [52, 148], [50, 158],
+      [70, 34], [78, 44], [94, 44],
     ],
     end: STANDING,
     speed: 0.9,
   },
 };
 
-// Map exercise names and categories to pose keys
+// ── EXERCISE → POSE KEY MAPPING ────────────────────────────────────────────
 export function getPoseKey(exerciseName: string, muscleGroup: string, equipmentType?: string): string {
   const n = exerciseName.toLowerCase();
   const m = muscleGroup.toLowerCase();
-  const e = (equipmentType ?? '').toLowerCase();
 
-  // Specific exercises first
-  if (n.includes('squat') && !n.includes('leg press') && !n.includes('goblet')) return 'squat';
+  // Specific name matches (order matters — most specific first)
+  if (n.includes('kickback'))                                               return 'kickback';
+  if (n.includes('squat') && !n.includes('leg press'))                     return 'squat';
   if (n.includes('deadlift') && !n.includes('rdl') && !n.includes('romanian')) return 'deadlift';
-  if (n.includes('bench press') && !n.includes('close grip')) return 'bench';
-  if (n.includes('floor press')) return 'bench';
-  if (n.includes('overhead press') || n.includes('ohp') || n.includes('military')) return 'ohp';
-  if (n.includes('pull-up') || n.includes('pullup') || n.includes('chin-up') || n.includes('pull up')) return 'pullup';
-  if (n.includes('muscle-up') || n.includes('muscle up')) return 'pullup';
-  if (n.includes('push-up') || n.includes('push up')) return 'pushup';
+  if (n.includes('bench press') || n.includes('floor press'))              return 'bench';
+  if (n.includes('overhead press') || n.includes('ohp') || n.includes('military press')) return 'ohp';
+  if (n.includes('pull-up') || n.includes('pullup') || n.includes('chin'))return 'pullup';
+  if (n.includes('muscle-up') || n.includes('muscle up'))                  return 'pullup';
+  if (n.includes('push-up') || n.includes('push up'))                      return 'pushup';
   if (n.includes('hip thrust') || n.includes('glute bridge') || n.includes('kas glute')) return 'hipthrust';
   if (n.includes('rdl') || n.includes('romanian') || n.includes('good morning')) return 'hinge';
   if (n.includes('lunge') || n.includes('split squat') || n.includes('step-up')) return 'lunge';
-  if (n.includes('leg press')) return 'legpress';
-  if (n.includes('lateral raise')) return 'lateralraise';
-  if (n.includes('curl') && !n.includes('glute')) return 'curl';
+  if (n.includes('leg press'))                                              return 'legpress';
+  if (n.includes('lateral raise') || n.includes('side raise'))             return 'lateralraise';
+  if (n.includes('pulldown') || n.includes('pull down') || n.includes('lat pulldown')) return 'pulldown';
+  if (n.includes('curl') && !n.includes('glute'))                          return 'curl';
   if (n.includes('pushdown') || n.includes('extension') && m.includes('tricep')) return 'pushdown';
-  if (n.includes('row') || n.includes('pulldown') || n.includes('pull down')) return 'row';
-  if (n.includes('t-bar') || n.includes('pendlay')) return 'row';
-  if (n.includes('swing') || n.includes('hinge')) return 'hinge';
+  if (n.includes('row') || n.includes('pendlay') || n.includes('t-bar'))   return 'row';
+  if (n.includes('swing') || n.includes('back extension'))                  return 'hinge';
 
   // Category fallbacks
-  if (m.includes('chest') || m.includes('tricep') || m.includes('shoulder')) return 'generic_push';
-  if (m.includes('back') || m.includes('lat') || m.includes('bicep')) return 'generic_pull';
+  if (m.includes('chest') || m.includes('tricep'))                         return 'generic_push';
+  if (m.includes('back') || m.includes('lat') || m.includes('bicep'))      return 'generic_pull';
   if (m.includes('quad') || m.includes('hamstring') || m.includes('glute')) return 'squat';
+  if (m.includes('shoulder'))                                               return 'lateralraise';
 
   return 'generic_push';
 }
