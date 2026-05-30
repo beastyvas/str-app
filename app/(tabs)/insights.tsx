@@ -36,6 +36,11 @@ export default function InsightsTab() {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [parsedWorkouts, setParsedWorkouts] = useState<ParsedWorkout[] | null>(null);
+  const [allExercises, setAllExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
+  // Exercise picker modal
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
 
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
@@ -114,16 +119,36 @@ ${context}`;
     try {
       const { data: exercises } = await supabase
         .from('exercises')
-        .select('id, name');
+        .select('id, name, muscle_group')
+        .order('name');
+      setAllExercises(exercises ?? []);
       const workouts = parseWorkoutLog(importText, exercises ?? []);
       if (workouts.length === 0) {
-        Alert.alert('Nothing found', 'Could not detect any workouts. Make sure each exercise has sets in "Weight x Reps" format.');
+        Alert.alert('Nothing found', 'Could not detect any workouts. Make sure exercises have sets in "Weight x Reps" format.');
         return;
       }
       setParsedWorkouts(workouts);
     } finally {
       setParsing(false);
     }
+  };
+
+  // Manually match an exercise from the picker
+  const handlePickExercise = (ex: { id: string; name: string }) => {
+    if (!pickingTarget || !parsedWorkouts) return;
+    const { wi, ei } = pickingTarget;
+    const updated = parsedWorkouts.map((w, wIdx) => ({
+      ...w,
+      exercises: w.exercises.map((e, eIdx) =>
+        wIdx === wi && eIdx === ei
+          ? { ...e, matchedName: ex.name, matchedId: ex.id }
+          : e
+      ),
+    }));
+    setParsedWorkouts(updated);
+    setPickerOpen(false);
+    setPickerSearch('');
+    setPickingTarget(null);
   };
 
   const handleSaveImport = async () => {
@@ -401,13 +426,11 @@ ${context}`;
                   </TouchableOpacity>
                 </View>
 
-                {/* Summary */}
-                <View style={{
-                  flexDirection: 'row', gap: 10, marginBottom: 16,
-                }}>
+                {/* Summary row */}
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                   {[
                     { label: 'Workouts', value: parsedWorkouts.length },
-                    { label: 'Exercises', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
+                    { label: 'Matched', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
                     { label: 'Sets', value: parsedWorkouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) },
                   ].map((s, i) => (
                     <View key={i} style={{
@@ -420,67 +443,144 @@ ${context}`;
                   ))}
                 </View>
 
-                {parsedWorkouts.map((w, wi) => {
-                  const matched = w.exercises.filter(e => e.matchedId);
-                  const unmatched = w.exercises.filter(e => !e.matchedId);
-                  return (
-                    <View key={wi} style={{
-                      backgroundColor: Colors.surface,
-                      borderRadius: 14,
-                      marginBottom: 10,
-                      borderWidth: 1,
-                      borderColor: Colors.border,
-                      overflow: 'hidden',
+                {parsedWorkouts.map((w, wi) => (
+                  <View key={wi} style={{
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                    overflow: 'hidden',
+                  }}>
+                    {/* Workout header */}
+                    <View style={{
+                      padding: 14,
+                      borderBottomWidth: 1,
+                      borderBottomColor: Colors.border,
                     }}>
-                      {/* Workout header */}
-                      <View style={{
-                        flexDirection: 'row', justifyContent: 'space-between',
-                        alignItems: 'center', padding: 14,
-                        borderBottomWidth: matched.length > 0 ? 1 : 0,
-                        borderBottomColor: Colors.border,
-                      }}>
-                        <View>
-                          <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
-                            {w.name.length > 40 ? w.name.slice(0, 40) + '…' : w.name}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                            {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700' }}>
-                            {matched.length} saved
-                          </Text>
-                          {unmatched.length > 0 && (
-                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                              {unmatched.length} skipped
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-
-                      {/* Matched exercises */}
-                      {matched.map((ex, ei) => (
-                        <View key={ei} style={{
-                          flexDirection: 'row', alignItems: 'center',
-                          paddingHorizontal: 14, paddingVertical: 8,
-                          borderBottomWidth: ei < matched.length - 1 ? 1 : 0,
-                          borderBottomColor: Colors.border,
-                          gap: 10,
-                        }}>
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.success }} />
-                          <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
-                            {ex.matchedName}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                            {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
-                            {ex.sets[0] ? ` · top ${ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0)} lbs` : ''}
-                          </Text>
-                        </View>
-                      ))}
+                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                        {w.name}
+                      </Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                        {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
                     </View>
-                  );
-                })}
+
+                    {/* All exercises — matched and unmatched */}
+                    {w.exercises.map((ex, ei) => {
+                      const isMatched = !!ex.matchedId;
+                      const topWeight = ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0);
+                      return (
+                        <TouchableOpacity
+                          key={ei}
+                          onPress={() => {
+                            setPickingTarget({ wi, ei });
+                            setPickerSearch(isMatched ? '' : ex.rawName.replace(/^[∙•\s\t]+/, '').split('—')[0].trim());
+                            setPickerOpen(true);
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingHorizontal: 14,
+                            paddingVertical: 10,
+                            borderBottomWidth: ei < w.exercises.length - 1 ? 1 : 0,
+                            borderBottomColor: Colors.border,
+                            gap: 10,
+                          }}
+                        >
+                          <View style={{
+                            width: 8, height: 8, borderRadius: 4,
+                            backgroundColor: isMatched ? Colors.success : Colors.gold,
+                          }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              color: isMatched ? Colors.text : Colors.gold,
+                              fontSize: 13, fontWeight: '600',
+                            }}>
+                              {ex.matchedName}
+                            </Text>
+                            {!isMatched && ex.rawName !== ex.matchedName && (
+                              <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 1 }} numberOfLines={1}>
+                                "{ex.rawName.replace(/^[∙•\s\t]+/, '').slice(0, 50)}"
+                              </Text>
+                            )}
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                              {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
+                              {topWeight > 0 ? ` · ${topWeight} lbs` : ''}
+                            </Text>
+                            <Text style={{
+                              color: isMatched ? Colors.textMuted : Colors.gold,
+                              fontSize: 10, marginTop: 2,
+                            }}>
+                              {isMatched ? 'tap to change' : 'tap to match →'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+
+                {/* Exercise picker modal */}
+                {pickerOpen && (
+                  <View style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: Colors.bg, zIndex: 100,
+                  }}>
+                    <View style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12,
+                    }}>
+                      <TextInput
+                        value={pickerSearch}
+                        onChangeText={setPickerSearch}
+                        placeholder="Search exercises..."
+                        placeholderTextColor={Colors.textMuted}
+                        autoFocus
+                        style={{
+                          flex: 1,
+                          backgroundColor: Colors.surface2,
+                          borderRadius: 10,
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          color: Colors.text,
+                          fontSize: 15,
+                          borderWidth: 1,
+                          borderColor: Colors.border,
+                        }}
+                      />
+                      <TouchableOpacity onPress={() => { setPickerOpen(false); setPickerSearch(''); }}>
+                        <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 14 }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                      {allExercises
+                        .filter(e => !pickerSearch.trim() || e.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+                        .map(ex => (
+                          <TouchableOpacity
+                            key={ex.id}
+                            onPress={() => handlePickExercise(ex)}
+                            style={{
+                              paddingHorizontal: 20,
+                              paddingVertical: 14,
+                              borderBottomWidth: 1,
+                              borderBottomColor: Colors.border,
+                            }}
+                          >
+                            <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>
+                              {ex.name}
+                            </Text>
+                            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                              {ex.muscle_group}
+                            </Text>
+                          </TouchableOpacity>
+                        ))
+                      }
+                    </ScrollView>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   onPress={handleSaveImport}
