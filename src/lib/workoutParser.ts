@@ -1,5 +1,5 @@
-// Workout log parser — built for real gym log formats
-// Handles: "1 set of 75x10 for working set (rpe 9, note)", plates, bw, bar
+// Workout log parser v3 — built for real messy gym logs
+// Primary format: "1 set of WEIGHTxREPS for working set (rpe X, note)"
 
 export interface ParsedSet {
   weight: number;
@@ -21,56 +21,44 @@ export interface ParsedWorkout {
   exercises: ParsedExercise[];
 }
 
-// ── WEIGHT CONVERSION ──────────────────────────────────────────────────────
+// ── WEIGHT HELPERS ─────────────────────────────────────────────────────────
 
-// "3.25plates" → (2 * 3.25 + 1) * 45 = 337.5 lbs (standard barbell plates)
-function platesToLbs(plates: number): number {
-  return Math.round((2 * plates + 1) * 45 * 10) / 10;
+// "3.25plates" → 337.5 lbs  (standard: N plates/side on 45lb bar)
+function platesToLbs(n: number): number {
+  return Math.round((2 * n + 1) * 45 * 10) / 10;
 }
 
 function parseWeight(raw: string): number | null {
   const s = raw.toLowerCase().trim();
   if (s === 'bw' || s === 'bodyweight' || s === 'bwt') return 0;
-  if (s === 'bar' || s === 'barbell') return 45;
-
-  // "3.25plates" or "3plates"
-  const platesMatch = s.match(/^(\d+(?:\.\d+)?)\s*plates?$/);
-  if (platesMatch) return platesToLbs(parseFloat(platesMatch[1]));
-
-  // Plain number
-  const num = parseFloat(s);
-  if (!isNaN(num) && num >= 0) return num;
-
-  return null;
+  if (s === 'bar' || s === 'barbell' || s === 'empty bar') return 45;
+  const pm = s.match(/^(\d+(?:\.\d+)?)\s*plates?$/);
+  if (pm) return platesToLbs(parseFloat(pm[1]));
+  const n = parseFloat(s);
+  return isNaN(n) || n < 0 ? null : n;
 }
 
-// ── RPE PARSING ────────────────────────────────────────────────────────────
+// ── RPE ────────────────────────────────────────────────────────────────────
 
 function parseRPE(str: string): number | undefined {
   const s = str.toLowerCase();
-  // "rpe fail" / "rpe FAIL" → 10
-  if (/rpe\s*(fail|failure|f\b)/.test(s)) return 10;
-  // "rpe 9", "rpe9", "rpe 9.5", "@9"
+  if (/rpe\s*(fail|failure)\b/.test(s)) return 10;
   const m = s.match(/(?:rpe\s*|@\s*)(\d+(?:\.\d+)?)/);
   if (m) {
     const v = parseFloat(m[1]);
-    if (v >= 1 && v <= 10) return v;
+    return v >= 1 && v <= 10 ? v : undefined;
   }
   return undefined;
 }
 
-// ── REP PARSING ────────────────────────────────────────────────────────────
+// ── REPS ───────────────────────────────────────────────────────────────────
 
-// "11/10" → 11 (full reps, ignore partials)
-// "12,3" → 12 (take first number)
-// "8.5" → 8
-// "12.5" → 12
+// "11/10" → 11, "12,3" → 12, "8.5" → 8, "9.5" → 9
 function parseReps(raw: string): number {
-  const first = raw.split(/[\/,]/)[0].trim();
-  return Math.floor(parseFloat(first));
+  return Math.floor(parseFloat(raw.split(/[\/,]/)[0].trim()));
 }
 
-// ── ABBREVIATION DICTIONARY ────────────────────────────────────────────────
+// ── EXERCISE ABBREVIATIONS ─────────────────────────────────────────────────
 
 const ABBREV: Record<string, string> = {
   // Chest
@@ -81,12 +69,9 @@ const ABBREV: Record<string, string> = {
   'flat db press': 'Dumbbell Bench Press',
   'db bench': 'Dumbbell Bench Press',
   'dumbbell bench': 'Dumbbell Bench Press',
-  'db press': 'Dumbbell Bench Press',
   'incline bench': 'Incline Barbell Bench Press',
   'incline bp': 'Incline Barbell Bench Press',
-  'incline press': 'Incline Barbell Bench Press',
   'incline db': 'Incline Dumbbell Press',
-  'incline dumbbell': 'Incline Dumbbell Press',
   'incline db press': 'Incline Dumbbell Press',
   'isolateral incline': 'Incline Machine Press',
   'isolateral incline machine': 'Incline Machine Press',
@@ -103,8 +88,6 @@ const ABBREV: Record<string, string> = {
   'seated db press': 'Dumbbell Shoulder Press',
   'db shoulder press': 'Dumbbell Shoulder Press',
   'db ohp': 'Dumbbell Shoulder Press',
-  'shoulder press': 'Dumbbell Shoulder Press',
-  'dumbbell shoulder press': 'Dumbbell Shoulder Press',
   'lateral raise': 'Dumbbell Lateral Raise',
   'laterals': 'Dumbbell Lateral Raise',
   'lat raise': 'Dumbbell Lateral Raise',
@@ -120,8 +103,6 @@ const ABBREV: Record<string, string> = {
   'pullup': 'Pullups',
   'pullups': 'Pullups',
   'pull up': 'Pullups',
-  'pull ups': 'Pullups',
-  'chinup': 'Pullups',
   'assisted pull-up': 'Pullups',
   'assisted pullup': 'Pullups',
   'lat pulldown': 'Lat Pulldowns',
@@ -132,13 +113,13 @@ const ABBREV: Record<string, string> = {
   'bent over row': 'Barbell Row',
   'pendlay': 'Pendlay Row',
   't-bar': 'T-Bar Row',
-  'tbar': 'T-Bar Row',
   'cable row': 'Seated Cable Row',
   'seated row': 'Seated Cable Row',
   'seated cable row': 'Seated Cable Row',
-  'isolateral row': 'Seated Cable Row',        // closest match
+  'isolateral row': 'Seated Cable Row',
   'isolateral low row': 'Seated Cable Row',
   'iso lateral row': 'Seated Cable Row',
+  'iso row': 'Seated Cable Row',
   // Biceps
   'curl': 'Bicep Curl',
   'curls': 'Bicep Curl',
@@ -152,12 +133,11 @@ const ABBREV: Record<string, string> = {
   'cable curl': 'Cable Curl',
   'concentration curl': 'Concentration Curl',
   // Triceps
-  'skullcrusher': 'Skull Crushers',
   'skull crusher': 'Skull Crushers',
   'skull crushers': 'Skull Crushers',
+  'skullcrusher': 'Skull Crushers',
   'cgbp': 'Close Grip Bench Press',
   'close grip': 'Close Grip Bench Press',
-  'tricep pushdown': 'Overhand Pushdowns',
   'pushdowns': 'Overhand Pushdowns',
   'cable extension': 'Standing Cable Extension',
   'overhead extension': 'Katana Extensions',
@@ -168,7 +148,6 @@ const ABBREV: Record<string, string> = {
   'squat': 'Barbell Back Squats',
   'squats': 'Barbell Back Squats',
   'back squat': 'Barbell Back Squats',
-  'bb squat': 'Barbell Back Squats',
   'hack squat': 'Hack Squats',
   'leg press': 'Leg Press',
   'leg extension': 'Leg Extensions',
@@ -197,6 +176,7 @@ const ABBREV: Record<string, string> = {
   'back extension': 'Glute Focused Back Extension',
   'glute focused back extension': 'Glute Focused Back Extension',
   'glute back extension': 'Glute Focused Back Extension',
+  'glute focused back ext': 'Glute Focused Back Extension',
   // Deadlifts
   'dl': 'Deadlifts',
   'deadlift': 'Deadlifts',
@@ -204,39 +184,47 @@ const ABBREV: Record<string, string> = {
   'conventional': 'Deadlifts',
 };
 
+// ── EXERCISE NAME MATCHING ──────────────────────────────────────────────────
+
 export function matchExerciseName(
   raw: string,
   dbExercises: { id: string; name: string }[]
 ): { matchedName: string; matchedId: string | null } {
-  // Strip leading bullets, trailing rep schemes, extra whitespace
-  let normalized = raw
-    .replace(/^[∙•\-\*\s]+/, '')             // leading bullets
-    .replace(/\s*[—\-]+\s*\d+[×x]\d+.*$/, '') // "— 4×8-10" rep scheme
-    .replace(/\s*\d+[×x]\d+.*$/, '')           // "3×8" rep scheme
-    .replace(/\(.*\)$/, '')                    // trailing parens
-    .toLowerCase()
+  // Strip bullets, tab characters, rep schemes, trailing info
+  const cleaned = raw
+    .replace(/[\t]/g, ' ')
+    .replace(/^[\s∙•\-\*]+/, '')          // leading bullets/spaces
+    .replace(/\s*[—–\-]+\s*\d+.*$/, '')   // trailing "— 4×8-10"
+    .replace(/\s*\d+\s*[x×]\s*\d+.*$/, '') // trailing "3×8-10"
+    .replace(/\(.*?\)/g, '')               // parentheses
+    .replace(/\s+/g, ' ')
     .trim();
 
-  // Exact abbrev match
+  const normalized = cleaned.toLowerCase();
+
+  // Exact abbrev
   if (ABBREV[normalized]) {
     const name = ABBREV[normalized];
     const db = dbExercises.find(e => e.name.toLowerCase() === name.toLowerCase());
     return { matchedName: name, matchedId: db?.id ?? null };
   }
 
-  // Exact DB match
-  const exact = dbExercises.find(e => e.name.toLowerCase() === normalized);
-  if (exact) return { matchedName: exact.name, matchedId: exact.id };
-
-  // Partial abbrev match (abbrev is contained in normalized or vice versa)
-  for (const [abbr, name] of Object.entries(ABBREV)) {
-    if (normalized.includes(abbr) || abbr.includes(normalized)) {
+  // Try progressively shorter substrings of normalized (handles extra words)
+  const words = normalized.split(/\s+/);
+  for (let len = words.length; len >= 2; len--) {
+    const sub = words.slice(0, len).join(' ');
+    if (ABBREV[sub]) {
+      const name = ABBREV[sub];
       const db = dbExercises.find(e => e.name.toLowerCase() === name.toLowerCase());
       return { matchedName: name, matchedId: db?.id ?? null };
     }
   }
 
-  // DB contains match
+  // Exact DB
+  const exact = dbExercises.find(e => e.name.toLowerCase() === normalized);
+  if (exact) return { matchedName: exact.name, matchedId: exact.id };
+
+  // DB contains
   const contains = dbExercises.find(e =>
     e.name.toLowerCase().includes(normalized) || normalized.includes(e.name.toLowerCase())
   );
@@ -244,174 +232,140 @@ export function matchExerciseName(
 
   // Word overlap
   const rawWords = normalized.split(/\s+/).filter(w => w.length > 2);
-  let bestScore = 0, bestMatch: typeof dbExercises[0] | null = null;
+  let best = 0, bestEx: typeof dbExercises[0] | null = null;
   for (const ex of dbExercises) {
     const exWords = ex.name.toLowerCase().split(/\s+/);
     const score = rawWords.filter(w => exWords.some(e => e.includes(w) || w.includes(e))).length;
-    if (score > bestScore) { bestScore = score; bestMatch = ex; }
+    if (score > best) { best = score; bestEx = ex; }
   }
-  if (bestScore >= 1 && bestMatch) return { matchedName: bestMatch.name, matchedId: bestMatch.id };
+  if (best >= 1 && bestEx) return { matchedName: bestEx.name, matchedId: bestEx.id };
 
-  const titleCase = raw.trim().replace(/^[∙•\-\*]+\s*/, '').replace(/\b\w/g, c => c.toUpperCase());
-  return { matchedName: titleCase, matchedId: null };
+  // No match — use cleaned name
+  return {
+    matchedName: cleaned.replace(/\b\w/g, c => c.toUpperCase()) || raw.trim(),
+    matchedId: null,
+  };
 }
 
-// ── SET LINE PARSER ────────────────────────────────────────────────────────
+// ── SET LINE PARSER ─────────────────────────────────────────────────────────
 
-// Parses: "1 set of 75x11/10 for working set (rpe fail, FANTASTIC)"
-// Also handles: "225x5", "225x5x3", "3.25platesx8"
 function parseSetLine(line: string): ParsedSet | null {
-  const lower = line.toLowerCase();
-
-  // Skip lines that are clearly not sets
-  if (/^\s*(skipped|skip|rest|core|mobility|warmup note|•|∙)/.test(lower)) return null;
-  if (/^\s*\d+\s+(min|minute|sec|second)/.test(lower)) return null;
-
-  // Format: "N set(s) of WEIGHTxREPS for TYPE (notes)"
+  // "N set(s) of WEIGHTxREPS for working set (notes)"
   const longForm = line.match(
-    /\d+\s+sets?\s+of\s+([a-z0-9._]+)x([\d.,\/]+(?:\.5)?)\s+for\s+(warmup|working set|work)(.*)/i
+    /\d+\s+sets?\s+of\s+([a-z0-9._]+)x([\d.,\/]+)\s+for\s+(?:warmup|working\s+set|work)(.*)/i
   );
   if (longForm) {
-    const weightStr = longForm[1];
-    const repStr = longForm[2];
-    const type = longForm[3].toLowerCase();
-    const notes = longForm[4] ?? '';
-
-    const weight = parseWeight(weightStr);
+    const weight = parseWeight(longForm[1]);
     if (weight === null) return null;
-    const reps = parseReps(repStr);
+    const reps = parseReps(longForm[2]);
     if (reps <= 0 || reps > 100) return null;
-
-    const rpe = parseRPE(notes);
-    const noteText = notes
+    const tail = longForm[3] ?? '';
+    const rpe = parseRPE(tail);
+    const note = tail
       .replace(/\(|\)/g, '')
       .replace(/rpe\s*(fail|failure|\d+(?:\.\d+)?)/gi, '')
       .replace(/[,\s]+/g, ' ')
-      .trim();
-
-    return {
-      weight,
-      reps,
-      rpe,
-      note: noteText.length > 3 ? noteText.substring(0, 80) : undefined,
-    };
+      .trim()
+      .slice(0, 80) || undefined;
+    return { weight, reps, rpe, note: note && note.length > 2 ? note : undefined };
   }
 
-  // Short format: "225x5", "225x5x3", "3.25platesx8", "bwx10"
-  const shortForm = line.trim().match(/^([a-z0-9._]+)x([\d.]+)(?:x(\d+))?/i);
-  if (shortForm && !line.toLowerCase().includes('warmup')) {
+  // Short: "225x5", "3.25platesx8"
+  const shortForm = line.trim().match(/^([a-z0-9._]+)x([\d.\/,]+)(?:x(\d+))?$/i);
+  if (shortForm) {
     const weight = parseWeight(shortForm[1]);
     if (weight === null) return null;
-    const reps = Math.floor(parseFloat(shortForm[2]));
+    const reps = parseReps(shortForm[2]);
     if (reps <= 0 || reps > 100) return null;
-    const rpe = parseRPE(line);
-    return { weight, reps, rpe };
+    return { weight, reps, rpe: parseRPE(line) };
   }
 
   return null;
 }
 
-// ── DATE DETECTION ─────────────────────────────────────────────────────────
+// ── DATE DETECTION ──────────────────────────────────────────────────────────
 
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
 export function detectDate(line: string): Date | null {
-  const trimmed = line.trim();
+  const t = line.trim();
 
   // MM/DD/YYYY or MM/DD/YY
-  const m1 = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
-  if (m1) {
-    let [, mo, dy, yr] = m1;
-    let year = parseInt(yr);
+  const m = t.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if (m) {
+    let year = parseInt(m[3]);
     if (year < 100) year += 2000;
-    const date = new Date(year, parseInt(mo) - 1, parseInt(dy));
-    if (!isNaN(date.getTime())) return date;
+    const d = new Date(year, parseInt(m[1]) - 1, parseInt(m[2]));
+    if (!isNaN(d.getTime())) return d;
   }
 
-  const l = trimmed.toLowerCase();
-
-  // "April 2, 2024" / "April 2"
-  for (let i = 0; i < MONTHS.length; i++) {
-    if (l.startsWith(MONTHS[i])) {
-      const rest = l.slice(MONTHS[i].length).trim();
-      const dayMatch = rest.match(/^\.?\s*(\d{1,2})/);
-      if (dayMatch) {
-        const yearMatch = rest.match(/(\d{4})/);
-        const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear();
-        return new Date(year, i, parseInt(dayMatch[1]));
+  // "April 2, 2024"
+  const l = t.toLowerCase();
+  for (let i = 0; i < MONTH_NAMES.length; i++) {
+    if (l.startsWith(MONTH_NAMES[i])) {
+      const rest = l.slice(MONTH_NAMES[i].length).trim();
+      const dm = rest.match(/^\.?\s*(\d{1,2})/);
+      if (dm) {
+        const ym = rest.match(/(\d{4})/);
+        return new Date(ym ? parseInt(ym[1]) : new Date().getFullYear(), i, parseInt(dm[1]));
       }
-    }
-  }
-
-  // Day name lines: "MON — Upper..." or "TUE — Lower..."
-  for (const day of DAYS) {
-    if (l.startsWith(day)) {
-      // Has embedded date?
-      const embedded = trimmed.match(/(\d{1,2})[\/\-](\d{1,2})/);
-      if (embedded) {
-        return new Date(new Date().getFullYear(), parseInt(embedded[1]) - 1, parseInt(embedded[2]));
-      }
-      // Just a day name — return null, wait for explicit date
-      return null;
     }
   }
 
   return null;
 }
 
-// ── EXERCISE LINE DETECTION ────────────────────────────────────────────────
+// ── LINE CLASSIFIERS ────────────────────────────────────────────────────────
 
-function isExerciseLine(line: string): boolean {
-  const trimmed = line.trim();
-  // Bullet point style: "∙ Bulgarian Split Squat" or "• Hip Thrust"
-  if (/^[∙•]/.test(trimmed)) return true;
-  // Pure letter line with no numbers (possible exercise header without bullet)
-  if (/^[a-zA-Z]/.test(trimmed) && !/\d+\s*[x×]\s*\d+/.test(trimmed) && !/\d+\s+set/.test(trimmed.toLowerCase())) {
-    const words = trimmed.split(/\s+/);
-    const letterWords = words.filter(w => /[a-zA-Z]{2,}/.test(w));
-    return letterWords.length >= 1;
-  }
-  return false;
+function isBulletExerciseLine(line: string): boolean {
+  // Lines starting with bullet chars (after trimming tabs/spaces)
+  return /^[\t\s]*[∙•]/.test(line);
 }
 
 function isWorkoutHeader(line: string): boolean {
-  const l = line.toLowerCase().trim();
-  // "TUE — Lower (Quad Focus)" or "MON — Upper (Chest Focus)"
-  return /^(mon|tue|wed|thu|fri|sat|sun)\w*\s*[—\-]/.test(l) ||
-    /\b(upper|lower|push|pull|legs?|chest|back|shoulder|arm)\b.*focus/i.test(line);
+  const t = line.trim();
+  // Must NOT start with a digit (rules out set lines)
+  if (/^\d/.test(t)) return false;
+  // "MON — Upper" / "TUE — Lower (Quad Focus)"
+  if (/^(mon|tue|wed|thu|fri|sat|sun)\w*[\s\t]*[—–\-]/i.test(t)) return true;
+  // "Upper (Chest Focus)" etc — but only if it's a short line with no set data
+  if (/\b(upper|lower|push|pull|leg|chest|back|shoulder|arm)\b/i.test(t) &&
+      /\b(focus|day|session)\b/i.test(t) &&
+      t.length < 60 &&
+      !/\d+\s+set\s+of/i.test(t)) return true;
+  return false;
 }
 
 function isWarmupLine(line: string): boolean {
-  return /for warmup/i.test(line) || /warmup set/i.test(line);
+  return /for\s+warmup/i.test(line) || /warmup\s+set/i.test(line);
 }
 
 function isSkipLine(line: string): boolean {
-  const l = line.toLowerCase().trim();
-  return l.startsWith('skipped') || l.startsWith('skip') ||
-    l.startsWith('workings') || l.startsWith('working') ||
-    l.startsWith('core') || l.startsWith('mobility') ||
-    l.startsWith('stairmaster') || l.startsWith('cardio') ||
-    /^\d+\s+(min|sec|minute)/.test(l) ||
-    l.length > 200; // very long lines are usually journal entries
+  const t = line.trim().toLowerCase();
+  // Very long lines are journal entries
+  if (t.length > 150) return true;
+  if (/^(skipped|skip\b|workings?$|workings\s*$)/.test(t)) return true;
+  if (/^(core\b|mobility\b|cardio\b|stairmaster|paloff|hollow|kettlebell)/.test(t)) return true;
+  if (/^\d+\s+(min|sec|minute|second)/.test(t)) return true;
+  if (/^(full\s+\d+|mobility\s+full|✅|deadlift\s+intermission)/.test(t)) return true;
+  return false;
 }
 
-// ── MAIN PARSER ────────────────────────────────────────────────────────────
+// ── MAIN PARSER ─────────────────────────────────────────────────────────────
 
 export function parseWorkoutLog(
   text: string,
   dbExercises: { id: string; name: string }[]
 ): ParsedWorkout[] {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split('\n').filter(l => l.trim().length > 0);
   const workouts: ParsedWorkout[] = [];
 
   let currentWorkout: ParsedWorkout | null = null;
   let currentExercise: ParsedExercise | null = null;
   let pendingDate: Date | null = null;
-  let workoutName = '';
 
   const flushExercise = () => {
-    if (currentExercise && currentExercise.sets.length > 0 && currentWorkout) {
+    if (currentExercise?.sets.length && currentWorkout) {
       currentWorkout.exercises.push(currentExercise);
     }
     currentExercise = null;
@@ -419,82 +373,75 @@ export function parseWorkoutLog(
 
   const flushWorkout = () => {
     flushExercise();
-    if (currentWorkout && currentWorkout.exercises.length > 0) {
-      workouts.push(currentWorkout);
-    }
+    if (currentWorkout?.exercises.length) workouts.push(currentWorkout);
     currentWorkout = null;
   };
 
-  for (const line of lines) {
-    if (isSkipLine(line)) continue;
+  const ensureWorkout = (name: string, date: Date) => {
+    if (!currentWorkout) {
+      currentWorkout = { name, date, exercises: [] };
+    }
+  };
 
-    // ── DATE LINE
-    const date = detectDate(line);
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd(); // keep leading tabs for bullet detection
+    const trimmed = line.trim();
+
+    if (!trimmed || isSkipLine(trimmed)) continue;
+
+    // ── DATE
+    const date = detectDate(trimmed);
     if (date) {
-      // If there's already a workout being built with a different date, flush it
       if (currentWorkout && currentWorkout.date.toDateString() !== date.toDateString()) {
         flushWorkout();
       }
       pendingDate = date;
-      workoutName = '';
       continue;
     }
 
-    // ── WORKOUT HEADER (e.g. "TUE — Lower (Quad Focus)")
-    if (isWorkoutHeader(line)) {
-      if (currentWorkout && workoutName && currentWorkout.exercises.length === 0) {
-        // Update name of existing workout
-        currentWorkout.name = line.trim();
-      } else {
-        flushWorkout();
-        currentWorkout = {
-          name: line.trim(),
-          date: pendingDate ?? new Date(),
-          exercises: [],
-        };
-        pendingDate = null;
-      }
-      workoutName = line.trim();
-      continue;
-    }
-
-    // Ensure we have a current workout
-    if (!currentWorkout) {
+    // ── WORKOUT HEADER ("TUE — Lower...")
+    if (isWorkoutHeader(trimmed)) {
+      flushWorkout();
       currentWorkout = {
-        name: workoutName || 'Imported Workout',
+        name: trimmed.replace(/^(mon|tue|wed|thu|fri|sat|sun)\w*[\s\t]*[—–\-]+\s*/i, '').trim() || trimmed,
         date: pendingDate ?? new Date(),
         exercises: [],
       };
       pendingDate = null;
+      continue;
     }
 
-    // ── EXERCISE LINE (bullet or plain header)
-    if (isExerciseLine(line) && !isWarmupLine(line)) {
-      const hasSetData = /\d+\s+set\s+of/i.test(line) || /\d+\s*[x×]\s*\d+/.test(line);
-      if (!hasSetData) {
-        flushExercise();
-        const match = matchExerciseName(line, dbExercises);
-        currentExercise = { rawName: line, ...match, sets: [] };
-        continue;
-      }
+    // ── BULLET EXERCISE LINE (∙ Bulgarian Split Squat — 4×8-10)
+    // Always treat bullet lines as exercise headers — NEVER as set data
+    if (isBulletExerciseLine(line)) {
+      flushExercise();
+      ensureWorkout('Imported Workout', pendingDate ?? new Date());
+      const match = matchExerciseName(trimmed, dbExercises);
+      currentExercise = { rawName: trimmed, ...match, sets: [] };
+      continue;
     }
 
-    // ── WARMUP LINE — skip (only keep working sets)
-    if (isWarmupLine(line)) continue;
+    // ── WARMUP — skip
+    if (isWarmupLine(trimmed)) continue;
 
     // ── SET LINE
-    const parsed = parseSetLine(line);
+    const parsed = parseSetLine(trimmed);
     if (parsed) {
+      ensureWorkout('Imported Workout', pendingDate ?? new Date());
       if (!currentExercise) {
-        // Orphaned set — attach to last exercise or create unknown
-        currentExercise = {
-          rawName: 'Unknown',
-          matchedName: 'Unknown',
-          matchedId: null,
-          sets: [],
-        };
+        // Set without an exercise header — create a placeholder
+        currentExercise = { rawName: '', matchedName: 'Unknown', matchedId: null, sets: [] };
       }
       currentExercise.sets.push(parsed);
+      continue;
+    }
+
+    // ── PLAIN EXERCISE NAME (no bullet, no set data, short line)
+    if (trimmed.length < 60 && /^[a-zA-Z]/.test(trimmed) && !/\d+\s+set\s+of/i.test(trimmed)) {
+      flushExercise();
+      ensureWorkout('Imported Workout', pendingDate ?? new Date());
+      const match = matchExerciseName(trimmed, dbExercises);
+      currentExercise = { rawName: trimmed, ...match, sets: [] };
     }
   }
 

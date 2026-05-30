@@ -401,49 +401,86 @@ ${context}`;
                   </TouchableOpacity>
                 </View>
 
-                {parsedWorkouts.map((w, wi) => (
-                  <View key={wi} style={{
-                    backgroundColor: Colors.surface,
-                    borderRadius: 14,
-                    padding: 16,
-                    marginBottom: 12,
-                    borderWidth: 1,
-                    borderColor: Colors.border,
-                  }}>
-                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800', marginBottom: 4 }}>
-                      {w.name}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 12 }}>
-                      {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                    </Text>
+                {/* Summary */}
+                <View style={{
+                  flexDirection: 'row', gap: 10, marginBottom: 16,
+                }}>
+                  {[
+                    { label: 'Workouts', value: parsedWorkouts.length },
+                    { label: 'Exercises', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
+                    { label: 'Sets', value: parsedWorkouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) },
+                  ].map((s, i) => (
+                    <View key={i} style={{
+                      flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
+                      padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+                    }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
+                      <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>{s.value}</Text>
+                    </View>
+                  ))}
+                </View>
 
-                    {w.exercises.map((ex, ei) => (
-                      <View key={ei} style={{ marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <View style={{
-                            width: 6, height: 6, borderRadius: 3,
-                            backgroundColor: ex.matchedId ? Colors.success : Colors.gold,
-                          }} />
-                          <Text style={{ color: ex.matchedId ? Colors.text : Colors.gold, fontSize: 13, fontWeight: '700', flex: 1 }}>
-                            {ex.matchedName}
+                {parsedWorkouts.map((w, wi) => {
+                  const matched = w.exercises.filter(e => e.matchedId);
+                  const unmatched = w.exercises.filter(e => !e.matchedId);
+                  return (
+                    <View key={wi} style={{
+                      backgroundColor: Colors.surface,
+                      borderRadius: 14,
+                      marginBottom: 10,
+                      borderWidth: 1,
+                      borderColor: Colors.border,
+                      overflow: 'hidden',
+                    }}>
+                      {/* Workout header */}
+                      <View style={{
+                        flexDirection: 'row', justifyContent: 'space-between',
+                        alignItems: 'center', padding: 14,
+                        borderBottomWidth: matched.length > 0 ? 1 : 0,
+                        borderBottomColor: Colors.border,
+                      }}>
+                        <View>
+                          <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                            {w.name.length > 40 ? w.name.slice(0, 40) + '…' : w.name}
                           </Text>
-                          {!ex.matchedId && (
-                            <Text style={{ color: Colors.gold, fontSize: 10 }}>unmatched</Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                            {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700' }}>
+                            {matched.length} saved
+                          </Text>
+                          {unmatched.length > 0 && (
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                              {unmatched.length} skipped
+                            </Text>
                           )}
                         </View>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginLeft: 12 }}>
-                          {ex.sets.map(s => `${s.weight}×${s.reps}${s.rpe ? ` @${s.rpe}` : ''}`).join('  ')}
-                        </Text>
                       </View>
-                    ))}
 
-                    {w.exercises.filter(e => !e.matchedId).length > 0 && (
-                      <Text style={{ color: Colors.gold, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
-                        ⚠ Unmatched exercises won't be saved
-                      </Text>
-                    )}
-                  </View>
-                ))}
+                      {/* Matched exercises */}
+                      {matched.map((ex, ei) => (
+                        <View key={ei} style={{
+                          flexDirection: 'row', alignItems: 'center',
+                          paddingHorizontal: 14, paddingVertical: 8,
+                          borderBottomWidth: ei < matched.length - 1 ? 1 : 0,
+                          borderBottomColor: Colors.border,
+                          gap: 10,
+                        }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.success }} />
+                          <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
+                            {ex.matchedName}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                            {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
+                            {ex.sets[0] ? ` · top ${ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0)} lbs` : ''}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
 
                 <TouchableOpacity
                   onPress={handleSaveImport}
