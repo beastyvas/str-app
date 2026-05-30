@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
+import { parseWorkoutLog, ParsedWorkout } from '@/lib/workoutParser';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,8 +33,9 @@ export default function InsightsTab() {
 
   // Import tab state
   const [importText, setImportText] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [parsedWorkouts, setParsedWorkouts] = useState<ParsedWorkout[] | null>(null);
 
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
@@ -105,59 +107,73 @@ ${context}`;
     }
   };
 
-  const handleImport = async () => {
-    if (!importText.trim() || !user) return;
-    setImporting(true);
-    setImportResult(null);
-
+  const handleParse = async () => {
+    if (!importText.trim()) return;
+    setParsing(true);
+    setParsedWorkouts(null);
     try {
-      const systemPrompt = `You are a workout log parser. The user will paste raw workout notes and you must extract the structured data.
-
-Return ONLY a JSON object with this shape:
-{
-  "workoutName": "string",
-  "exercises": [
-    {
-      "name": "exercise name exactly matching common gym terminology",
-      "sets": [
-        { "weight": number, "reps": number, "rpe": number | null, "note": "string | null" }
-      ]
-    }
-  ]
-}
-
-Rules:
-- Infer exercise names from abbreviations (e.g. "BP" = "Barbell Bench Press", "SQ" = "Barbell Back Squats", "DL" = "Deadlifts")
-- If weight is bodyweight, use 0
-- If RPE is not mentioned, use null
-- Return ONLY valid JSON, no markdown, no explanation`;
-
-      const { data: fnData, error: fnError } = await supabase.functions.invoke('ai-coach', {
-        body: {
-          systemPrompt,
-          messages: [{ role: 'user', content: importText.trim() }],
-        },
-      });
-
-      if (fnError) throw fnError;
-      const raw = fnData?.content?.[0]?.text ?? '';
-
-      let parsed: any;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new Error('Could not parse workout. Try formatting it more clearly.');
+      const { data: exercises } = await supabase
+        .from('exercises')
+        .select('id, name');
+      const workouts = parseWorkoutLog(importText, exercises ?? []);
+      if (workouts.length === 0) {
+        Alert.alert('Nothing found', 'Could not detect any workouts. Make sure each exercise has sets in "Weight x Reps" format.');
+        return;
       }
-
-      setImportResult(JSON.stringify(parsed, null, 2));
-      Alert.alert(
-        'Parsed!',
-        `Found ${parsed.exercises?.length ?? 0} exercises. Review below — save feature coming soon.`,
-      );
-    } catch (e: any) {
-      Alert.alert('Import failed', e.message ?? 'Something went wrong.');
+      setParsedWorkouts(workouts);
     } finally {
-      setImporting(false);
+      setParsing(false);
+    }
+  };
+
+  const handleSaveImport = async () => {
+    if (!parsedWorkouts || !user) return;
+    setSaving(true);
+    let savedCount = 0;
+    try {
+      for (const workout of parsedWorkouts) {
+        // Insert workout
+        const { data: wRow, error: wErr } = await supabase
+          .from('workouts')
+          .insert({
+            user_id: user.id,
+            name: workout.name,
+            started_at: workout.date.toISOString(),
+            ended_at: new Date(workout.date.getTime() + 60 * 60 * 1000).toISOString(),
+          })
+          .select()
+          .single();
+        if (wErr || !wRow) continue;
+
+        // Insert sets
+        const setsToInsert: any[] = [];
+        for (const ex of workout.exercises) {
+          if (!ex.matchedId) continue;
+          ex.sets.forEach((s, i) => {
+            setsToInsert.push({
+              workout_id: wRow.id,
+              exercise_id: ex.matchedId,
+              set_number: i + 1,
+              weight: s.weight,
+              reps: s.reps,
+              rpe: s.rpe ?? null,
+              note: s.note ?? null,
+              logged_at: new Date(workout.date.getTime() + i * 60000).toISOString(),
+            });
+          });
+        }
+        if (setsToInsert.length > 0) {
+          await supabase.from('workout_sets').insert(setsToInsert);
+        }
+        savedCount++;
+      }
+      setParsedWorkouts(null);
+      setImportText('');
+      Alert.alert('Imported!', `Saved ${savedCount} workout${savedCount !== 1 ? 's' : ''} to your history.`);
+    } catch (e: any) {
+      Alert.alert('Save failed', e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -315,71 +331,139 @@ Rules:
 
       {/* ── IMPORT TAB ── */}
       {tab === 'import' && (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>
-                Paste a workout
-              </Text>
-              <Text style={{ color: Colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-                Copy from your notes, a text log, or any format. Claude will parse it into structured sets.
-              </Text>
-            </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
 
-            <TextInput
-              value={importText}
-              onChangeText={setImportText}
-              placeholder={`Example:\nBench 225x5, 235x4, 235x3\nSquat 315x3x3 @8\nRDL 275x8x3\nnotes: left knee felt off on squats`}
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 14,
-                padding: 16,
-                color: Colors.text,
-                fontSize: 14,
-                minHeight: 160,
-                textAlignVertical: 'top',
-                borderWidth: 1,
-                borderColor: Colors.border,
-                lineHeight: 22,
-              }}
-            />
+            {!parsedWorkouts ? (
+              <>
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
+                    Paste your workout log
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13, lineHeight: 19 }}>
+                    Works with Google Docs, Apple Notes, or any text format. One workout per date header, exercises with sets like{' '}
+                    <Text style={{ color: Colors.textSecondary }}>225x5</Text> or{' '}
+                    <Text style={{ color: Colors.textSecondary }}>225x5x3</Text>.
+                  </Text>
+                </View>
 
-            <TouchableOpacity
-              onPress={handleImport}
-              disabled={!importText.trim() || importing}
-              style={{
-                backgroundColor: importText.trim() && !importing ? Colors.accent : Colors.surface2,
-                borderRadius: 12,
-                paddingVertical: 16,
-                alignItems: 'center',
-              }}
-            >
-              {importing
-                ? <ActivityIndicator color={Colors.text} />
-                : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Parse Workout</Text>
-              }
-            </TouchableOpacity>
+                <TextInput
+                  value={importText}
+                  onChangeText={setImportText}
+                  placeholder={`4/2/24\nBench Press: 225x5, 235x4, 235x4\nSquats: 315x5x3 @8\nRDL: 275x8, 275x8, 275x8\n\n4/4/24\nOHP: 155x5x3\nLat Pulldowns: 150x10, 160x8x2`}
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14,
+                    padding: 16,
+                    color: Colors.text,
+                    fontSize: 13,
+                    minHeight: 200,
+                    textAlignVertical: 'top',
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                    lineHeight: 22,
+                    marginBottom: 14,
+                  }}
+                />
 
-            {importResult && (
-              <View style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 14,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: Colors.border,
-              }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
-                  Parsed Result
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: 'monospace', lineHeight: 18 }}>
-                  {importResult}
-                </Text>
-              </View>
+                <TouchableOpacity
+                  onPress={handleParse}
+                  disabled={!importText.trim() || parsing}
+                  style={{
+                    backgroundColor: importText.trim() && !parsing ? Colors.accent : Colors.surface2,
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    alignItems: 'center',
+                  }}
+                >
+                  {parsing
+                    ? <ActivityIndicator color={Colors.text} />
+                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Parse Log</Text>
+                  }
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* Preview */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <View>
+                    <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
+                      {parsedWorkouts.length} workout{parsedWorkouts.length !== 1 ? 's' : ''} found
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                      Review before saving
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setParsedWorkouts(null)}>
+                    <Text style={{ color: Colors.accent, fontWeight: '700' }}>← Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {parsedWorkouts.map((w, wi) => (
+                  <View key={wi} style={{
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14,
+                    padding: 16,
+                    marginBottom: 12,
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                  }}>
+                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800', marginBottom: 4 }}>
+                      {w.name}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 12 }}>
+                      {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+
+                    {w.exercises.map((ex, ei) => (
+                      <View key={ei} style={{ marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <View style={{
+                            width: 6, height: 6, borderRadius: 3,
+                            backgroundColor: ex.matchedId ? Colors.success : Colors.gold,
+                          }} />
+                          <Text style={{ color: ex.matchedId ? Colors.text : Colors.gold, fontSize: 13, fontWeight: '700', flex: 1 }}>
+                            {ex.matchedName}
+                          </Text>
+                          {!ex.matchedId && (
+                            <Text style={{ color: Colors.gold, fontSize: 10 }}>unmatched</Text>
+                          )}
+                        </View>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginLeft: 12 }}>
+                          {ex.sets.map(s => `${s.weight}×${s.reps}${s.rpe ? ` @${s.rpe}` : ''}`).join('  ')}
+                        </Text>
+                      </View>
+                    ))}
+
+                    {w.exercises.filter(e => !e.matchedId).length > 0 && (
+                      <Text style={{ color: Colors.gold, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                        ⚠ Unmatched exercises won't be saved
+                      </Text>
+                    )}
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  onPress={handleSaveImport}
+                  disabled={saving}
+                  style={{
+                    backgroundColor: saving ? Colors.surface2 : Colors.accent,
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    alignItems: 'center',
+                    marginTop: 4,
+                  }}
+                >
+                  {saving
+                    ? <ActivityIndicator color={Colors.text} />
+                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
+                        Save to STR
+                      </Text>
+                  }
+                </TouchableOpacity>
+              </>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
