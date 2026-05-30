@@ -17,6 +17,7 @@ export interface WorkoutExercise {
   exerciseId: string;
   exerciseName: string;
   muscleGroup: string;
+  equipmentType?: string;
   sets: LoggedSet[];
 }
 
@@ -33,7 +34,7 @@ interface WorkoutStore {
   newPRs: { exerciseName: string; weight: number; reps: number }[];
 
   startWorkout: (name: string, userId: string) => Promise<void>;
-  addExercise: (exercise: { id: string; name: string; muscle_group: string }) => void;
+  addExercise: (exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }) => void;
   removeExercise: (exerciseId: string) => void;
   logSet: (
     exerciseId: string,
@@ -87,7 +88,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
         ...activeWorkout,
         exercises: [
           ...activeWorkout.exercises,
-          { exerciseId: exercise.id, exerciseName: exercise.name, muscleGroup: exercise.muscle_group, sets: [] },
+          { exerciseId: exercise.id, exerciseName: exercise.name, muscleGroup: exercise.muscle_group, equipmentType: exercise.equipment_type, sets: [] },
         ],
       },
     });

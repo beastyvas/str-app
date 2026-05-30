@@ -1,26 +1,39 @@
 import { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal,
-  KeyboardAvoidingView, Platform, Pressable, Alert,
+  KeyboardAvoidingView, Platform, Pressable, Alert, ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { LoggedSet } from '@/hooks/useWorkout';
+import {
+  WeightMode, PlateSystem, PLATE_CONFIGS, defaultModeForEquipment, describeWeight,
+} from '@/lib/plateUtils';
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 export function SetInputRow({
   setNumber,
   prevSet,
+  equipmentType,
   onLog,
 }: {
   setNumber: number;
   prevSet?: LoggedSet;
+  equipmentType?: string;
   onLog: (data: { weight: number; reps: number; rpe?: number; note?: string }) => Promise<void>;
 }) {
-  const prevIsBW = prevSet?.weight === 0;
-  const [isBW, setIsBW] = useState(prevIsBW);
-  const [weight, setWeight] = useState(prevIsBW ? '' : (prevSet?.weight?.toString() ?? ''));
+  const defaultMode = prevSet?.weight === 0
+    ? 'bw'
+    : defaultModeForEquipment(equipmentType);
+
+  const [mode, setMode] = useState<WeightMode>(defaultMode);
+  const [plateSystem, setPlateSystem] = useState<PlateSystem>('lbs');
+  const [weight, setWeight] = useState(
+    defaultMode === 'bw' ? '' :
+    defaultMode === 'plates' ? String(PLATE_CONFIGS.lbs.barWeight) :
+    (prevSet?.weight?.toString() ?? '')
+  );
   const [reps, setReps] = useState(prevSet?.reps?.toString() ?? '');
   const [rpe, setRpe] = useState<number | undefined>(prevSet?.rpe);
   const [note, setNote] = useState('');
@@ -28,17 +41,43 @@ export function SetInputRow({
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
 
-  const toggleBW = () => {
-    setIsBW(prev => {
-      if (!prev) setWeight('');
-      return !prev;
+  const cfg = PLATE_CONFIGS[plateSystem];
+  const plateWeight = parseFloat(weight) || cfg.barWeight;
+
+  const adjustPlates = (plateSize: number, direction: 1 | -1) => {
+    const delta = plateSize * 2 * direction; // both sides
+    const next = Math.max(cfg.barWeight, plateWeight + delta);
+    setWeight(String(Math.round(next * 10) / 10));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const cycleMode = () => {
+    setMode(prev => {
+      if (prev === 'number') return 'bw';
+      if (prev === 'bw') return 'plates';
+      return 'number';
     });
+    setWeight(mode === 'bw' ? '' : mode === 'plates' ? String(cfg.barWeight) : '');
+  };
+
+  const getWeight = () => {
+    if (mode === 'bw') return 0;
+    if (mode === 'plates') return plateWeight;
+    return parseFloat(weight);
+  };
+
+  const canLog = () => {
+    const r = parseInt(reps);
+    if (!r || r <= 0) return false;
+    if (mode === 'bw') return true;
+    if (mode === 'plates') return plateWeight >= cfg.barWeight;
+    return !!weight && parseFloat(weight) >= 0;
   };
 
   const handleLog = async () => {
-    const w = isBW ? 0 : parseFloat(weight);
+    if (!canLog()) return;
+    const w = getWeight();
     const r = parseInt(reps);
-    if ((!isBW && !w && w !== 0) || !r) return;
     setLogging(true);
     try {
       await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined });
@@ -70,19 +109,24 @@ export function SetInputRow({
           {setNumber}
         </Text>
 
-        <View style={{ flex: 1.4 }}>
+        {/* Weight — switches by mode */}
+        <View style={{ flex: 1.6 }}>
           {prevSet && (
             <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 2 }}>
               {prevSet.weight === 0 ? 'BW' : prevSet.weight}
             </Text>
           )}
-          {isBW ? (
-            <TouchableOpacity
-              onPress={toggleBW}
-              style={[inputStyle, { justifyContent: 'center', alignItems: 'center' }]}
-            >
+          {mode === 'bw' ? (
+            <View style={[inputStyle, { justifyContent: 'center', alignItems: 'center' }]}>
               <Text style={{ color: Colors.success, fontSize: 22, fontWeight: '900' }}>BW</Text>
-            </TouchableOpacity>
+            </View>
+          ) : mode === 'plates' ? (
+            <View style={[inputStyle, { justifyContent: 'center', alignItems: 'center', paddingVertical: 6 }]}>
+              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -1 }}>
+                {plateWeight}
+              </Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 9 }}>{cfg.label}</Text>
+            </View>
           ) : (
             <TextInput
               value={weight}
@@ -96,22 +140,19 @@ export function SetInputRow({
           )}
         </View>
 
-        {/* BW toggle */}
+        {/* Mode cycle: 123 → BW → PLT */}
         <TouchableOpacity
-          onPress={toggleBW}
+          onPress={cycleMode}
           style={{
-            backgroundColor: isBW ? Colors.successDim : Colors.surface2,
-            borderRadius: 6,
-            paddingHorizontal: 5,
-            paddingVertical: 10,
-            borderWidth: 1,
-            borderColor: isBW ? Colors.success : Colors.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 28,
+            backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
+            borderRadius: 6, paddingHorizontal: 4, paddingVertical: 10,
+            borderWidth: 1, borderColor: mode !== 'number' ? Colors.accent : Colors.border,
+            alignItems: 'center', justifyContent: 'center', minWidth: 30,
           }}
         >
-          <Text style={{ color: isBW ? Colors.success : Colors.textMuted, fontSize: 9, fontWeight: '800' }}>BW</Text>
+          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
+            {mode === 'number' ? '123' : mode === 'bw' ? 'BW' : 'PLT'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300' }}>×</Text>
@@ -160,22 +201,73 @@ export function SetInputRow({
 
         <TouchableOpacity
           onPress={handleLog}
-          disabled={(!isBW && !weight) || !reps || logging}
+          disabled={!canLog() || logging}
           style={{
-            backgroundColor: (isBW || weight) && reps && !logging ? Colors.accent : Colors.surface2,
-            borderRadius: 8,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
+            backgroundColor: canLog() && !logging ? Colors.accent : Colors.surface2,
+            borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10,
           }}
         >
-          <Text style={{
-            color: (isBW || weight) && reps && !logging ? Colors.text : Colors.textMuted,
-            fontWeight: '800', fontSize: 13,
-          }}>
+          <Text style={{ color: canLog() && !logging ? Colors.text : Colors.textMuted, fontWeight: '800', fontSize: 13 }}>
             {logging ? '...' : 'LOG'}
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Plate controls — shown when in plates mode */}
+      {mode === 'plates' && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 6 }}>
+          {/* Plate system toggle */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 10, flex: 1 }}>
+              {describeWeight(plateWeight, cfg)}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const next: PlateSystem = plateSystem === 'lbs' ? 'kg' : 'lbs';
+                setPlateSystem(next);
+                setWeight(String(PLATE_CONFIGS[next].barWeight));
+              }}
+              style={{
+                paddingHorizontal: 8, paddingVertical: 3,
+                borderRadius: 6, borderWidth: 1, borderColor: Colors.border,
+              }}
+            >
+              <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '700' }}>
+                {plateSystem === 'lbs' ? 'Switch to kg' : 'Switch to lbs'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {/* Add/remove plate buttons */}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {cfg.plateOptions.map(p => (
+              <View key={p} style={{ flex: 1, gap: 4 }}>
+                <TouchableOpacity
+                  onPress={() => adjustPlates(p, 1)}
+                  style={{
+                    backgroundColor: Colors.surface2, borderRadius: 6,
+                    paddingVertical: 6, alignItems: 'center',
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 11, fontWeight: '700' }}>+{p}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => adjustPlates(p, -1)}
+                  disabled={plateWeight - p * 2 < cfg.barWeight}
+                  style={{
+                    backgroundColor: Colors.surface2, borderRadius: 6,
+                    paddingVertical: 6, alignItems: 'center',
+                    borderWidth: 1, borderColor: Colors.border,
+                    opacity: plateWeight - p * 2 < cfg.barWeight ? 0.3 : 1,
+                  }}
+                >
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700' }}>-{p}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       {showRpe && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingBottom: 10 }}>

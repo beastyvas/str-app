@@ -166,6 +166,7 @@ export function ExerciseCard({
           <SetInputRow
             setNumber={nextSetNumber}
             prevSet={prevSetForNext}
+            equipmentType={exercise.equipmentType}
             onLog={(data) => onLogSet(exercise.exerciseId, data)}
           />
         </>

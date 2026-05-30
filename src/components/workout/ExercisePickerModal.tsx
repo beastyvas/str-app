@@ -17,8 +17,8 @@ interface Exercise {
 
 interface Props {
   visible: boolean;
-  alreadyAdded: string[]; // exerciseIds already in workout
-  onSelect: (exercise: Exercise) => void;
+  alreadyAdded: string[];
+  onSelect: (exercise: Exercise & { equipment_type?: string }) => void;
   onClose: () => void;
 }
 
