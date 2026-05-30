@@ -56,31 +56,25 @@ export default function InsightsTab() {
         `Recent workouts (last 5): ${(recentWorkouts ?? []).map((w: any) => w.name).join(', ')}`,
       ].join('\n');
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 512,
-          system: `You are a knowledgeable, direct strength coach inside a training tracker app.
+      const systemPrompt = `You are a knowledgeable, direct strength coach inside a training tracker app.
 You have access to the user's workout history and PRs. Be concise — 2-4 short paragraphs max.
 No bullet lists, no fluff. Talk like a coach, not a textbook.
 
 User context:
-${context}`,
+${context}`;
+
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('ai-coach', {
+        body: {
+          systemPrompt,
           messages: [
             ...messages.map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: text.trim() },
           ],
-        }),
+        },
       });
 
-      const json = await response.json();
-      const reply = json.content?.[0]?.text ?? 'Something went wrong. Try again.';
+      if (fnError) throw fnError;
+      const reply = fnData?.content?.[0]?.text ?? 'Something went wrong. Try again.';
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (e) {
       setMessages(prev => [...prev, {
