@@ -40,7 +40,10 @@
           "backgroundColor": "#0C0C0C",
           "image": "./assets/splash.png"
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
