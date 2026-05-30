@@ -23,11 +23,16 @@ export interface ParsedWorkout {
 
 // ── WEIGHT HELPERS ─────────────────────────────────────────────────────────
 
-// "3.25plates" → 146.25 lbs  (N × 45, machine plate loading)
-// Note: barbell users typically write actual numbers (225, 315)
-// so this formula is intentionally for plate-loaded machines
+// Plate notation: N.MM plates
+//   Whole part = number of 45lb plates per side
+//   Decimal × 100 = fractional plate weight (e.g. .25 → 25lb, .05 → 5lb, .10 → 10lb)
+//   × 2 for bilateral machines (both sides loaded equally)
+// Examples: 2.25 → (2×45 + 25) × 2 = 230,  3.05 → (3×45 + 5) × 2 = 280
 function platesToLbs(n: number): number {
-  return Math.round(n * 45 * 10) / 10;
+  const whole = Math.floor(n);
+  const fracPlate = Math.round((n - whole) * 100); // .25 → 25, .05 → 5
+  const perSide = whole * 45 + fracPlate;
+  return perSide * 2; // both sides
 }
 
 function parseWeight(raw: string): number | null {
