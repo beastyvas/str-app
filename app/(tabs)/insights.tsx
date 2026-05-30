@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
-import { parseWorkoutLog, ParsedWorkout } from '@/lib/workoutParser';
+import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -122,7 +122,7 @@ ${context}`;
         .select('id, name, muscle_group')
         .order('name');
       setAllExercises(exercises ?? []);
-      const workouts = parseWorkoutLog(importText, exercises ?? []);
+      const workouts = parseAnyFormat(importText, exercises ?? []);
       if (workouts.length === 0) {
         Alert.alert('Nothing found', 'Could not detect any workouts. Make sure exercises have sets in "Weight x Reps" format.');
         return;
@@ -389,9 +389,10 @@ ${context}`;
                     Paste your workout log
                   </Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-                    Works with Google Docs, Apple Notes, or any text format. One workout per date header, exercises with sets like{' '}
-                    <Text style={{ color: Colors.textSecondary }}>225x5</Text> or{' '}
-                    <Text style={{ color: Colors.textSecondary }}>225x5x3</Text>.
+                    Google Docs, Apple Notes, or export CSV from{' '}
+                    <Text style={{ color: Colors.textSecondary }}>Hevy</Text> or{' '}
+                    <Text style={{ color: Colors.textSecondary }}>Strong</Text>.{' '}
+                    Format auto-detected. Sets like 225x5, 70x10(e), 2.25platesx8.
                   </Text>
                 </View>
 

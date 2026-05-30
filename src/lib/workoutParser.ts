@@ -1,5 +1,6 @@
 // Workout log parser v3 — built for real messy gym logs
 // Primary format: "1 set of WEIGHTxREPS for working set (rpe X, note)"
+// Also supports Hevy CSV export format
 
 export interface ParsedSet {
   weight: number;
@@ -36,7 +37,8 @@ function platesToLbs(n: number): number {
 }
 
 function parseWeight(raw: string): number | null {
-  const s = raw.toLowerCase().trim();
+  // Take first number for ranges like "160/170"
+  const s = raw.toLowerCase().trim().split('/')[0].trim();
   if (s === 'bw' || s === 'bodyweight' || s === 'bwt') return 0;
   if (s === 'bar' || s === 'barbell' || s === 'empty bar') return 45;
   const pm = s.match(/^(\d+(?:\.\d+)?)\s*plates?$/);
@@ -257,9 +259,11 @@ export function matchExerciseName(
 // ── SET LINE PARSER ─────────────────────────────────────────────────────────
 
 function parseSetLine(line: string): ParsedSet | null {
-  // "N set(s) of WEIGHTxREPS for working set (notes)"
+  // "N set(s) of WEIGHTxREPS[suffix] for working set (notes)"
+  // Handles: (e), (L/R), (each), any parenthetical after reps
+  // Weight can be range: 160/170 → takes 160
   const longForm = line.match(
-    /\d+\s+sets?\s+of\s+([a-z0-9._]+)x([\d.,\/]+)\s+for\s+(?:warmup|working\s+set|work)(.*)/i
+    /\d+\s+sets?\s+of\s+([a-z0-9._\/]+)x([\d.,\/]+)(?:\([^)]*\))?\s+for\s+(?:warmup|working\s+set|work)(.*)/i
   );
   if (longForm) {
     const weight = parseWeight(longForm[1]);
@@ -268,17 +272,19 @@ function parseSetLine(line: string): ParsedSet | null {
     if (reps <= 0 || reps > 100) return null;
     const tail = longForm[3] ?? '';
     const rpe = parseRPE(tail);
+    // Cap RPE at 10 (user sometimes writes "rpe 11" as hyperbole)
+    const cappedRpe = rpe !== undefined ? Math.min(rpe, 10) : undefined;
     const note = tail
       .replace(/\(|\)/g, '')
-      .replace(/rpe\s*(fail|failure|\d+(?:\.\d+)?)/gi, '')
+      .replace(/rpe\s*(fail|failure|\d+(?:[-–]\d+)?(?:\.\d+)?)/gi, '')
       .replace(/[,\s]+/g, ' ')
       .trim()
-      .slice(0, 80) || undefined;
-    return { weight, reps, rpe, note: note && note.length > 2 ? note : undefined };
+      .slice(0, 120) || undefined;
+    return { weight, reps, rpe: cappedRpe, note: note && note.length > 2 ? note : undefined };
   }
 
-  // Short: "225x5", "3.25platesx8"
-  const shortForm = line.trim().match(/^([a-z0-9._]+)x([\d.\/,]+)(?:x(\d+))?$/i);
+  // Short: "225x5", "3.25platesx8", "160/170x10"
+  const shortForm = line.trim().match(/^([a-z0-9._\/]+)x([\d.\/,]+)(?:x(\d+))?(?:\([^)]*\))?$/i);
   if (shortForm) {
     const weight = parseWeight(shortForm[1]);
     if (weight === null) return null;
@@ -454,4 +460,126 @@ export function parseWorkoutLog(
 
   flushWorkout();
   return workouts;
+}
+
+// ── HEVY CSV PARSER ──────────────────────────────────────────────────────────
+// Hevy export format:
+// Title,Start Time,End Time,Duration,Notes
+// Exercise Name,Set Order,Weight (lbs),Reps,Distance (miles),Duration (seconds),Notes
+//
+// Liftoff / Strong CSV is similar enough to reuse the same parser
+
+export function isHevyCSV(text: string): boolean {
+  const firstLine = text.split('\n')[0]?.toLowerCase() ?? '';
+  return firstLine.includes('title') && firstLine.includes('start time') ||
+    firstLine.includes('exercise name') && firstLine.includes('set order') ||
+    firstLine.includes('workout name') && firstLine.includes('exercise name');
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+    current += ch;
+  }
+  result.push(current.trim());
+  return result;
+}
+
+export function parseHevyCSV(
+  csv: string,
+  dbExercises: { id: string; name: string }[]
+): ParsedWorkout[] {
+  const lines = csv.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, '_'));
+
+  // Find column indices
+  const col = (names: string[]) => {
+    for (const n of names) {
+      const idx = headers.findIndex(h => h.includes(n));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const titleIdx    = col(['title', 'workout_name', 'workout name']);
+  const startIdx    = col(['start_time', 'date']);
+  const exNameIdx   = col(['exercise_name', 'exercise_title']);
+  const weightIdx   = col(['weight']);
+  const repsIdx     = col(['reps']);
+  const rpeIdx      = col(['rpe']);
+  const noteIdx     = col(['notes', 'note']);
+
+  if (exNameIdx < 0 || weightIdx < 0 || repsIdx < 0) return [];
+
+  const workoutMap = new Map<string, ParsedWorkout>();
+  const exerciseMap = new Map<string, ParsedExercise>(); // key: workoutKey + exName
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 3) continue;
+
+    const workoutTitle = titleIdx >= 0 ? cols[titleIdx] : 'Imported Workout';
+    const startRaw = startIdx >= 0 ? cols[startIdx] : '';
+    const exName = exNameIdx >= 0 ? cols[exNameIdx] : '';
+    const weightRaw = weightIdx >= 0 ? cols[weightIdx] : '0';
+    const repsRaw = repsIdx >= 0 ? cols[repsIdx] : '0';
+    const rpeRaw = rpeIdx >= 0 ? cols[rpeIdx] : '';
+    const noteRaw = noteIdx >= 0 ? cols[noteIdx] : '';
+
+    if (!exName || !workoutTitle) continue;
+
+    // Parse date
+    let date = new Date();
+    if (startRaw) {
+      const d = new Date(startRaw);
+      if (!isNaN(d.getTime())) date = d;
+    }
+
+    const workoutKey = `${workoutTitle}__${date.toDateString()}`;
+
+    if (!workoutMap.has(workoutKey)) {
+      workoutMap.set(workoutKey, { name: workoutTitle, date, exercises: [] });
+    }
+    const workout = workoutMap.get(workoutKey)!;
+
+    const exKey = `${workoutKey}__${exName}`;
+    if (!exerciseMap.has(exKey)) {
+      const match = matchExerciseName(exName, dbExercises);
+      const ex: ParsedExercise = { rawName: exName, ...match, sets: [] };
+      exerciseMap.set(exKey, ex);
+      workout.exercises.push(ex);
+    }
+    const exercise = exerciseMap.get(exKey)!;
+
+    const weight = parseFloat(weightRaw) || 0;
+    const reps = parseInt(repsRaw) || 0;
+    const rpe = rpeRaw ? parseFloat(rpeRaw) : undefined;
+
+    if (reps > 0) {
+      exercise.sets.push({
+        weight,
+        reps,
+        rpe: rpe && rpe >= 1 && rpe <= 10 ? rpe : undefined,
+        note: noteRaw || undefined,
+      });
+    }
+  }
+
+  return Array.from(workoutMap.values()).filter(w => w.exercises.length > 0);
+}
+
+// ── SMART ENTRY POINT — detects format automatically ────────────────────────
+
+export function parseAnyFormat(
+  text: string,
+  dbExercises: { id: string; name: string }[]
+): ParsedWorkout[] {
+  if (isHevyCSV(text)) return parseHevyCSV(text, dbExercises);
+  return parseWorkoutLog(text, dbExercises);
 }
