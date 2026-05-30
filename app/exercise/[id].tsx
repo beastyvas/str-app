@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LineChart } from 'react-native-gifted-charts';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, TierName } from '@/constants/colors';
@@ -18,6 +17,55 @@ const TIER_COLORS: Record<TierName, string> = {
   platinum: Colors.tiers.platinum,
   diamond: Colors.tiers.diamond,
 };
+
+function WeightChart({ data }: { data: { value: number }[] }) {
+  const chartWidth = SCREEN_WIDTH - 72;
+  const chartHeight = 80;
+  const min = Math.min(...data.map(d => d.value));
+  const max = Math.max(...data.map(d => d.value));
+  const range = max - min || 1;
+  const pointSpacing = chartWidth / (data.length - 1);
+
+  return (
+    <View style={{
+      backgroundColor: Colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    }}>
+      <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
+        Top Set — Last {data.length} Sessions
+      </Text>
+      <View style={{ height: chartHeight + 24, position: 'relative' }}>
+        {/* Bars */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: chartHeight, gap: 0 }}>
+          {data.map((d, i) => {
+            const heightPct = (d.value - min) / range;
+            const barH = Math.max(4, heightPct * chartHeight);
+            const isLast = i === data.length - 1;
+            return (
+              <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
+                <View style={{
+                  width: Math.max(6, chartWidth / data.length - 4),
+                  height: barH,
+                  backgroundColor: isLast ? Colors.accent : Colors.accent + '50',
+                  borderRadius: 4,
+                }} />
+              </View>
+            );
+          })}
+        </View>
+        {/* Labels: first, last */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{data[0].value} lbs</Text>
+          <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>{data[data.length - 1].value} lbs</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -202,40 +250,7 @@ export default function ExerciseDetailScreen() {
 
         {/* Progress Chart */}
         {chartData.length >= 2 && (
-          <View style={{
-            backgroundColor: Colors.surface,
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 16,
-            borderWidth: 1,
-            borderColor: Colors.border,
-            overflow: 'hidden',
-          }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 }}>
-              Top Set Weight — Last {chartData.length} Sessions
-            </Text>
-            <LineChart
-              data={chartData}
-              width={SCREEN_WIDTH - 80}
-              height={120}
-              color={Colors.accent}
-              thickness={2}
-              dataPointsColor={Colors.accent}
-              dataPointsRadius={4}
-              startFillColor={Colors.accent}
-              endFillColor={Colors.bg}
-              startOpacity={0.15}
-              endOpacity={0}
-              areaChart
-              hideAxesAndRules
-              hideYAxisText
-              hideDataPoints={chartData.length > 6}
-              curved
-              yAxisLabelWidth={0}
-              initialSpacing={8}
-              endSpacing={8}
-            />
-          </View>
+          <WeightChart data={chartData} />
         )}
 
         {/* Recent History */}
