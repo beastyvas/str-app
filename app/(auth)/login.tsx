@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+
+const IS_DEV = __DEV__;
 
 export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showDev, setShowDev] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleGoogle = async () => {
     try {
@@ -14,6 +20,23 @@ export default function LoginScreen() {
       await signInWithGoogle();
     } catch (e: any) {
       Alert.alert('Sign in failed', e?.message ?? 'Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDevLogin = async () => {
+    if (!email || !password) { Alert.alert('Enter email and password'); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        // Try sign up if login fails
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) throw signUpError;
+      }
+    } catch (e: any) {
+      Alert.alert('Dev login failed', e.message);
     } finally {
       setLoading(false);
     }
@@ -75,6 +98,61 @@ export default function LoginScreen() {
           <Text style={{ color: Colors.textMuted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
             By continuing you agree to our Terms of Service and Privacy Policy.
           </Text>
+
+          {/* Dev-only email login — hidden in production */}
+          {IS_DEV && (
+            <View style={{ marginTop: 24, gap: 8 }}>
+              <TouchableOpacity onPress={() => setShowDev(!showDev)} style={{ alignItems: 'center' }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                  {showDev ? '— hide dev login —' : '⚙ dev login'}
+                </Text>
+              </TouchableOpacity>
+              {showDev && (
+                <View style={{ gap: 8 }}>
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="email"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={{
+                      backgroundColor: Colors.surface2, borderRadius: 10,
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      color: Colors.text, fontSize: 14,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  />
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="password"
+                    placeholderTextColor={Colors.textMuted}
+                    secureTextEntry
+                    style={{
+                      backgroundColor: Colors.surface2, borderRadius: 10,
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      color: Colors.text, fontSize: 14,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  />
+                  <TouchableOpacity
+                    onPress={handleDevLogin}
+                    disabled={loading}
+                    style={{
+                      backgroundColor: Colors.surface2, borderRadius: 10,
+                      paddingVertical: 12, alignItems: 'center',
+                      borderWidth: 1, borderColor: Colors.accent + '40',
+                    }}
+                  >
+                    <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 13 }}>
+                      Sign in / Sign up with email
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </View>
     </SafeAreaView>
