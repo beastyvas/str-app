@@ -130,6 +130,27 @@ export default function SocialScreen() {
         avatar_url: (f.requester as any).avatar_url,
       })));
 
+      // ── Batch all friend PRs FIRST so sbdByUser is available for feed + friendList ──
+      const sbdByUser: Record<string, any[]> = {};
+      const recentByUser: Record<string, any> = {};
+      if (friendIds.length > 0) {
+        const [{ data: allSbdPrs }, { data: allRecentPrs }] = await Promise.all([
+          supabase.from('personal_records').select('user_id, weight, reps, exercises!inner(name)')
+            .in('user_id', friendIds)
+            .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']),
+          supabase.from('personal_records').select('user_id, weight, reps, achieved_at, exercises(name)')
+            .in('user_id', friendIds)
+            .order('achieved_at', { ascending: false }),
+        ]);
+        (allSbdPrs ?? []).forEach((p: any) => {
+          if (!sbdByUser[p.user_id]) sbdByUser[p.user_id] = [];
+          sbdByUser[p.user_id].push(p);
+        });
+        (allRecentPrs ?? []).forEach((p: any) => {
+          if (!recentByUser[p.user_id]) recentByUser[p.user_id] = p;
+        });
+      }
+
       // Load feed — friends' completed workouts with notes
       if (friendIds.length > 0) {
         const { data: workouts } = await supabase
@@ -182,35 +203,6 @@ export default function SocialScreen() {
           });
         setFeed(posts);
       }
-
-      // Batch all friend PRs in TWO queries (not N)
-      const friendUserIds = accepted.map(f =>
-        f.requester_id === user.id ? f.addressee_id : f.requester_id
-      );
-
-      const [{ data: allSbdPrs }, { data: allRecentPrs }] = await Promise.all([
-        supabase
-          .from('personal_records')
-          .select('user_id, weight, reps, exercises!inner(name)')
-          .in('user_id', friendUserIds)
-          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']),
-        supabase
-          .from('personal_records')
-          .select('user_id, weight, reps, achieved_at, exercises(name)')
-          .in('user_id', friendUserIds)
-          .order('achieved_at', { ascending: false }),
-      ]);
-
-      // Group by user_id
-      const sbdByUser: Record<string, any[]> = {};
-      const recentByUser: Record<string, any> = {};
-      (allSbdPrs ?? []).forEach((p: any) => {
-        if (!sbdByUser[p.user_id]) sbdByUser[p.user_id] = [];
-        sbdByUser[p.user_id].push(p);
-      });
-      (allRecentPrs ?? []).forEach((p: any) => {
-        if (!recentByUser[p.user_id]) recentByUser[p.user_id] = p;
-      });
 
       const friendList: Friend[] = accepted
         .map(f => {
