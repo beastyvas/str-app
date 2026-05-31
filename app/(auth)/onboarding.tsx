@@ -1,80 +1,125 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, Alert, KeyboardAvoidingView,
+  Platform, ScrollView, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+import { getAnimeTierResult, ANIME_TIERS, ROMAN } from '@/constants/animeTiers';
+import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 
-type Step = 'gender' | 'bodyweight' | 'experience' | 'goal' | 'style';
-const STEPS: Step[] = ['gender', 'bodyweight', 'experience', 'goal', 'style'];
+type Step = 'welcome' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
+const STEPS: Step[] = ['welcome', 'gender', 'bodyweight', 'goals', 'sbd', 'dna', 'done'];
 
 const EXPERIENCE_OPTIONS = [
-  { key: 'beginner', label: 'Just starting out', sub: 'Under 1 year training' },
-  { key: 'intermediate', label: 'Getting serious', sub: '1–3 years consistent training' },
-  { key: 'advanced', label: 'Been in the game', sub: '3+ years, know what works' },
-  { key: 'competitive', label: 'I compete', sub: 'Powerlifting, bodybuilding, or CrossFit' },
+  { key: 'beginner', label: 'Just starting', sub: 'Under 1 year' },
+  { key: 'intermediate', label: 'Getting serious', sub: '1–3 years' },
+  { key: 'advanced', label: 'Been in the game', sub: '3+ years' },
+  { key: 'competitive', label: 'I compete', sub: 'PL, BB, or CrossFit' },
 ];
 
 const GOAL_OPTIONS = [
-  { key: 'strength', label: 'Get stronger', sub: 'PRs, SBD numbers, raw power', emoji: '🏋️' },
-  { key: 'muscle', label: 'Build muscle', sub: 'Hypertrophy, aesthetics, size', emoji: '💪' },
-  { key: 'fat_loss', label: 'Lose fat', sub: 'Recomp, cut, drop weight', emoji: '🔥' },
-  { key: 'compete', label: 'Compete', sub: 'Working toward a meet or show', emoji: '🥇' },
-  { key: 'athletic', label: 'General performance', sub: 'Athletic, healthy, feel good', emoji: '⚡' },
+  { key: 'strength', label: 'Get stronger', emoji: '🏋️' },
+  { key: 'muscle', label: 'Build muscle', emoji: '💪' },
+  { key: 'fat_loss', label: 'Lose fat', emoji: '🔥' },
+  { key: 'compete', label: 'Compete', emoji: '🥇' },
+  { key: 'athletic', label: 'Stay athletic', emoji: '⚡' },
 ];
 
 const STYLE_OPTIONS = [
-  { key: 'powerlifting', label: 'Powerlifting', sub: 'SBD focused, strength first' },
-  { key: 'bodybuilding', label: 'Bodybuilding', sub: 'Hypertrophy, isolation, aesthetics' },
-  { key: 'hybrid', label: 'Hybrid', sub: 'Mix of strength and size' },
-  { key: 'calisthenics', label: 'Calisthenics', sub: 'Bodyweight, rings, skill work' },
-  { key: 'athletic', label: 'Athletic / Sport', sub: 'Performance, conditioning, power' },
+  { key: 'powerlifting', label: 'Powerlifting' },
+  { key: 'bodybuilding', label: 'Bodybuilding' },
+  { key: 'hybrid', label: 'Hybrid' },
+  { key: 'calisthenics', label: 'Calisthenics' },
+  { key: 'athletic', label: 'Athletic' },
 ];
 
 export default function OnboardingScreen() {
   const { user, refreshProfile } = useAuth();
-  const [step, setStep] = useState<Step>('bodyweight');
+  const [step, setStep] = useState<Step>('welcome');
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Form state
   const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [bodyweight, setBodyweight] = useState('');
   const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
   const [experience, setExperience] = useState('');
   const [goal, setGoal] = useState('');
   const [style, setStyle] = useState('');
+  const [sbd, setSbd] = useState({ sq: '', bp: '', dl: '' });
+  const [dnaText, setDnaText] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Tier reveal
+  const [showTierReveal, setShowTierReveal] = useState(false);
+  const [revealTier, setRevealTier] = useState<any>(null);
+
   const stepIndex = STEPS.indexOf(step);
-  const progress = (stepIndex + 1) / STEPS.length;
+  const progress = stepIndex / (STEPS.length - 1);
+
+  const animateNext = (nextStep: Step) => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setStep(nextStep);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    });
+  };
 
   const next = () => {
     const nextStep = STEPS[stepIndex + 1];
-    if (nextStep) setStep(nextStep);
+    if (nextStep) animateNext(nextStep);
   };
+
+  const skip = () => next();
 
   const handleFinish = async () => {
     const bw = parseFloat(bodyweight);
-    if (!bw || bw < 50 || bw > 1000) {
-      Alert.alert('Check your weight', 'Enter a realistic bodyweight.');
-      return;
-    }
+    if (!bw) { Alert.alert('Enter your bodyweight to continue'); return; }
     setSaving(true);
     try {
       const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
-      const { error } = await supabase
-        .from('users')
-        .update({
-          bodyweight_lbs: Math.round(bwLbs * 10) / 10,
-          unit_pref: unit,
-          gender: gender || null,
-          experience_level: experience || null,
-          primary_goal: goal || null,
-          training_style: style || null,
-        })
-        .eq('id', user!.id);
-      if (error) throw error;
+      await supabase.from('users').update({
+        bodyweight_lbs: Math.round(bwLbs * 10) / 10,
+        unit_pref: unit,
+        gender: gender || null,
+        experience_level: experience || null,
+        primary_goal: goal || null,
+        training_style: style || null,
+        training_notes: dnaText.trim() || null,
+      }).eq('id', user!.id);
+
+      // Save SBD maxes as PRs
+      const sbdEntries = [
+        { name: 'Barbell Back Squats', val: sbd.sq },
+        { name: 'Barbell Bench Press', val: sbd.bp },
+        { name: 'Deadlifts',           val: sbd.dl },
+      ].filter(e => parseFloat(e.val) > 0);
+
+      if (sbdEntries.length > 0) {
+        const { data: exRows } = await supabase
+          .from('exercises').select('id, name').in('name', sbdEntries.map(e => e.name));
+        for (const entry of sbdEntries) {
+          const ex = (exRows ?? []).find((e: any) => e.name === entry.name);
+          if (!ex) continue;
+          await supabase.from('personal_records').upsert({
+            user_id: user!.id, exercise_id: ex.id,
+            weight: parseFloat(entry.val), reps: 1,
+            achieved_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,exercise_id' });
+        }
+        // Calculate and show tier
+        const prs = sbdEntries.map(e => ({
+          exerciseName: e.name, weight: parseFloat(e.val), reps: 1,
+        }));
+        const result = getAnimeTierResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
+        setRevealTier(result.animeTier);
+        setShowTierReveal(true);
+      }
+
       await refreshProfile();
+      if (!sbdEntries.length) animateNext('done');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -84,308 +129,457 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+      {/* Progress bar */}
+      {step !== 'welcome' && step !== 'done' && (
+        <View style={{ height: 3, backgroundColor: Colors.surface2, marginTop: 8 }}>
+          <View style={{
+            height: '100%',
+            width: `${progress * 100}%`,
+            backgroundColor: Colors.accent,
+            borderRadius: 2,
+          }} />
+        </View>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* Progress bar */}
-        <View style={{ height: 3, backgroundColor: Colors.surface2, marginTop: 8 }}>
-          <View style={{ height: '100%', width: `${progress * 100}%`, backgroundColor: Colors.accent, borderRadius: 2 }} />
-        </View>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, padding: 28, paddingTop: step === 'welcome' ? 60 : 36 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={{ flex: 1, opacity: fadeAnim, gap: 24 }}>
 
-        <ScrollView contentContainerStyle={{ padding: 28, paddingTop: 36, flexGrow: 1 }}>
+            {/* ── WELCOME ─────────────────────────────────────────────── */}
+            {step === 'welcome' && (
+              <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                <View style={{ gap: 12 }}>
+                  <Text style={{
+                    color: Colors.accent, fontSize: 72, fontWeight: '900',
+                    letterSpacing: -4, lineHeight: 72,
+                  }}>
+                    STR
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13, letterSpacing: 3, textTransform: 'uppercase' }}>
+                    Strength Tracker
+                  </Text>
+                </View>
 
-          {/* ── STEP 0: GENDER ─────────────────────────────────────────────── */}
-          {step === 'gender' && (
-            <View style={{ gap: 24 }}>
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 1 of 5
-                </Text>
-                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                  Who's training?
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
-                  Strength standards are different for men and women. This makes your rank accurate.
-                </Text>
-              </View>
+                <View style={{ gap: 8, paddingVertical: 40 }}>
+                  <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -1, lineHeight: 38 }}>
+                    Your arc{'\n'}starts now.
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: 8 }}>
+                    Log every rep. Track every PR.{'\n'}Know exactly where you stand.
+                  </Text>
+                </View>
 
-              <View style={{ gap: 12 }}>
-                {([
-                  { key: 'male', label: 'Male', emoji: '⚡' },
-                  { key: 'female', label: 'Female', emoji: '⚡' },
-                  { key: 'other', label: 'Prefer not to say', emoji: '' },
-                ] as const).map(opt => (
+                <View style={{ gap: 12 }}>
                   <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => setGender(opt.key)}
-                    style={{
-                      backgroundColor: gender === opt.key ? Colors.accent + '15' : Colors.surface,
-                      borderRadius: 16, padding: 20,
-                      borderWidth: 1.5,
-                      borderColor: gender === opt.key ? Colors.accent : Colors.border,
-                      flexDirection: 'row', alignItems: 'center', gap: 16,
-                    }}
+                    onPress={next}
+                    style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
                   >
-                    <View style={{
-                      width: 44, height: 44, borderRadius: 22,
-                      backgroundColor: gender === opt.key ? Colors.accent + '25' : Colors.surface2,
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Text style={{ fontSize: 22 }}>{opt.emoji || '–'}</Text>
-                    </View>
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{opt.label}</Text>
-                    {gender === opt.key && (
-                      <Text style={{ color: Colors.accent, fontSize: 20, fontWeight: '900' }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                onPress={next}
-                disabled={!gender}
-                style={{
-                  backgroundColor: gender ? Colors.accent : Colors.surface,
-                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                  borderWidth: !gender ? 1 : 0, borderColor: Colors.border,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setGender('other'); next(); }} style={{ alignItems: 'center' }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── STEP 1: BODYWEIGHT ─────────────────────────────────────────── */}
-          {step === 'bodyweight' && (
-            <View style={{ gap: 24 }}>
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 2 of 5
-                </Text>
-                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                  First things first.
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
-                  Your bodyweight powers the strength tier calculations. You can update it anytime.
-                </Text>
-              </View>
-
-              {/* Unit toggle */}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {(['lbs', 'kg'] as const).map(u => (
-                  <TouchableOpacity
-                    key={u}
-                    onPress={() => setUnit(u)}
-                    style={{
-                      flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                      backgroundColor: unit === u ? Colors.accent : Colors.surface,
-                      borderWidth: 1, borderColor: unit === u ? Colors.accent : Colors.border,
-                    }}
-                  >
-                    <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, textTransform: 'uppercase', letterSpacing: 1 }}>
-                      {u}
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>
+                      Let's go →
                     </Text>
                   </TouchableOpacity>
-                ))}
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, textAlign: 'center' }}>
+                    Takes about 2 minutes
+                  </Text>
+                </View>
               </View>
+            )}
 
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, marginBottom: 8, textTransform: 'uppercase' }}>
-                  Bodyweight ({unit})
-                </Text>
+            {/* ── GENDER ──────────────────────────────────────────────── */}
+            {step === 'gender' && (
+              <View style={{ gap: 24 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 1 of 5
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    Who's training?
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
+                    Strength standards differ for men and women. This makes your rank accurate.
+                  </Text>
+                </View>
+
+                <View style={{ gap: 10 }}>
+                  {([
+                    { key: 'male', label: 'Male' },
+                    { key: 'female', label: 'Female' },
+                    { key: 'other', label: 'Prefer not to say' },
+                  ] as const).map(opt => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => setGender(opt.key)}
+                      style={{
+                        backgroundColor: gender === opt.key ? Colors.accent + '15' : Colors.surface,
+                        borderRadius: 14, padding: 18,
+                        borderWidth: 1.5,
+                        borderColor: gender === opt.key ? Colors.accent : Colors.border,
+                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                      }}
+                    >
+                      <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>{opt.label}</Text>
+                      {gender === opt.key && <Text style={{ color: Colors.accent, fontSize: 20 }}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  onPress={next}
+                  disabled={!gender}
+                  style={{
+                    backgroundColor: gender ? Colors.accent : Colors.surface,
+                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    borderWidth: !gender ? 1 : 0, borderColor: Colors.border,
+                  }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* ── BODYWEIGHT ──────────────────────────────────────────── */}
+            {step === 'bodyweight' && (
+              <View style={{ gap: 24 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 2 of 5
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    Your bodyweight.
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
+                    Powers the strength tier calculations. Update it anytime.
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {(['lbs', 'kg'] as const).map(u => (
+                    <TouchableOpacity
+                      key={u}
+                      onPress={() => setUnit(u)}
+                      style={{
+                        flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+                        backgroundColor: unit === u ? Colors.accent : Colors.surface,
+                        borderWidth: 1, borderColor: unit === u ? Colors.accent : Colors.border,
+                      }}
+                    >
+                      <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, textTransform: 'uppercase', letterSpacing: 1 }}>{u}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
                 <TextInput
                   value={bodyweight}
                   onChangeText={setBodyweight}
                   keyboardType="decimal-pad"
                   placeholder={unit === 'lbs' ? '185' : '84'}
                   placeholderTextColor={Colors.textMuted}
+                  autoFocus
                   style={{
                     backgroundColor: Colors.surface, borderColor: Colors.border,
                     borderWidth: 1, borderRadius: 14,
                     paddingHorizontal: 20, paddingVertical: 18,
-                    color: Colors.text, fontSize: 36, fontWeight: '800', letterSpacing: -1,
+                    color: Colors.text, fontSize: 40, fontWeight: '800', letterSpacing: -1,
+                    textAlign: 'center',
                   }}
                 />
+
+                <TouchableOpacity
+                  onPress={next}
+                  disabled={!bodyweight}
+                  style={{
+                    backgroundColor: bodyweight ? Colors.accent : Colors.surface,
+                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    borderWidth: !bodyweight ? 1 : 0, borderColor: Colors.border,
+                  }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                </TouchableOpacity>
               </View>
+            )}
 
-              <TouchableOpacity
-                onPress={next}
-                disabled={!bodyweight}
-                style={{
-                  backgroundColor: bodyweight ? Colors.accent : Colors.surface,
-                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                  borderWidth: !bodyweight ? 1 : 0, borderColor: Colors.border,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            {/* ── GOALS ───────────────────────────────────────────────── */}
+            {step === 'goals' && (
+              <View style={{ gap: 20 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 3 of 5
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    What are you training for?
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8 }}>
+                    Coach speaks your language based on this.
+                  </Text>
+                </View>
 
-          {/* ── STEP 2: EXPERIENCE ─────────────────────────────────────────── */}
-          {step === 'experience' && (
-            <View style={{ gap: 24 }}>
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 3 of 5
-                </Text>
-                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                  Where are you in the journey?
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
-                  Coach adjusts advice based on your experience level.
-                </Text>
+                {/* Experience */}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Experience</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {EXPERIENCE_OPTIONS.map(opt => (
+                      <TouchableOpacity
+                        key={opt.key}
+                        onPress={() => setExperience(opt.key)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+                          backgroundColor: experience === opt.key ? Colors.accent + '20' : Colors.surface,
+                          borderWidth: 1, borderColor: experience === opt.key ? Colors.accent : Colors.border,
+                        }}
+                      >
+                        <Text style={{ color: experience === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
+                          {opt.label}
+                        </Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 2 }}>{opt.sub}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Goal */}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Primary Goal</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {GOAL_OPTIONS.map(opt => (
+                      <TouchableOpacity
+                        key={opt.key}
+                        onPress={() => setGoal(opt.key)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+                          backgroundColor: goal === opt.key ? Colors.accent + '20' : Colors.surface,
+                          borderWidth: 1, borderColor: goal === opt.key ? Colors.accent : Colors.border,
+                          flexDirection: 'row', alignItems: 'center', gap: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 16 }}>{opt.emoji}</Text>
+                        <Text style={{ color: goal === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Style */}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Training Style</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {STYLE_OPTIONS.map(opt => (
+                      <TouchableOpacity
+                        key={opt.key}
+                        onPress={() => setStyle(opt.key)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+                          backgroundColor: style === opt.key ? Colors.accent + '20' : Colors.surface,
+                          borderWidth: 1, borderColor: style === opt.key ? Colors.accent : Colors.border,
+                        }}
+                      >
+                        <Text style={{ color: style === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={next}
+                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
+                </TouchableOpacity>
               </View>
+            )}
 
-              <View style={{ gap: 10 }}>
-                {EXPERIENCE_OPTIONS.map(opt => (
-                  <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => setExperience(opt.key)}
-                    style={{
-                      backgroundColor: experience === opt.key ? Colors.accent + '15' : Colors.surface,
+            {/* ── SBD RANK SETUP ──────────────────────────────────────── */}
+            {step === 'sbd' && (
+              <View style={{ gap: 24 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 4 of 5
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    What are your{'\n'}best lifts?
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
+                    Enter your best single or a heavy set. This sets your starting rank.
+                  </Text>
+                </View>
+
+                {/* Live tier preview */}
+                {(parseFloat(sbd.sq) > 0 || parseFloat(sbd.bp) > 0 || parseFloat(sbd.dl) > 0) && (() => {
+                  const bwLbs = unit === 'kg' ? parseFloat(bodyweight || '185') * 2.205 : parseFloat(bodyweight || '185');
+                  const prs = [
+                    { exerciseName: 'Barbell Back Squats', weight: parseFloat(sbd.sq) || 0, reps: 1 },
+                    { exerciseName: 'Barbell Bench Press', weight: parseFloat(sbd.bp) || 0, reps: 1 },
+                    { exerciseName: 'Deadlifts', weight: parseFloat(sbd.dl) || 0, reps: 1 },
+                  ].filter(p => p.weight > 0);
+                  if (prs.length === 0) return null;
+                  const result = getAnimeTierResult(prs, bwLbs, false, (gender || 'male') as any);
+                  return (
+                    <View style={{
+                      backgroundColor: result.animeTier.color + '15',
                       borderRadius: 14, padding: 16,
-                      borderWidth: 1.5,
-                      borderColor: experience === opt.key ? Colors.accent : Colors.border,
-                    }}
-                  >
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{opt.label}</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 12 }}>{opt.sub}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                onPress={next}
-                disabled={!experience}
-                style={{
-                  backgroundColor: experience ? Colors.accent : Colors.surface,
-                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                  borderWidth: !experience ? 1 : 0, borderColor: Colors.border,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={next} style={{ alignItems: 'center' }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── STEP 3: GOAL ───────────────────────────────────────────────── */}
-          {step === 'goal' && (
-            <View style={{ gap: 24 }}>
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 4 of 5
-                </Text>
-                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                  What are you training for?
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
-                  This sets the tone for every coaching response.
-                </Text>
-              </View>
-
-              <View style={{ gap: 10 }}>
-                {GOAL_OPTIONS.map(opt => (
-                  <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => setGoal(opt.key)}
-                    style={{
-                      backgroundColor: goal === opt.key ? Colors.accent + '15' : Colors.surface,
-                      borderRadius: 14, padding: 16,
-                      borderWidth: 1.5,
-                      borderColor: goal === opt.key ? Colors.accent : Colors.border,
-                      flexDirection: 'row', alignItems: 'center', gap: 14,
-                    }}
-                  >
-                    <Text style={{ fontSize: 24 }}>{opt.emoji}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{opt.label}</Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 12 }}>{opt.sub}</Text>
+                      borderWidth: 1, borderColor: result.animeTier.color + '40',
+                      alignItems: 'center', gap: 4,
+                    }}>
+                      <Text style={{ color: result.animeTier.color, fontSize: 22, fontWeight: '900', letterSpacing: 1.5 }}>
+                        {result.animeTier.label} {ROMAN[result.subTier]}
+                      </Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 12, fontStyle: 'italic' }}>
+                        "{result.animeTier.tagline}"
+                      </Text>
                     </View>
-                    {goal === opt.key && (
-                      <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '900' }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
+                  );
+                })()}
+
+                {[
+                  { label: 'Squat', key: 'sq' as const, placeholder: '315' },
+                  { label: 'Bench', key: 'bp' as const, placeholder: '225' },
+                  { label: 'Deadlift', key: 'dl' as const, placeholder: '405' },
+                ].map(({ label, key, placeholder }) => (
+                  <View key={key}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
+                      {label} ({unit})
+                    </Text>
+                    <TextInput
+                      value={sbd[key]}
+                      onChangeText={v => setSbd(prev => ({ ...prev, [key]: v }))}
+                      keyboardType="number-pad"
+                      placeholder={placeholder}
+                      placeholderTextColor={Colors.textMuted}
+                      style={{
+                        backgroundColor: Colors.surface, borderRadius: 12,
+                        paddingHorizontal: 16, paddingVertical: 14,
+                        color: Colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -1,
+                        borderWidth: 1, borderColor: Colors.border,
+                      }}
+                    />
+                  </View>
                 ))}
+
+                <TouchableOpacity
+                  onPress={next}
+                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip — I'll set this later</Text>
+                </TouchableOpacity>
               </View>
+            )}
 
-              <TouchableOpacity
-                onPress={next}
-                disabled={!goal}
-                style={{
-                  backgroundColor: goal ? Colors.accent : Colors.surface,
-                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                  borderWidth: !goal ? 1 : 0, borderColor: Colors.border,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={next} style={{ alignItems: 'center' }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            {/* ── LIFTER DNA ───────────────────────────────────────────── */}
+            {step === 'dna' && (
+              <View style={{ gap: 24 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 5 of 5
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    Tell Coach{'\n'}about you.
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
+                    Coach reads this before every response. Injuries, history, what works — the more detail, the better the advice.
+                  </Text>
+                </View>
 
-          {/* ── STEP 4: STYLE ──────────────────────────────────────────────── */}
-          {step === 'style' && (
-            <View style={{ gap: 24 }}>
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 5 of 5
-                </Text>
-                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                  How do you train?
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
-                  Coach speaks your language — whether that's RPE and percentages or sets to failure and pumps.
-                </Text>
+                {/* Example prompts */}
+                <View style={{
+                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                  borderWidth: 1, borderColor: Colors.border,
+                }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 1 }}>
+                    EXAMPLE
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+                    "3 years training, mostly bodybuilding. Left shoulder impingement — flat pressing hurts at the bottom. Bench has always been behind. Goal is to compete in 2 years. Sleep is inconsistent..."
+                  </Text>
+                </View>
+
+                <TextInput
+                  value={dnaText}
+                  onChangeText={setDnaText}
+                  multiline
+                  autoFocus
+                  placeholder="What should Coach know about you?"
+                  placeholderTextColor={Colors.textMuted}
+                  style={{
+                    backgroundColor: Colors.surface, borderRadius: 14,
+                    padding: 16, color: Colors.text, fontSize: 15,
+                    minHeight: 140, textAlignVertical: 'top',
+                    borderWidth: 1, borderColor: Colors.border, lineHeight: 22,
+                  }}
+                />
+
+                <TouchableOpacity
+                  onPress={handleFinish}
+                  disabled={saving}
+                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                >
+                  {saving
+                    ? <ActivityIndicator color={Colors.text} />
+                    : <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Let's go 🏋️</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleFinish} disabled={saving} style={{ alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip — enter later in profile</Text>
+                </TouchableOpacity>
               </View>
+            )}
 
-              <View style={{ gap: 10 }}>
-                {STYLE_OPTIONS.map(opt => (
+            {/* ── DONE ────────────────────────────────────────────────── */}
+            {step === 'done' && (
+              <View style={{ flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 40 }}>
+                <View />
+                <View style={{ alignItems: 'center', gap: 16 }}>
+                  <Text style={{ color: Colors.accent, fontSize: 60, fontWeight: '900', letterSpacing: -3 }}>STR</Text>
+                  <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
+                    You're in.
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
+                    Log your first workout.{'\n'}Every PR gets tracked automatically.{'\n'}Your rank climbs as you get stronger.
+                  </Text>
+                </View>
+                <View style={{ width: '100%', gap: 12 }}>
                   <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => setStyle(opt.key)}
-                    style={{
-                      backgroundColor: style === opt.key ? Colors.accent + '15' : Colors.surface,
-                      borderRadius: 14, padding: 16,
-                      borderWidth: 1.5,
-                      borderColor: style === opt.key ? Colors.accent : Colors.border,
-                    }}
+                    onPress={() => refreshProfile()}
+                    style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
                   >
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{opt.label}</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 12 }}>{opt.sub}</Text>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Start Training →</Text>
                   </TouchableOpacity>
-                ))}
+                </View>
               </View>
+            )}
 
-              <TouchableOpacity
-                onPress={handleFinish}
-                disabled={saving}
-                style={{
-                  backgroundColor: Colors.accent,
-                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                }}
-              >
-                {saving
-                  ? <ActivityIndicator color={Colors.text} />
-                  : <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Let's go 🏋️</Text>
-                }
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleFinish} disabled={saving} style={{ alignItems: 'center' }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Tier reveal animation */}
+      <TierAdvancementScreen
+        visible={showTierReveal}
+        tier={revealTier}
+        subTier={1}
+        isSubTierAdvance={false}
+        onDismiss={() => {
+          setShowTierReveal(false);
+          animateNext('done');
+        }}
+      />
     </SafeAreaView>
   );
 }
