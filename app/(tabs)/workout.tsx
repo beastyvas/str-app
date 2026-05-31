@@ -368,9 +368,8 @@ export default function WorkoutTab() {
               <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
                 Your templates
               </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              <View style={{ gap: 10 }}>
                 {templates.map(tmpl => {
-                  const topMuscles = tmpl.muscleGroups.slice(0, 2);
                   const daysAgo = Math.floor((Date.now() - new Date(tmpl.lastUsed).getTime()) / 86400000);
                   const ageLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo}d ago`;
                   return (
@@ -378,32 +377,57 @@ export default function WorkoutTab() {
                       key={tmpl.id}
                       onPress={() => startFromTemplate(tmpl.name, tmpl.exercises)}
                       style={{
-                        width: '47%',
                         backgroundColor: Colors.surface,
                         borderRadius: 14,
-                        padding: 14,
+                        padding: 16,
                         borderWidth: 1,
                         borderColor: Colors.border,
                       }}
                     >
-                      {/* Muscle color dots */}
-                      <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
-                        {topMuscles.map((mg, i) => (
+                      {/* Header */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                            {tmpl.name}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                            {tmpl.exercises.length} exercises · {ageLabel}
+                          </Text>
+                        </View>
+                        <View style={{
+                          backgroundColor: Colors.accentDim,
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderWidth: 1,
+                          borderColor: Colors.accent + '40',
+                        }}>
+                          <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>Start →</Text>
+                        </View>
+                      </View>
+
+                      {/* All exercises */}
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {tmpl.exercises.map((ex, i) => (
                           <View key={i} style={{
-                            width: 8, height: 8, borderRadius: 4,
-                            backgroundColor: MUSCLE_COLORS[mg] ?? Colors.textMuted,
-                          }} />
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            backgroundColor: Colors.surface2,
+                            borderRadius: 6,
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                          }}>
+                            <View style={{
+                              width: 5, height: 5, borderRadius: 3,
+                              backgroundColor: MUSCLE_COLORS[ex.muscle_group] ?? Colors.textMuted,
+                            }} />
+                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '600' }}>
+                              {ex.name}
+                            </Text>
+                          </View>
                         ))}
                       </View>
-                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800', marginBottom: 3 }} numberOfLines={1}>
-                        {tmpl.name}
-                      </Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 8 }}>
-                        {tmpl.exercises.length} exercises · {ageLabel}
-                      </Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={2}>
-                        {tmpl.exercises.slice(0, 3).map(e => e.name).join(', ')}
-                      </Text>
                     </TouchableOpacity>
                   );
                 })}
