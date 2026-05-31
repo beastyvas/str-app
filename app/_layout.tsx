@@ -36,8 +36,10 @@ function RootLayoutNav() {
 
     if (!session) {
       if (!inAuth) router.replace('/(auth)/login');
+    } else if (session && !profile) {
+      // Session exists but profile still loading — wait, don't flash onboarding
+      return;
     } else if (!profile?.bodyweight_lbs) {
-      // Needs onboarding
       router.replace('/(auth)/onboarding');
     } else {
       if (inAuth) router.replace('/(tabs)');
