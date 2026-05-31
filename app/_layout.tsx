@@ -1,9 +1,21 @@
 import '../global.css';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+
+// Initialize RevenueCat once at app start
+try {
+  const Purchases = require('react-native-purchases').default;
+  const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
+  if (apiKey && Platform.OS === 'ios') {
+    Purchases.configure({ apiKey });
+  }
+} catch {
+  // Expo Go or web — RC runs in browser mode, no config needed
+}
 
 SplashScreen.preventAutoHideAsync();
 
