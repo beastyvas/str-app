@@ -673,47 +673,85 @@ export default function SocialScreen() {
                 Your Crew ({friends.length})
               </Text>
               {friends.map(f => (
-                <TouchableOpacity
+                <View
                   key={f.id}
-                  onPress={() => setSelectedFriendId(f.id)}
-                  onLongPress={() => removeFriend(f.friendshipId, f.display_name)}
-                  delayLongPress={600}
-                  activeOpacity={0.85}
                   style={{
-                    backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
-                    borderWidth: 1, borderColor: Colors.border,
-                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    backgroundColor: Colors.surface,
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: (f.animeTierColor ?? Colors.border) + '30',
+                    overflow: 'hidden',
                   }}
                 >
-                  <Avatar url={f.avatar_url} name={f.display_name} color={f.animeTierColor ?? Colors.accent} size={46} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', marginBottom: 2 }}>{f.display_name}</Text>
-                    {f.bio && (
-                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 4 }} numberOfLines={1}>{f.bio}</Text>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      {f.animeTierLabel && (
-                        <View style={{
-                          backgroundColor: (f.animeTierColor ?? Colors.accent) + '18',
-                          borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
-                        }}>
-                          <Text style={{ color: f.animeTierColor ?? Colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 }}>
-                            {f.animeTierLabel}
-                          </Text>
-                        </View>
+                  {/* Profile header */}
+                  <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Avatar url={f.avatar_url} name={f.display_name} color={f.animeTierColor ?? Colors.accent} size={56} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
+                        {f.display_name}
+                      </Text>
+                      {/* @username if exists */}
+                      {(f as any).username && (
+                        <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
+                          @{(f as any).username}
+                        </Text>
                       )}
-                      {f.recentPR && (
-                        <Text style={{ color: Colors.textMuted, fontSize: 10 }}>
-                          🏆 {f.recentPR.exerciseName} {f.recentPR.weight} lbs · {timeAgo(f.recentPR.achieved_at)}
+                      {/* Bio */}
+                      {f.bio && (
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4, lineHeight: 17 }} numberOfLines={2}>
+                          {f.bio}
                         </Text>
                       )}
                     </View>
                   </View>
-                </TouchableOpacity>
+
+                  {/* Tier bar */}
+                  {f.animeTierLabel && (
+                    <View style={{
+                      marginHorizontal: 16, marginBottom: 12,
+                      backgroundColor: (f.animeTierColor ?? Colors.accent) + '15',
+                      borderRadius: 10, padding: 12,
+                      borderWidth: 1, borderColor: (f.animeTierColor ?? Colors.accent) + '30',
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                    }}>
+                      <View style={{
+                        backgroundColor: (f.animeTierColor ?? Colors.accent) + '25',
+                        borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
+                      }}>
+                        <Text style={{ color: f.animeTierColor ?? Colors.accent, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 }}>
+                          {f.animeTierLabel}
+                        </Text>
+                      </View>
+                      {f.recentPR && (
+                        <Text style={{ color: Colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
+                          🏆 {f.recentPR.exerciseName} — {f.recentPR.weight} lbs
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Actions */}
+                  <View style={{
+                    flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border,
+                  }}>
+                    <TouchableOpacity
+                      onPress={() => setSelectedFriendId(f.id)}
+                      style={{
+                        flex: 1, paddingVertical: 12, alignItems: 'center',
+                        borderRightWidth: 1, borderRightColor: Colors.border,
+                      }}
+                    >
+                      <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 13 }}>View Profile</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => removeFriend(f.friendshipId, f.display_name)}
+                      style={{ paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center' }}
+                    >
+                      <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))}
-              <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginTop: 4 }}>
-                Long press to remove a friend
-              </Text>
             </View>
           )}
         </ScrollView>
