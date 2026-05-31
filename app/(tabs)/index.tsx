@@ -657,87 +657,34 @@ export default function HomeScreen() {
           <Text style={{ color: Colors.textMuted, fontSize: 20 }}>›</Text>
         </TouchableOpacity>
 
-        {/* ── FRIEND ACTIVITY ─────────────────────────────────────── */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
-            Crew Activity
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/friends')}>
-            <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>See all →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={Colors.textMuted} />
-        ) : friendPRs.length === 0 ? (
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/friends')}
-            style={{
-              backgroundColor: Colors.surface,
-              borderRadius: 14, padding: 20,
-              borderWidth: 1, borderColor: Colors.border,
-              alignItems: 'center', gap: 6,
-            }}
-          >
-            <Text style={{ fontSize: 28 }}>👥</Text>
-            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>No crew yet</Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Add friends to see their PRs here</Text>
-            <View style={{
-              marginTop: 4,
-              backgroundColor: Colors.accentDim,
-              borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7,
-              borderWidth: 1, borderColor: Colors.accent + '40',
-            }}>
-              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>Find Friends →</Text>
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ gap: 8 }}>
-            {/* Group by friend — show one card per person with their best recent PR */}
-            {Object.entries(
-              friendPRs.reduce<Record<string, typeof friendPRs>>((acc, pr) => {
-                if (!acc[pr.display_name]) acc[pr.display_name] = [];
-                acc[pr.display_name].push(pr);
-                return acc;
-              }, {})
-            ).slice(0, 3).map(([name, prs], i) => {
-              const topPR = prs[0]; // already sorted by achieved_at desc
-              const otherCount = prs.length - 1;
-              return (
-                <View key={i} style={{
-                  backgroundColor: Colors.surface,
-                  borderRadius: 14, padding: 14,
-                  borderWidth: 1, borderColor: Colors.border,
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <View style={{
-                      width: 32, height: 32, borderRadius: 16,
-                      backgroundColor: Colors.goldDim,
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Text style={{ fontSize: 14 }}>🏆</Text>
-                    </View>
-                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800', flex: 1 }}>{name}</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{timeAgo(topPR.achieved_at)}</Text>
-                  </View>
-                  <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '700' }}>
-                    {topPR.exercise_name} — {topPR.weight} {topPR.unit_pref}{topPR.reps > 1 ? ` × ${topPR.reps}` : ''}
-                  </Text>
-                  {otherCount > 0 && (
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>
-                      +{otherCount} more PR{otherCount !== 1 ? 's' : ''} this session
-                    </Text>
-                  )}
-                </View>
-              );
-            })}
-            <TouchableOpacity onPress={() => router.push('/(tabs)/friends')} style={{ alignItems: 'center', padding: 8 }}>
-              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                See full feed →
-              </Text>
-            </TouchableOpacity>
+        {/* ── CREW ACTIVITY — taps to Social feed ─────────────────── */}
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/friends')}
+          style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 14, padding: 16,
+            borderWidth: 1, borderColor: Colors.border,
+            flexDirection: 'row', alignItems: 'center', gap: 14,
+          }}
+        >
+          <View style={{
+            width: 40, height: 40, borderRadius: 20,
+            backgroundColor: Colors.accentDim,
+            borderWidth: 1, borderColor: Colors.accent + '40',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Text style={{ fontSize: 20 }}>👥</Text>
           </View>
-        )}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Crew Activity</Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
+              {friendPRs.length > 0
+                ? `${friendPRs[0].display_name} and others are active`
+                : 'See your friends\' workouts and PRs'}
+            </Text>
+          </View>
+          <Text style={{ color: Colors.accent, fontSize: 16 }}>›</Text>
+        </TouchableOpacity>
         {/* Weekly Plan Prompt Modal */}
         <Modal visible={weeklyPlanModal} transparent animationType="slide">
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
