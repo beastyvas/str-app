@@ -672,7 +672,7 @@ export default function OnboardingScreen() {
                   </View>
 
                   <TouchableOpacity
-                    onPress={() => Linking.openURL('https://instagram.com/beastyvas')}
+                    onPress={() => Linking.openURL('https://instagram.com/the_chunkyhunk')}
                     style={{
                       backgroundColor: Colors.surface,
                       borderRadius: 12, paddingVertical: 14,
@@ -683,7 +683,7 @@ export default function OnboardingScreen() {
                   >
                     <Text style={{ fontSize: 20 }}>📸</Text>
                     <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 14 }}>
-                      Follow @beastyvas on Instagram
+                      Follow @the_chunkyhunk on Instagram
                     </Text>
                   </TouchableOpacity>
 
