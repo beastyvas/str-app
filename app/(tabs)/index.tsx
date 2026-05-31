@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
@@ -209,6 +209,11 @@ export default function HomeScreen() {
           <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
             {profile?.display_name?.split(' ')[0] ?? 'Athlete'}
           </Text>
+          {animeResult && animeResult.avgScore > 0 && (
+            <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '700', marginTop: 3, letterSpacing: 1.5 }}>
+              {animeResult.animeTier.label} TIER
+            </Text>
+          )}
         </View>
 
         {/* ── ANIME TIER CARD ─────────────────────────────────────── */}

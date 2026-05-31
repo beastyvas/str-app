@@ -157,53 +157,74 @@ export default function SocialScreen() {
               setsCount: sets.length,
               totalVolume: vol,
               exercises: exs,
+              animeTierLabel: (sbdByUser[w.user_id] ?? []).length > 0
+                ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
+                    exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
+                  })), other?.bodyweight_lbs ?? 185).animeTier.label
+                : undefined,
+              animeTierColor: (sbdByUser[w.user_id] ?? []).length > 0
+                ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
+                    exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
+                  })), other?.bodyweight_lbs ?? 185).animeTier.color
+                : undefined,
             };
           });
         setFeed(posts);
       }
 
-      // Build friends list with tiers
-      const friendList: Friend[] = await Promise.all(
-        accepted.map(async f => {
-          const other = (f.requester_id === user.id ? f.addressee : f.requester) as any;
-          const { data: prs } = await supabase
-            .from('personal_records')
-            .select('weight, reps, achieved_at, exercises!inner(name)')
-            .eq('user_id', other.id)
-            .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
-            .order('achieved_at', { ascending: false });
-
-          const { data: recentPR } = await supabase
-            .from('personal_records')
-            .select('weight, reps, achieved_at, exercises(name)')
-            .eq('user_id', other.id)
-            .order('achieved_at', { ascending: false })
-            .limit(1);
-
-          const sbdPrs = (prs ?? []).map((p: any) => ({
-            exerciseName: p.exercises?.name ?? '',
-            weight: p.weight, reps: p.reps,
-          }));
-          const tierResult = getAnimeTierResult(sbdPrs, other.bodyweight_lbs ?? 185);
-          const pr = recentPR?.[0] as any;
-
-          return {
-            id: other.id,
-            display_name: other.display_name ?? 'Unknown',
-            avatar_url: other.avatar_url,
-            bio: other.bio,
-            bodyweight_lbs: other.bodyweight_lbs,
-            friendshipId: f.id,
-            animeTierLabel: tierResult.animeTier.label,
-            animeTierColor: tierResult.animeTier.color,
-            recentPR: pr ? {
-              exerciseName: pr.exercises?.name ?? '',
-              weight: pr.weight,
-              achieved_at: pr.achieved_at,
-            } : undefined,
-          };
-        })
+      // Batch all friend PRs in TWO queries (not N)
+      const friendUserIds = accepted.map(f =>
+        f.requester_id === user.id ? f.addressee_id : f.requester_id
       );
+
+      const [{ data: allSbdPrs }, { data: allRecentPrs }] = await Promise.all([
+        supabase
+          .from('personal_records')
+          .select('user_id, weight, reps, exercises!inner(name)')
+          .in('user_id', friendUserIds)
+          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']),
+        supabase
+          .from('personal_records')
+          .select('user_id, weight, reps, achieved_at, exercises(name)')
+          .in('user_id', friendUserIds)
+          .order('achieved_at', { ascending: false }),
+      ]);
+
+      // Group by user_id
+      const sbdByUser: Record<string, any[]> = {};
+      const recentByUser: Record<string, any> = {};
+      (allSbdPrs ?? []).forEach((p: any) => {
+        if (!sbdByUser[p.user_id]) sbdByUser[p.user_id] = [];
+        sbdByUser[p.user_id].push(p);
+      });
+      (allRecentPrs ?? []).forEach((p: any) => {
+        if (!recentByUser[p.user_id]) recentByUser[p.user_id] = p;
+      });
+
+      const friendList: Friend[] = accepted.map(f => {
+        const other = (f.requester_id === user.id ? f.addressee : f.requester) as any;
+        const sbdPrs = (sbdByUser[other.id] ?? []).map((p: any) => ({
+          exerciseName: p.exercises?.name ?? '',
+          weight: p.weight, reps: p.reps,
+        }));
+        const tierResult = getAnimeTierResult(sbdPrs, other.bodyweight_lbs ?? 185);
+        const pr = recentByUser[other.id];
+        return {
+          id: other.id,
+          display_name: other.display_name ?? 'Unknown',
+          avatar_url: other.avatar_url,
+          bio: other.bio,
+          bodyweight_lbs: other.bodyweight_lbs,
+          friendshipId: f.id,
+          animeTierLabel: tierResult.animeTier.label,
+          animeTierColor: tierResult.animeTier.color,
+          recentPR: pr ? {
+            exerciseName: pr.exercises?.name ?? '',
+            weight: pr.weight,
+            achieved_at: pr.achieved_at,
+          } : undefined,
+        };
+      });
       setFriends(friendList);
     } catch (e) {
       // silence
@@ -362,10 +383,22 @@ export default function SocialScreen() {
                     size={40}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
-                      {post.displayName}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
+                        {post.displayName}
+                      </Text>
+                      {post.animeTierLabel && (
+                        <View style={{
+                          backgroundColor: (post.animeTierColor ?? Colors.accent) + '20',
+                          borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+                        }}>
+                          <Text style={{ color: post.animeTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
+                            {post.animeTierLabel}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
                       {post.workoutName} · {timeAgo(post.endedAt)}
                     </Text>
                   </View>

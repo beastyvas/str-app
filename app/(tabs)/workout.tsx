@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -298,7 +298,7 @@ export default function WorkoutTab() {
               {todayName}
             </Text>
             <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
-              Time to train.
+              Your arc continues.
             </Text>
           </View>
 
@@ -589,13 +589,22 @@ export default function WorkoutTab() {
         <View style={{
           backgroundColor: Colors.goldDim,
           paddingHorizontal: 16,
-          paddingVertical: 10,
+          paddingVertical: 12,
           borderBottomWidth: 1,
           borderBottomColor: Colors.gold + '30',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
         }}>
-          <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '800' }}>
-            🏆 {newPRs.map(p => `${p.exerciseName} PR!`).join('  ')}
-          </Text>
+          <Text style={{ fontSize: 18 }}>🏆</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '900', letterSpacing: 0.3 }}>
+              NEW PERSONAL RECORD
+            </Text>
+            <Text style={{ color: Colors.gold, fontSize: 11, opacity: 0.8, marginTop: 1 }}>
+              {newPRs.map(p => `${p.exerciseName} — ${p.weight} × ${p.reps}`).join('  ·  ')}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -606,7 +615,7 @@ export default function WorkoutTab() {
         {activeWorkout.exercises.length === 0 && (
           <View style={{ padding: 40, alignItems: 'center' }}>
             <Text style={{ color: Colors.textMuted, fontSize: 15, textAlign: 'center' }}>
-              No exercises yet.{'\n'}Tap + to add your first exercise.
+              No exercises yet.{'\n'}Add your first lift. Every PR starts here.
             </Text>
           </View>
         )}
