@@ -336,30 +336,59 @@ export default function WorkoutTab() {
         const newMinScore = newResult.animeTier.minScore;
         const newSubTier = newResult.subTier;
 
-        const prev = currentTierRef.current;
+        const prev = currentTierRef.current as any;
+        const thisLift = newResult.lifts.find(l => l.exercise.toLowerCase() === exName.toLowerCase());
+        const SBD_KEY: Record<string, string> = {
+          'barbell back squats': 'sqTier',
+          'barbell bench press': 'bpTier',
+          'deadlifts': 'dlTier',
+        };
+        const prevLiftTierKey = SBD_KEY[exName.toLowerCase()];
+        const prevLiftTier = prev?.[prevLiftTierKey] ?? 'beginner';
+        const TIER_COLORS_INLINE: Record<string, string> = {
+          beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
+          silver: Colors.tiers.silver, gold: Colors.tiers.gold,
+          platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
+        };
 
         if (!prev) {
-          // First ever SBD PR — always fire the modal
+          // First ever SBD PR — always fire
           setTierAdvancement(newResult.animeTier);
           setTierAdvSubTier(newSubTier);
           setIsSubTierAdvance(false);
           setShowTierAdvancement(true);
         } else if (newMinScore > prev.minScore) {
-          // Full tier advance (e.g., NINJA → DEMON)
+          // Full overall rank advance
           setTierAdvancement(newResult.animeTier);
           setTierAdvSubTier(undefined);
           setIsSubTierAdvance(false);
           setShowTierAdvancement(true);
         } else if (newKey === prev.key && newSubTier > prev.subTier) {
-          // Sub-tier advance within same tier (e.g., DEMON I → DEMON II)
+          // Sub-tier advance within same rank
           setTierAdvancement(newResult.animeTier);
           setTierAdvSubTier(newSubTier);
           setIsSubTierAdvance(true);
           setShowTierAdvancement(true);
+        } else if (thisLift && thisLift.tier !== prevLiftTier && thisLift.tier !== 'beginner') {
+          // Individual lift tier advanced (squat/bench/deadlift tier went up)
+          // even if the overall weakest-link rank didn't change yet
+          const liftLabel = exName.replace('Barbell ', '').replace(' Squats', ' Squat').toUpperCase();
+          const tierLabel = (thisLift.tier.charAt(0).toUpperCase() + thisLift.tier.slice(1)).toUpperCase();
+          const liftColor = TIER_COLORS_INLINE[thisLift.tier];
+          // Mutate the tier object temporarily to pass lift info
+          const liftTierObj = { ...newResult.animeTier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
+          setTierAdvancement(liftTierObj as any);
+          setTierAdvSubTier(undefined);
+          setIsSubTierAdvance(false);
+          setShowTierAdvancement(true);
         }
-        // If regression (new minScore < prev): silently update ref, no modal
 
-        currentTierRef.current = { key: newKey, subTier: newSubTier, minScore: newMinScore };
+        currentTierRef.current = {
+          key: newKey, subTier: newSubTier, minScore: newMinScore,
+          sqTier: newResult.lifts[0]?.tier ?? 'beginner',
+          bpTier: newResult.lifts[1]?.tier ?? 'beginner',
+          dlTier: newResult.lifts[2]?.tier ?? 'beginner',
+        };
       }
     }
 
@@ -1016,6 +1045,9 @@ export default function WorkoutTab() {
         tier={tierAdvancement}
         subTier={tierAdvSubTier}
         isSubTierAdvance={isSubTierAdvance}
+        liftName={(tierAdvancement as any)?.__liftName}
+        liftTierName={(tierAdvancement as any)?.__liftTierName}
+        liftTierColor={(tierAdvancement as any)?.__liftTierColor}
         onDismiss={() => {
           setShowTierAdvancement(false);
           setTierAdvancement(null);

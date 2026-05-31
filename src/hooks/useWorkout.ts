@@ -256,9 +256,50 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   discardWorkout: async () => {
-    const { activeWorkout } = get();
+    const { activeWorkout, newPRs } = get();
     if (activeWorkout?.id) {
+      // Delete the workout (cascades to workout_sets via FK)
       await supabase.from('workouts').delete().eq('id', activeWorkout.id);
+
+      // Roll back any PRs that were set during this workout
+      if (newPRs.length > 0) {
+        for (const pr of newPRs) {
+          // Get the exercise ID
+          const { data: ex } = await supabase
+            .from('exercises').select('id').eq('name', pr.exerciseName).single();
+          if (!ex) continue;
+
+          // Find the previous PR for this exercise (before this workout)
+          // by looking at workout_sets not in this workout
+          const { data: prevSets } = await supabase
+            .from('workout_sets')
+            .select('weight, reps')
+            .eq('exercise_id', ex.id)
+            .neq('workout_id', activeWorkout.id)
+            .order('logged_at', { ascending: false })
+            .limit(10);
+
+          if (prevSets && prevSets.length > 0) {
+            // Find best e1RM from previous sets
+            const best = prevSets.reduce((b: any, s: any) => {
+              const e1rm = s.weight * (1 + s.reps / 30);
+              return e1rm > b.weight * (1 + b.reps / 30) ? s : b;
+            }, prevSets[0]);
+            // Restore previous PR
+            await supabase.from('personal_records').upsert({
+              exercise_id: ex.id,
+              weight: best.weight,
+              reps: best.reps,
+              achieved_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,exercise_id' });
+          } else {
+            // No previous sets — delete the PR entirely
+            await supabase.from('personal_records')
+              .delete()
+              .eq('exercise_id', ex.id);
+          }
+        }
+      }
     }
     set({ activeWorkout: null, lastSetLoggedAt: null, newPRs: [] });
   },

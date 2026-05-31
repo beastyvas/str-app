@@ -149,16 +149,35 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
           {/* How it works */}
           <View style={{
             backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
-            borderWidth: 1, borderColor: Colors.border, marginTop: 8,
+            borderWidth: 1, borderColor: Colors.border, marginTop: 8, gap: 12,
           }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>
               How Ranks Work
             </Text>
             <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
-              Your rank is calculated from the average tier score across your Squat, Bench, and Deadlift.
-              Each lift is scored 0–5 based on your weight relative to bodyweight.{'\n\n'}
-              Log your SBD maxes on your profile to calculate your rank. It updates automatically every time you hit a new PR.
+              Your rank is your <Text style={{ color: Colors.text, fontWeight: '700' }}>weakest SBD lift</Text>. A 400 squat and 400 deadlift won't move you past NINJA if your bench is still at NINJA level. Every lift has to earn the rank.
             </Text>
+            <View style={{ height: 1, backgroundColor: Colors.border }} />
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+              The I · II · III · IV System
+            </Text>
+            <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
+              Every tier has four sub-ranks. <Text style={{ color: Colors.text, fontWeight: '700' }}>NINJA I → NINJA II → NINJA III → NINJA IV → DEMON I</Text>.{'\n\n'}Sub-tiers measure your <Text style={{ color: Colors.text, fontWeight: '700' }}>average</Text> across all three lifts — so even when your weakest lift is holding your rank, you can still feel progress climbing through the sub-tiers as your other lifts improve.{'\n\n'}Hit a new PR on any SBD lift and watch for the advance screen.
+            </Text>
+            <View style={{
+              flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center',
+              paddingTop: 4,
+            }}>
+              {['I', 'II', 'III', 'IV'].map((r, i) => (
+                <View key={r} style={{
+                  backgroundColor: Colors.accent + (i === 1 ? '30' : '15'),
+                  borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5,
+                  borderWidth: 1, borderColor: Colors.accent + '30',
+                }}>
+                  <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '900' }}>{r}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
