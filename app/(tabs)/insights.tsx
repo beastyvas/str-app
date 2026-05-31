@@ -80,8 +80,36 @@ export default function InsightsTab() {
       return `${w.name} (${new Date(w.started_at).toLocaleDateString()}): ${sets.length} sets, ${vol} lbs volume${notes ? `, notes: ${notes}` : ''}`;
     }).join('\n');
 
+    const GOAL_LABELS: Record<string, string> = {
+      strength: 'get stronger (SBD focus)',
+      muscle: 'build muscle (hypertrophy)',
+      fat_loss: 'lose fat / recomp',
+      compete: 'compete (powerlifting or bodybuilding)',
+      athletic: 'general athletic performance',
+    };
+    const EXP_LABELS: Record<string, string> = {
+      beginner: 'beginner (under 1 year)',
+      intermediate: 'intermediate (1–3 years)',
+      advanced: 'advanced (3+ years)',
+      competitive: 'competitive athlete',
+    };
+    const STYLE_LABELS: Record<string, string> = {
+      powerlifting: 'powerlifting',
+      bodybuilding: 'bodybuilding',
+      hybrid: 'hybrid strength/size',
+      calisthenics: 'calisthenics',
+      athletic: 'athletic/sport performance',
+    };
+
+    const athleteProfile = [
+      profile?.experience_level ? `Experience: ${EXP_LABELS[profile.experience_level] ?? profile.experience_level}` : null,
+      profile?.primary_goal ? `Goal: ${GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal}` : null,
+      profile?.training_style ? `Training style: ${STYLE_LABELS[profile.training_style] ?? profile.training_style}` : null,
+      profile?.bodyweight_lbs ? `Bodyweight: ${profile.bodyweight_lbs} lbs` : null,
+    ].filter(Boolean).join('\n');
+
     const sections = [
-      `Bodyweight: ${profile?.bodyweight_lbs ?? 'unknown'} lbs`,
+      athleteProfile || `Bodyweight: ${profile?.bodyweight_lbs ?? 'unknown'} lbs`,
       `PRs: ${(prs ?? []).map((p: any) => `${p.exercises?.name} ${p.weight}lbs×${p.reps}`).join(', ') || 'none logged'}`,
       `Recent workouts:\n${workoutSummary}`,
     ];
