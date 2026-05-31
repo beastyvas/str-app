@@ -317,6 +317,7 @@ ${context}`;
             name: workout.name,
             started_at: workout.date.toISOString(),
             ended_at: new Date(workout.date.getTime() + 60 * 60 * 1000).toISOString(),
+            is_imported: true,  // never show in social feed
           })
           .select()
           .single();

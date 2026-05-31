@@ -182,6 +182,7 @@ export default function SocialScreen() {
           `)
           .in('user_id', feedUserIds)
           .not('ended_at', 'is', null)
+          .eq('is_imported', false)   // never show imported workouts in feed
           .order('ended_at', { ascending: false })
           .limit(30);
 

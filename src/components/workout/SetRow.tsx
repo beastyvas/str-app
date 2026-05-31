@@ -29,17 +29,19 @@ export function SetInputRow({
 
   const [mode, setMode] = useState<WeightMode>(defaultMode);
   const [plateSystem, setPlateSystem] = useState<PlateSystem>('lbs');
+  // Default to EMPTY — user types their own weight, previous shown as hint only
   const [weight, setWeight] = useState(
     defaultMode === 'bw' ? '' :
     defaultMode === 'plates' ? String(PLATE_CONFIGS.lbs.barWeight) :
-    (prevSet?.weight?.toString() ?? '')
+    ''  // always start empty, prev shown as placeholder hint
   );
-  const [reps, setReps] = useState(prevSet?.reps?.toString() ?? '');
-  const [rpe, setRpe] = useState<number | undefined>(prevSet?.rpe);
+  const [reps, setReps] = useState('');  // always start empty
+  const [rpe, setRpe] = useState<number | undefined>(undefined);
   const [note, setNote] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
 
   const cfg = PLATE_CONFIGS[plateSystem];
   const plateWeight = parseFloat(weight) || cfg.barWeight;
@@ -140,21 +142,6 @@ export function SetInputRow({
           )}
         </View>
 
-        {/* Mode cycle: 123 → BW → PLT */}
-        <TouchableOpacity
-          onPress={cycleMode}
-          style={{
-            backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
-            borderRadius: 6, paddingHorizontal: 4, paddingVertical: 10,
-            borderWidth: 1, borderColor: mode !== 'number' ? Colors.accent : Colors.border,
-            alignItems: 'center', justifyContent: 'center', minWidth: 30,
-          }}
-        >
-          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
-            {mode === 'number' ? '123' : mode === 'bw' ? 'BW' : 'PLT'}
-          </Text>
-        </TouchableOpacity>
-
         <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300' }}>×</Text>
 
         <View style={{ flex: 1 }}>
@@ -174,29 +161,34 @@ export function SetInputRow({
           />
         </View>
 
+        {/* Expand RPE/note — hidden by default, clean for new users */}
         <TouchableOpacity
-          onPress={() => setShowRpe(!showRpe)}
+          onPress={() => setShowExtras(!showExtras)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={{
-            backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: rpe ? Colors.accent : Colors.border,
-            paddingHorizontal: 8,
-            paddingVertical: 10,
-            minWidth: 46,
-            alignItems: 'center',
+            paddingHorizontal: 8, paddingVertical: 10,
+            opacity: (rpe || note) ? 1 : 0.5,
           }}
         >
-          <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
-            {rpe ? `${rpe}` : 'RPE'}
+          <Text style={{ color: (rpe || note) ? Colors.accent : Colors.textMuted, fontSize: 13 }}>
+            {(rpe || note) ? '●' : '···'}
           </Text>
         </TouchableOpacity>
 
+        {/* Mode cycle — small, tucked */}
         <TouchableOpacity
-          onPress={() => setNoteOpen(true)}
-          style={{ backgroundColor: note ? Colors.surface2 : 'transparent', borderRadius: 8, padding: 8 }}
+          onPress={cycleMode}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          style={{
+            backgroundColor: mode !== 'number' ? Colors.accentDim : 'transparent',
+            borderRadius: 5, paddingHorizontal: 4, paddingVertical: 6,
+            borderWidth: mode !== 'number' ? 1 : 0,
+            borderColor: Colors.accent + '60',
+          }}
         >
-          <Text style={{ fontSize: 16, opacity: note ? 1 : 0.4 }}>📝</Text>
+          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
+            {mode === 'number' ? '⚖' : mode === 'bw' ? 'BW' : 'PLT'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -212,6 +204,38 @@ export function SetInputRow({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Extras — RPE and note, only shown when expanded */}
+      {showExtras && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+          <TouchableOpacity
+            onPress={() => setShowRpe(!showRpe)}
+            style={{
+              backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
+              borderRadius: 8, borderWidth: 1,
+              borderColor: rpe ? Colors.accent : Colors.border,
+              paddingHorizontal: 12, paddingVertical: 7, minWidth: 52, alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+              {rpe ? `RPE ${rpe}` : 'RPE'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setNoteOpen(true)}
+            style={{
+              backgroundColor: note ? Colors.accentDim : Colors.surface2,
+              borderRadius: 8, borderWidth: 1,
+              borderColor: note ? Colors.accent : Colors.border,
+              paddingHorizontal: 12, paddingVertical: 7, flex: 1,
+            }}
+          >
+            <Text style={{ color: note ? Colors.accent : Colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+              {note || 'Add note...'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Plate controls — shown when in plates mode */}
       {mode === 'plates' && (
