@@ -169,12 +169,14 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
                   backgroundColor: selectedGroup === group ? Colors.accent : Colors.surface2,
                   borderWidth: 1,
                   borderColor: selectedGroup === group ? Colors.accent : Colors.border,
+                  flexShrink: 0,
                 }}
               >
                 <Text style={{
                   color: selectedGroup === group ? Colors.text : Colors.textMuted,
                   fontSize: 12,
                   fontWeight: '700',
+                  flexShrink: 0,
                 }}>
                   {group}
                 </Text>
