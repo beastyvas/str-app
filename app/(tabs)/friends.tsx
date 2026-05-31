@@ -10,7 +10,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
 import { getAnimeTierResult } from '@/constants/animeTiers';
-import * as Haptics from 'expo-haptics';
 import { FriendProfileModal } from '@/components/FriendProfileModal';
 
 type SubTab = 'feed' | 'people';
