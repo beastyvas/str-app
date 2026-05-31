@@ -449,15 +449,32 @@ export default function WorkoutTab() {
   };
 
   const pickFinishPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [4, 3], quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setFinishPhoto(result.assets[0].uri);
-    }
+    Alert.alert('Add Photo', 'Choose a source', [
+      {
+        text: '📷 Take Photo',
+        onPress: async () => {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true, aspect: [4, 3], quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) setFinishPhoto(result.assets[0].uri);
+        },
+      },
+      {
+        text: '🖼️ Choose from Library',
+        onPress: async () => {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) { Alert.alert('Photo library permission needed'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true, aspect: [4, 3], quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) setFinishPhoto(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleFinishConfirm = async () => {
@@ -1105,8 +1122,8 @@ export default function WorkoutTab() {
       <FirstWorkoutTooltip
         visible={isFirstWorkout && tutorialStep === 'finish'}
         emoji="✅"
-        message="Crushed it! Tap FINISH in the top right to save your workout"
-        position="top"
+        message="Nice work! Tap FINISH at the top right to save"
+        position="bottom"
       />
 
       {/* Add Exercise FAB */}

@@ -195,32 +195,43 @@ export default function ProfileScreen() {
   };
 
   const pickAndUploadPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access to upload a profile picture.'); return; }
+    const launch = async (fromCamera: boolean) => {
+      if (fromCamera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
+        const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+        if (result.canceled || !result.assets[0]) return;
+        uploadPhoto(result.assets[0].uri);
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+        if (result.canceled || !result.assets[0]) return;
+        uploadPhoto(result.assets[0].uri);
+      }
+    };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (result.canceled || !result.assets[0]) return;
+    Alert.alert('Profile Photo', 'Choose a source', [
+      { text: '📷 Take Photo', onPress: () => launch(true) },
+      { text: '🖼️ Choose from Library', onPress: () => launch(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const uploadPhoto = async (uri: string) => {
+    if (!uri) return;
 
     setUploadingPhoto(true);
     try {
-      const asset = result.assets[0];
-      const ext = (asset.uri.split('.').pop() ?? 'jpg').toLowerCase().replace('jpeg', 'jpg');
+      const ext = (uri.split('.').pop() ?? 'jpg').toLowerCase().replace('jpeg', 'jpg');
       const fileName = `${user!.id}.${ext}`;
 
-      // Read file as base64 then convert to bytes — the only reliable way in RN
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: 'base64' as any,
       });
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')

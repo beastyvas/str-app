@@ -32,7 +32,7 @@ export function FirstWorkoutTooltip({ message, emoji = '👆', visible, position
       transform: [{ translateY: slideAnim }],
       position: 'absolute',
       left: 16, right: 16,
-      ...(position === 'bottom' ? { bottom: 100 } : { top: 80 }),
+      ...(position === 'bottom' ? { bottom: 100 } : { top: 120 }),
       zIndex: 1000,
       pointerEvents: 'none',
     }}>
