@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, TierName } from '@/constants/colors';
+import { UserBadges } from './UserBadges';
 import { supabase } from '@/lib/supabase';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getAnimeTierResult } from '@/constants/animeTiers';
@@ -103,9 +104,12 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                 }
               </View>
               <View style={{ alignItems: 'center', gap: 4 }}>
-                <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900' }}>
-                  {profile.display_name}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900' }}>
+                    {profile.display_name}
+                  </Text>
+                  <UserBadges isOwner={profile.is_owner} isOg={profile.is_og} />
+                </View>
                 {profile.username && (
                   <Text style={{ color: Colors.accent, fontSize: 14, fontWeight: '700' }}>@{profile.username}</Text>
                 )}

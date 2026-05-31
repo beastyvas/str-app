@@ -46,6 +46,11 @@ export default function HomeScreen() {
   const [lastWorkout, setLastWorkout] = useState<LastWorkout | null>(null);
   const [animeResult, setAnimeResult] = useState<AnimeTierResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [firstSteps, setFirstSteps] = useState<{
+    hasWorkout: boolean;
+    hasFriend: boolean;
+    hasCoach: boolean;
+  } | null>(null);
 
   // SBD manual entry
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
@@ -59,6 +64,16 @@ export default function HomeScreen() {
   const fetchData = async () => {
     try {
       const uid = user!.id;
+      // Check first steps completion
+      const [{ count: workoutCount }, { count: friendCount }] = await Promise.all([
+        supabase.from('workouts').select('id', { count: 'exact', head: true }).eq('user_id', uid).not('ended_at', 'is', null),
+        supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${uid},addressee_id.eq.${uid}`).eq('status', 'accepted'),
+      ]);
+      const hasWorkout = (workoutCount ?? 0) > 0;
+      const hasFriend = (friendCount ?? 0) > 0;
+      const hasCoach = (profile?.training_notes?.length ?? 0) > 0; // proxy — they engaged with Coach/DNA
+      const allDone = hasWorkout && hasFriend && hasCoach;
+      setFirstSteps(allDone ? null : { hasWorkout, hasFriend, hasCoach });
       const [prRes, workoutRes, friendRes] = await Promise.all([
         // SBD PRs for anime tier
         supabase
@@ -218,6 +233,120 @@ export default function HomeScreen() {
             </Text>
           )}
         </View>
+
+        {/* ── FIRST STEPS ─────────────────────────────────────────── */}
+        {firstSteps && (
+          <View style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 18, marginBottom: 14,
+            borderWidth: 1, borderColor: Colors.accent + '30',
+            overflow: 'hidden',
+          }}>
+            <View style={{
+              padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border,
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+            }}>
+              <Text style={{ fontSize: 18 }}>🗺️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Getting Started</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                  {[firstSteps.hasWorkout, firstSteps.hasFriend, firstSteps.hasCoach].filter(Boolean).length} of 3 complete
+                </Text>
+              </View>
+              {/* mini progress */}
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                {[firstSteps.hasWorkout, firstSteps.hasFriend, firstSteps.hasCoach].map((done, i) => (
+                  <View key={i} style={{
+                    width: 8, height: 8, borderRadius: 4,
+                    backgroundColor: done ? Colors.accent : Colors.surface2,
+                    borderWidth: done ? 0 : 1, borderColor: Colors.border,
+                  }} />
+                ))}
+              </View>
+            </View>
+
+            {/* Task 1 — Log first workout */}
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/workout')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
+                opacity: firstSteps.hasWorkout ? 0.5 : 1,
+              }}
+            >
+              <View style={{
+                width: 28, height: 28, borderRadius: 14,
+                backgroundColor: firstSteps.hasWorkout ? Colors.success + '20' : Colors.surface2,
+                borderWidth: 1, borderColor: firstSteps.hasWorkout ? Colors.success : Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontSize: 14 }}>{firstSteps.hasWorkout ? '✓' : '🏋️'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasWorkout ? 'line-through' : 'none' }}>
+                  Log your first workout
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Track sets, reps, and weight</Text>
+              </View>
+              {!firstSteps.hasWorkout && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
+            </TouchableOpacity>
+
+            {/* Task 2 — Ask Coach to build weekly plan */}
+            <TouchableOpacity
+              onPress={() => {
+                (global as any).__coachPreFill = `Based on my goals and training style, build me a weekly workout template. Give me specific days, exercises, sets, and reps. Make it realistic for my level.`;
+                router.push('/(tabs)/insights');
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
+                opacity: firstSteps.hasCoach ? 0.5 : 1,
+              }}
+            >
+              <View style={{
+                width: 28, height: 28, borderRadius: 14,
+                backgroundColor: firstSteps.hasCoach ? Colors.success + '20' : Colors.surface2,
+                borderWidth: 1, borderColor: firstSteps.hasCoach ? Colors.success : Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontSize: 14 }}>{firstSteps.hasCoach ? '✓' : '⚡'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasCoach ? 'line-through' : 'none' }}>
+                  Get your weekly plan from Coach
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>AI builds a program around your goals</Text>
+              </View>
+              {!firstSteps.hasCoach && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
+            </TouchableOpacity>
+
+            {/* Task 3 — Add a friend (suggest the creator) */}
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/friends')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                padding: 14,
+                opacity: firstSteps.hasFriend ? 0.5 : 1,
+              }}
+            >
+              <View style={{
+                width: 28, height: 28, borderRadius: 14,
+                backgroundColor: firstSteps.hasFriend ? Colors.success + '20' : Colors.surface2,
+                borderWidth: 1, borderColor: firstSteps.hasFriend ? Colors.success : Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontSize: 14 }}>{firstSteps.hasFriend ? '✓' : '👥'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasFriend ? 'line-through' : 'none' }}>
+                  Add your first friend
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Search <Text style={{ color: Colors.accent }}>@nickjr</Text> — the creator 👑</Text>
+              </View>
+              {!firstSteps.hasFriend && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── ANIME TIER CARD (moved to profile) ──────────────────── */}
         {false && animeResult && (

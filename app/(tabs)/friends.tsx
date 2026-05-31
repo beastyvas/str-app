@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
 import { getAnimeTierResult } from '@/constants/animeTiers';
 import { FriendProfileModal } from '@/components/FriendProfileModal';
+import { UserBadges } from '@/components/UserBadges';
 
 type SubTab = 'feed' | 'people';
 
