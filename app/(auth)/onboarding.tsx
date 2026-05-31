@@ -61,9 +61,10 @@ export default function OnboardingScreen() {
   const progress = stepIndex / (STEPS.length - 1);
 
   const animateNext = (nextStep: Step) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+    // Fade to 0.15 not 0 — prevents black flash
+    Animated.timing(fadeAnim, { toValue: 0.15, duration: 120, useNativeDriver: true }).start(() => {
       setStep(nextStep);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
     });
   };
 
@@ -283,7 +284,6 @@ export default function OnboardingScreen() {
                   keyboardType="decimal-pad"
                   placeholder={unit === 'lbs' ? '185' : '84'}
                   placeholderTextColor={Colors.textMuted}
-                  autoFocus
                   style={{
                     backgroundColor: Colors.surface, borderColor: Colors.border,
                     borderWidth: 1, borderRadius: 14,
@@ -514,7 +514,6 @@ export default function OnboardingScreen() {
                   value={dnaText}
                   onChangeText={setDnaText}
                   multiline
-                  autoFocus
                   placeholder="What should Coach know about you?"
                   placeholderTextColor={Colors.textMuted}
                   style={{
