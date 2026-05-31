@@ -344,3 +344,7 @@ insert into public.exercises (name, muscle_group, secondary_muscle, equipment_ty
 
 ('Serratus Anterior Push-Up', 'Chest', 'Shoulders', 'Bodyweight',
  false, 'At top of push-up position. Push extra — shoulder blades spread wide. The "plus" at the top. Serratus activation for shoulder health.');
+
+-- Additional exercises
+,('Preacher Curl Machine', 'Biceps', null, 'Machine',
+ false, 'Adjust seat so upper arms rest flat on pad. Full range of motion — complete extension at bottom, full contraction at top. Slow eccentric. Isolates bicep completely.');

@@ -14,6 +14,13 @@ import { FriendProfileModal } from '@/components/FriendProfileModal';
 
 type SubTab = 'feed' | 'people';
 
+interface ExerciseSummary {
+  name: string;
+  setCount: number;
+  topWeight: number;
+  topReps: number;
+}
+
 interface FeedPost {
   workoutId: string;
   userId: string;
@@ -22,10 +29,11 @@ interface FeedPost {
   workoutName: string;
   startedAt: string;
   endedAt: string;
-  notes: string;
+  notes?: string;
   setsCount: number;
   totalVolume: number;
   exercises: string[];
+  exerciseSummaries: ExerciseSummary[];
   animeTierLabel?: string;
   animeTierColor?: string;
   photoUrl?: string;
@@ -163,22 +171,20 @@ export default function SocialScreen() {
         });
       }
 
-      // Load feed — friends' completed workouts with notes
+      // Load feed — ALL completed workouts (notes optional, like a caption)
       if (friendIds.length > 0) {
         const { data: workouts } = await supabase
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes,
-            workout_sets(weight, reps, exercises(name))
+            workout_sets(weight, reps, set_number, exercises(name))
           `)
           .in('user_id', friendIds)
           .not('ended_at', 'is', null)
-          .not('notes', 'is', null)
           .order('ended_at', { ascending: false })
           .limit(30);
 
         const posts: FeedPost[] = (workouts ?? [])
-          .filter((w: any) => w.notes?.trim())
           .map((w: any) => {
             const friendship = accepted.find(f =>
               f.requester_id === w.user_id || f.addressee_id === w.user_id
@@ -189,6 +195,20 @@ export default function SocialScreen() {
             const sets = w.workout_sets ?? [];
             const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
             const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
+
+            // Build per-exercise summary with top set
+            const exMap: Record<string, { sets: any[] }> = {};
+            sets.forEach((s: any) => {
+              const name = s.exercises?.name ?? 'Unknown';
+              if (!exMap[name]) exMap[name] = { sets: [] };
+              exMap[name].sets.push(s);
+            });
+            const exerciseSummaries: ExerciseSummary[] = Object.entries(exMap).map(([name, data]) => {
+              const topSet = data.sets.reduce((best: any, s: any) =>
+                s.weight > best.weight ? s : best, data.sets[0]);
+              return { name, setCount: data.sets.length, topWeight: topSet?.weight ?? 0, topReps: topSet?.reps ?? 0 };
+            });
+
             return {
               workoutId: w.id,
               userId: w.user_id,
@@ -197,10 +217,11 @@ export default function SocialScreen() {
               workoutName: w.name,
               startedAt: w.started_at,
               endedAt: w.ended_at,
-              notes: w.notes,
+              notes: w.notes?.trim() || undefined,
               setsCount: sets.length,
               totalVolume: vol,
               exercises: exs,
+              exerciseSummaries,
               photoUrl: undefined as string | undefined,
               likeCount: 0,
               isLiked: false,
@@ -509,10 +530,10 @@ export default function SocialScreen() {
             </View>
           ) : feed.length === 0 ? (
             <View style={{ alignItems: 'center', marginTop: 80, gap: 8 }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 20 }}>📝</Text>
-              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>Nothing in the feed yet</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 20 }}>🏋️</Text>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>No workouts yet</Text>
               <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                Friends' workouts show here when they add a session note after finishing.
+                When your friends finish a workout it shows here. Get them lifting.
               </Text>
             </View>
           ) : (
@@ -557,28 +578,69 @@ export default function SocialScreen() {
                   </View>
                 </TouchableOpacity>
 
-                {/* Photo */}
+                {/* Photo — full width hero */}
                 {post.photoUrl && (
-                  <Image source={{ uri: post.photoUrl }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
+                  <Image source={{ uri: post.photoUrl }} style={{ width: '100%', height: 240 }} resizeMode="cover" />
                 )}
 
-                {/* The note */}
-                <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
-                  <Text style={{ color: Colors.text, fontSize: 16, lineHeight: 24, fontWeight: '400' }}>
-                    {post.notes}
-                  </Text>
-                </View>
+                {/* Caption / note */}
+                {post.notes && (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
+                    <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
+                      {post.notes}
+                    </Text>
+                  </View>
+                )}
 
-                {/* Like + Comment bar */}
+                {/* Workout breakdown — what they actually did */}
+                {post.exerciseSummaries.length > 0 && (
+                  <View style={{
+                    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+                    backgroundColor: Colors.surface2,
+                    borderRadius: 12, overflow: 'hidden',
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}>
+                    {post.exerciseSummaries.slice(0, 4).map((ex, i) => (
+                      <View key={i} style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        paddingHorizontal: 14, paddingVertical: 9,
+                        borderBottomWidth: i < Math.min(post.exerciseSummaries.length, 4) - 1 ? 1 : 0,
+                        borderBottomColor: Colors.border,
+                      }}>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                          {ex.name}
+                        </Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11, marginRight: 10 }}>
+                          {ex.setCount} set{ex.setCount !== 1 ? 's' : ''}
+                        </Text>
+                        {ex.topWeight > 0 && (
+                          <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+                            {ex.topWeight === 0 ? `BW×${ex.topReps}` : `${ex.topWeight}×${ex.topReps}`}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                    {post.exerciseSummaries.length > 4 && (
+                      <View style={{ paddingHorizontal: 14, paddingVertical: 8 }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                          +{post.exerciseSummaries.length - 4} more exercises
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Stats + Like + Comment */}
                 <View style={{
                   flexDirection: 'row', alignItems: 'center',
-                  paddingHorizontal: 16, paddingVertical: 10,
+                  paddingHorizontal: 16, paddingVertical: 12,
+                  marginTop: 4,
                   borderTopWidth: 1, borderTopColor: Colors.border,
-                  gap: 20,
+                  gap: 16,
                 }}>
                   <TouchableOpacity
                     onPress={() => toggleLike(post.workoutId, post.isLiked)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
                   >
                     <Text style={{ fontSize: 20 }}>{post.isLiked ? '❤️' : '🤍'}</Text>
                     {post.likeCount > 0 && (
@@ -589,37 +651,18 @@ export default function SocialScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => openComments(post.workoutId)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
                   >
                     <Text style={{ fontSize: 18 }}>💬</Text>
-                    {post.commentCount > 0 && (
-                      <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
-                        {post.commentCount}
-                      </Text>
-                    )}
+                    <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
+                      {post.commentCount > 0 ? post.commentCount : ''}
+                    </Text>
                   </TouchableOpacity>
                   <View style={{ flex: 1 }} />
                   <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {formatDuration(post.startedAt, post.endedAt)} · {post.setsCount} sets
+                    {formatDuration(post.startedAt, post.endedAt)} · {formatVolume(post.totalVolume)} lbs
                   </Text>
                 </View>
-
-                {/* Exercise tags */}
-                {post.exercises.length > 0 && (
-                  <View style={{
-                    paddingHorizontal: 16, paddingBottom: 14,
-                    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-                  }}>
-                    {post.exercises.map((ex, i) => (
-                      <View key={i} style={{
-                        backgroundColor: Colors.surface2, borderRadius: 6,
-                        paddingHorizontal: 8, paddingVertical: 4,
-                      }}>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '500' }}>{ex}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
               </View>
             ))
           )}
