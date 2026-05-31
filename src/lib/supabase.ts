@@ -12,5 +12,6 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    flowType: 'implicit', // PKCE loses state in RN WebBrowser — use implicit
   },
 });
