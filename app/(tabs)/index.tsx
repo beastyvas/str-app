@@ -526,42 +526,48 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ) : (
           <View style={{ gap: 8 }}>
-            {friendPRs.map((pr, i) => (
+            {/* Show at most 3 — one per friend ideally */}
+            {friendPRs.slice(0, 3).map((pr, i) => (
               <View key={i} style={{
                 backgroundColor: Colors.surface,
                 borderRadius: 14,
                 padding: 14,
                 borderWidth: 1,
-                borderColor: Colors.border,
+                borderColor: Colors.gold + '20',
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 12,
               }}>
-                {/* Gold trophy circle */}
                 <View style={{
-                  width: 40, height: 40, borderRadius: 20,
+                  width: 36, height: 36, borderRadius: 18,
                   backgroundColor: Colors.goldDim,
-                  borderWidth: 1, borderColor: Colors.gold + '40',
                   alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Text style={{ fontSize: 18 }}>🏆</Text>
+                  <Text style={{ fontSize: 16 }}>🏆</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 2 }}>
-                    {pr.display_name}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+                      {pr.display_name}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>· {timeAgo(pr.achieved_at)}</Text>
+                  </View>
                   <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
                     {pr.exercise_name}
                   </Text>
-                  <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '700', marginTop: 1 }}>
-                    {pr.weight} {pr.unit_pref}{pr.reps > 1 ? ` × ${pr.reps}` : ''}
+                  <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
+                    {pr.weight} {pr.unit_pref}{pr.reps > 1 ? ` × ${pr.reps}` : ' — 1RM'}
                   </Text>
                 </View>
-                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                  {timeAgo(pr.achieved_at)}
-                </Text>
               </View>
             ))}
+            {friendPRs.length > 3 && (
+              <TouchableOpacity onPress={() => router.push('/(tabs)/friends')} style={{ alignItems: 'center', padding: 10 }}>
+                <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+                  +{friendPRs.length - 3} more PRs → See all
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         {/* SBD Entry Modal */}

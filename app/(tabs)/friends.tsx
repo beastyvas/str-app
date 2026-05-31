@@ -212,8 +212,13 @@ export default function SocialScreen() {
         if (!recentByUser[p.user_id]) recentByUser[p.user_id] = p;
       });
 
-      const friendList: Friend[] = accepted.map(f => {
+      const friendList: Friend[] = accepted
+        .map(f => {
         const other = (f.requester_id === user.id ? f.addressee : f.requester) as any;
+        if (!other?.id) {
+          console.log('[Friends] null other for friendship:', f.id, '— RLS may be blocking user join');
+          return null;
+        }
         const sbdPrs = (sbdByUser[other.id] ?? []).map((p: any) => ({
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight, reps: p.reps,
@@ -235,7 +240,9 @@ export default function SocialScreen() {
             achieved_at: pr.achieved_at,
           } : undefined,
         };
-      });
+      })
+      .filter(Boolean) as Friend[];
+      console.log('[Friends] built friendList:', friendList.length);
       setFriends(friendList);
     } catch (e) {
       // silence
