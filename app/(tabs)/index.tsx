@@ -275,7 +275,10 @@ export default function HomeScreen() {
 
             {/* Task 1 — Log first workout */}
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/workout')}
+              onPress={() => {
+                (global as any).__startFirstWorkout = true;
+                router.push('/(tabs)/workout');
+              }}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,

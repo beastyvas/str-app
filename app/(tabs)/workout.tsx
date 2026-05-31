@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, ActivityIndicator,
@@ -7,7 +7,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkoutStore } from '@/hooks/useWorkout';
@@ -16,6 +16,7 @@ import { RestTimer } from '@/components/workout/RestTimer';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
+import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getAnimeTierResult, AnimeTier } from '@/constants/animeTiers';
 
 // PR localId → isPR lookup, built as sets come in
@@ -61,6 +62,11 @@ export default function WorkoutTab() {
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
 
+  // First workout tutorial
+  const [isFirstWorkout, setIsFirstWorkout] = useState(false);
+  type TutorialStep = 'add_exercise' | 'log_set' | 'finish' | 'done';
+  const [tutorialStep, setTutorialStep] = useState<TutorialStep>('add_exercise');
+
   // Tier advancement
   const [tierAdvancement, setTierAdvancement] = useState<AnimeTier | null>(null);
   const [tierAdvSubTier, setTierAdvSubTier] = useState<number | undefined>(undefined);
@@ -99,6 +105,16 @@ export default function WorkoutTab() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [activeWorkout?.id]);
+
+  // Auto-start first workout when coming from First Steps task
+  useFocusEffect(useCallback(() => {
+    if ((global as any).__startFirstWorkout && !activeWorkout && user) {
+      (global as any).__startFirstWorkout = false;
+      const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      setWorkoutName(`${day} Workout`);
+      setShowNameModal(true);
+    }
+  }, [activeWorkout, user]));
 
   // Flash PR banner then clear
   useEffect(() => {
@@ -257,6 +273,19 @@ export default function WorkoutTab() {
     };
   };
 
+  const checkFirstWorkout = async () => {
+    if (!user) return;
+    const { count } = await supabase
+      .from('workouts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .not('ended_at', 'is', null);
+    if ((count ?? 0) === 0) {
+      setIsFirstWorkout(true);
+      setTutorialStep('add_exercise');
+    }
+  };
+
   const startFromTemplate = async (
     name: string,
     exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[]
@@ -277,6 +306,7 @@ export default function WorkoutTab() {
     if (!user || !workoutName.trim()) return;
     setShowNameModal(false);
     try {
+      await checkFirstWorkout();
       await seedCurrentTier();
       await startWorkout(workoutName.trim(), user.id);
       if (repeatLast && lastWorkoutExercises.length > 0) {
@@ -290,6 +320,9 @@ export default function WorkoutTab() {
   // ─── ADD EXERCISE ─────────────────────────────────────────────────────────
   const handlePickExercise = async (exercise: { id: string; name: string; muscle_group: string }) => {
     addExercise(exercise);
+    if (isFirstWorkout && tutorialStep === 'add_exercise') {
+      setTutorialStep('log_set');
+    }
     // Fetch previous session's sets for this exercise for reference hints
     if (user && !prevSetsCache[exercise.id]) {
       const { data } = await supabase
@@ -312,6 +345,11 @@ export default function WorkoutTab() {
   ) => {
     if (!activeWorkout?.id || !user) return { isPR: false };
     const result = await logSet(exerciseId, data, activeWorkout.id, user.id);
+
+    // Advance first workout tutorial
+    if (isFirstWorkout && tutorialStep === 'log_set') {
+      setTutorialStep('finish');
+    }
 
     // Tag the most recently logged set with isPR
     const ex = useWorkoutStore.getState().activeWorkout?.exercises.find(e => e.exerciseId === exerciseId);
@@ -462,6 +500,8 @@ export default function WorkoutTab() {
       setFinishPhoto(null);
       setPrMap({});
       setPrevSetsCache({});
+      setIsFirstWorkout(false);
+      setTutorialStep('done');
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
@@ -1048,6 +1088,26 @@ export default function WorkoutTab() {
           />
         ))}
       </ScrollView>
+
+      {/* First workout tutorial tooltips */}
+      <FirstWorkoutTooltip
+        visible={isFirstWorkout && tutorialStep === 'add_exercise'}
+        emoji="💪"
+        message="Tap + ADD EXERCISE below to add your first lift"
+        position="bottom"
+      />
+      <FirstWorkoutTooltip
+        visible={isFirstWorkout && tutorialStep === 'log_set'}
+        emoji="🎯"
+        message="Enter weight × reps, then tap LOG to record your set"
+        position="bottom"
+      />
+      <FirstWorkoutTooltip
+        visible={isFirstWorkout && tutorialStep === 'finish'}
+        emoji="✅"
+        message="Crushed it! Tap FINISH in the top right to save your workout"
+        position="top"
+      />
 
       {/* Add Exercise FAB */}
       <View style={{
