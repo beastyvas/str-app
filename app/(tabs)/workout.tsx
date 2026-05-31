@@ -48,6 +48,21 @@ export default function WorkoutTab() {
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
 
+  // Smart suggestion + templates
+  const [daySuggestion, setDaySuggestion] = useState<{
+    name: string;
+    dayLabel: string;
+    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[];
+  } | null>(null);
+  const [templates, setTemplates] = useState<{
+    id: string;
+    name: string;
+    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[];
+    muscleGroups: string[];
+    lastUsed: string;
+  }[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
   // Duration timer
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -72,29 +87,64 @@ export default function WorkoutTab() {
     }
   }, [newPRs]);
 
-  // ─── LOAD LAST WORKOUT EXERCISES ─────────────────────────────────────────
+  // ─── LOAD TEMPLATES + DAY SUGGESTION ────────────────────────────────────
   useEffect(() => {
     if (!user || activeWorkout) return;
+    setLoadingTemplates(true);
+    const todayDow = new Date().getDay();
+
     supabase
       .from('workouts')
-      .select('workout_sets(exercise_id, exercises(id, name, muscle_group))')
+      .select('id, name, started_at, workout_sets(exercises(id, name, muscle_group, equipment_type))')
       .eq('user_id', user.id)
       .not('ended_at', 'is', null)
       .order('started_at', { ascending: false })
-      .limit(1)
-      .single()
+      .limit(20)
       .then(({ data }) => {
-        if (!data) return;
-        const seen = new Set<string>();
-        const exercises: { id: string; name: string; muscle_group: string }[] = [];
-        for (const s of (data.workout_sets as any[]) ?? []) {
-          const ex = s.exercises;
-          if (ex && !seen.has(ex.id)) {
-            seen.add(ex.id);
-            exercises.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group });
+        if (!data) { setLoadingTemplates(false); return; }
+
+        const parseExercises = (w: any) => {
+          const seen = new Set<string>();
+          const exs: { id: string; name: string; muscle_group: string; equipment_type?: string }[] = [];
+          for (const s of w.workout_sets ?? []) {
+            const ex = s.exercises;
+            if (ex && !seen.has(ex.id)) {
+              seen.add(ex.id);
+              exs.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
+            }
+          }
+          return exs;
+        };
+
+        // Day suggestion — most recent workout on same day of week
+        const sameDayWorkout = data.find(w => new Date(w.started_at).getDay() === todayDow);
+        if (sameDayWorkout) {
+          const exs = parseExercises(sameDayWorkout);
+          if (exs.length > 0) {
+            const daysAgo = Math.floor((Date.now() - new Date(sameDayWorkout.started_at).getTime()) / 86400000);
+            const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
+            setDaySuggestion({ name: sameDayWorkout.name, dayLabel: label, exercises: exs });
           }
         }
-        setLastWorkoutExercises(exercises);
+
+        // Templates — deduplicate by name, take most recent per name
+        const seen = new Map<string, any>();
+        for (const w of data) {
+          if (!seen.has(w.name)) seen.set(w.name, w);
+        }
+        const tmpl = Array.from(seen.values()).slice(0, 6).map(w => {
+          const exs = parseExercises(w);
+          const mgs = [...new Set(exs.map(e => e.muscle_group))];
+          return { id: w.id, name: w.name, exercises: exs, muscleGroups: mgs, lastUsed: w.started_at };
+        });
+        setTemplates(tmpl);
+
+        // Also set last workout exercises for the old repeat feature
+        if (data[0]) {
+          setLastWorkoutExercises(parseExercises(data[0]));
+        }
+
+        setLoadingTemplates(false);
       });
   }, [user, activeWorkout]);
 
@@ -110,6 +160,22 @@ export default function WorkoutTab() {
     const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     setWorkoutName(`${day} Workout`);
     setShowNameModal(true);
+  };
+
+  // Start directly from a template — no name modal
+  const startFromTemplate = async (
+    name: string,
+    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[]
+  ) => {
+    if (!user) return;
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const wName = `${day} · ${name}`;
+    try {
+      await startWorkout(wName, user.id);
+      exercises.forEach(ex => addExercise({ ...ex, equipment_type: ex.equipment_type }));
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Could not start workout');
+    }
   };
 
   const handleStartConfirm = async (repeatLast = false) => {
@@ -214,50 +280,143 @@ export default function WorkoutTab() {
   };
 
   // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
+  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const MUSCLE_COLORS: Record<string, string> = {
+    'Chest': '#E91E8C', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
+    'Biceps': '#3498DB', 'Mid-Upper Back': '#1ABC9C', 'Lats': '#16A085',
+    'Quads': '#E67E22', 'Hamstrings': '#D35400', 'Glutes': '#E74C3C',
+    'Core': '#F39C12', 'Overall': Colors.textSecondary,
+  };
+
   if (!activeWorkout) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -1, textAlign: 'center', marginBottom: 12 }}>
-            Ready to{'\n'}train?
-          </Text>
-          <Text style={{ color: Colors.textMuted, fontSize: 15, textAlign: 'center', marginBottom: 48, lineHeight: 22 }}>
-            Start a session and log every set.{'\n'}PRs tracked automatically.
-          </Text>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+          {/* Header */}
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
+              {todayName}
+            </Text>
+            <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
+              Time to train.
+            </Text>
+          </View>
+
+          {/* Day suggestion */}
+          {daySuggestion && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                {daySuggestion.dayLabel} you trained
+              </Text>
+              <View style={{
+                backgroundColor: Colors.surface,
+                borderRadius: 18,
+                borderWidth: 1.5,
+                borderColor: Colors.accent + '50',
+                overflow: 'hidden',
+              }}>
+                <View style={{ padding: 18 }}>
+                  <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800', marginBottom: 4 }}>
+                    {daySuggestion.name}
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 12, marginBottom: 14 }}>
+                    {daySuggestion.exercises.slice(0, 4).map(e => e.name).join(' · ')}
+                    {daySuggestion.exercises.length > 4 ? ` +${daySuggestion.exercises.length - 4} more` : ''}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => startFromTemplate(daySuggestion.name, daySuggestion.exercises)}
+                    style={{
+                      backgroundColor: Colors.accent,
+                      borderRadius: 12,
+                      paddingVertical: 14,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15, letterSpacing: 0.3 }}>
+                      Repeat this session →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Start blank */}
           <TouchableOpacity
             onPress={handleStartPress}
             style={{
-              backgroundColor: Colors.accent,
-              borderRadius: 16,
-              paddingVertical: 18,
-              paddingHorizontal: 48,
-              marginBottom: 14,
+              backgroundColor: daySuggestion ? Colors.surface : Colors.accent,
+              borderRadius: 14,
+              paddingVertical: 16,
+              alignItems: 'center',
+              marginBottom: 24,
+              borderWidth: daySuggestion ? 1 : 0,
+              borderColor: Colors.border,
             }}
           >
-            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>
-              START WORKOUT
+            <Text style={{
+              color: daySuggestion ? Colors.textSecondary : Colors.text,
+              fontWeight: '800', fontSize: 15,
+            }}>
+              {daySuggestion ? '+ Start blank workout' : 'START WORKOUT'}
             </Text>
           </TouchableOpacity>
-          {lastWorkoutExercises.length > 0 && (
-            <TouchableOpacity
-              onPress={handleRepeatLast}
-              style={{
-                borderRadius: 16,
-                paddingVertical: 14,
-                paddingHorizontal: 32,
-                borderWidth: 1,
-                borderColor: Colors.border,
-                backgroundColor: Colors.surface,
-              }}
-            >
-              <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: '700' }}>
-                ↩ Repeat last workout
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
 
-        {/* Name modal */}
+          {/* Recent templates grid */}
+          {templates.length > 0 && (
+            <>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+                Your templates
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {templates.map(tmpl => {
+                  const topMuscles = tmpl.muscleGroups.slice(0, 2);
+                  const daysAgo = Math.floor((Date.now() - new Date(tmpl.lastUsed).getTime()) / 86400000);
+                  const ageLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo}d ago`;
+                  return (
+                    <TouchableOpacity
+                      key={tmpl.id}
+                      onPress={() => startFromTemplate(tmpl.name, tmpl.exercises)}
+                      style={{
+                        width: '47%',
+                        backgroundColor: Colors.surface,
+                        borderRadius: 14,
+                        padding: 14,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                      }}
+                    >
+                      {/* Muscle color dots */}
+                      <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
+                        {topMuscles.map((mg, i) => (
+                          <View key={i} style={{
+                            width: 8, height: 8, borderRadius: 4,
+                            backgroundColor: MUSCLE_COLORS[mg] ?? Colors.textMuted,
+                          }} />
+                        ))}
+                      </View>
+                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800', marginBottom: 3 }} numberOfLines={1}>
+                        {tmpl.name}
+                      </Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 8 }}>
+                        {tmpl.exercises.length} exercises · {ageLabel}
+                      </Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={2}>
+                        {tmpl.exercises.slice(0, 3).map(e => e.name).join(', ')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {loadingTemplates && (
+            <ActivityIndicator color={Colors.textMuted} style={{ marginTop: 40 }} />
+          )}
+        </ScrollView>
+
+        {/* Name modal for blank workouts */}
         <Modal visible={showNameModal} transparent animationType="fade">
           <KeyboardAvoidingView
             style={{ flex: 1, justifyContent: 'center', padding: 32, backgroundColor: 'rgba(0,0,0,0.7)' }}
@@ -279,7 +438,7 @@ export default function WorkoutTab() {
                 autoFocus
                 selectTextOnFocus
                 returnKeyType="done"
-                onSubmitEditing={handleStartConfirm}
+                onSubmitEditing={() => handleStartConfirm(false)}
                 style={{
                   backgroundColor: Colors.surface2,
                   borderRadius: 12,
@@ -297,12 +456,8 @@ export default function WorkoutTab() {
                 <TouchableOpacity
                   onPress={() => setShowNameModal(false)}
                   style={{
-                    flex: 1,
-                    paddingVertical: 14,
-                    borderRadius: 12,
-                    backgroundColor: Colors.surface2,
-                    borderWidth: 1,
-                    borderColor: Colors.border,
+                    flex: 1, paddingVertical: 14, borderRadius: 12,
+                    backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
                     alignItems: 'center',
                   }}
                 >
@@ -312,9 +467,7 @@ export default function WorkoutTab() {
                   onPress={() => handleStartConfirm(false)}
                   disabled={!workoutName.trim()}
                   style={{
-                    flex: 2,
-                    paddingVertical: 14,
-                    borderRadius: 12,
+                    flex: 2, paddingVertical: 14, borderRadius: 12,
                     backgroundColor: workoutName.trim() ? Colors.accent : Colors.surface2,
                     alignItems: 'center',
                   }}
