@@ -104,7 +104,8 @@ export const ROMAN = ['', 'I', 'II', 'III', 'IV'] as const;
 export function getAnimeTierResult(
   prs: { exerciseName: string; weight: number; reps: number; achievedAt?: string }[],
   bodyweightLbs: number,
-  useDecay = false  // if true, only count PRs from last 6 months for rank
+  useDecay = false,
+  gender: 'male' | 'female' | 'other' | null = 'male'
 ): AnimeTierResult {
   const bw = bodyweightLbs || 185;
   const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
@@ -118,7 +119,7 @@ export function getAnimeTierResult(
 
     const pr = recentMatching.length > 0 ? recentMatching[0] : null;
     const weight = pr ? pr.weight : 0;
-    const tier = getTierForWeight(ex.name, weight, bw);
+    const tier = getTierForWeight(ex.name, weight, bw, gender);
     const tierScore = TIER_ORDER.indexOf(tier);
 
     const standard = STRENGTH_STANDARDS[ex.key];

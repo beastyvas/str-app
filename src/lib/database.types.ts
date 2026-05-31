@@ -14,6 +14,7 @@ export interface Database {
           training_notes: string | null;
           bio: string | null;
           username: string | null;
+          gender: 'male' | 'female' | 'other' | null;
           created_at: string;
         };
         Insert: {

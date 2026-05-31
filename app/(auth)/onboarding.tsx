@@ -8,8 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 
-type Step = 'bodyweight' | 'experience' | 'goal' | 'style';
-const STEPS: Step[] = ['bodyweight', 'experience', 'goal', 'style'];
+type Step = 'gender' | 'bodyweight' | 'experience' | 'goal' | 'style';
+const STEPS: Step[] = ['gender', 'bodyweight', 'experience', 'goal', 'style'];
 
 const EXPERIENCE_OPTIONS = [
   { key: 'beginner', label: 'Just starting out', sub: 'Under 1 year training' },
@@ -37,6 +37,7 @@ const STYLE_OPTIONS = [
 export default function OnboardingScreen() {
   const { user, refreshProfile } = useAuth();
   const [step, setStep] = useState<Step>('bodyweight');
+  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [bodyweight, setBodyweight] = useState('');
   const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
   const [experience, setExperience] = useState('');
@@ -66,6 +67,7 @@ export default function OnboardingScreen() {
         .update({
           bodyweight_lbs: Math.round(bwLbs * 10) / 10,
           unit_pref: unit,
+          gender: gender || null,
           experience_level: experience || null,
           primary_goal: goal || null,
           training_style: style || null,
@@ -93,12 +95,76 @@ export default function OnboardingScreen() {
 
         <ScrollView contentContainerStyle={{ padding: 28, paddingTop: 36, flexGrow: 1 }}>
 
+          {/* ── STEP 0: GENDER ─────────────────────────────────────────────── */}
+          {step === 'gender' && (
+            <View style={{ gap: 24 }}>
+              <View>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+                  Step 1 of 5
+                </Text>
+                <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
+                  Who's training?
+                </Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 15, marginTop: 8, lineHeight: 22 }}>
+                  Strength standards are different for men and women. This makes your rank accurate.
+                </Text>
+              </View>
+
+              <View style={{ gap: 12 }}>
+                {([
+                  { key: 'male', label: 'Male', emoji: '⚡' },
+                  { key: 'female', label: 'Female', emoji: '⚡' },
+                  { key: 'other', label: 'Prefer not to say', emoji: '' },
+                ] as const).map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    onPress={() => setGender(opt.key)}
+                    style={{
+                      backgroundColor: gender === opt.key ? Colors.accent + '15' : Colors.surface,
+                      borderRadius: 16, padding: 20,
+                      borderWidth: 1.5,
+                      borderColor: gender === opt.key ? Colors.accent : Colors.border,
+                      flexDirection: 'row', alignItems: 'center', gap: 16,
+                    }}
+                  >
+                    <View style={{
+                      width: 44, height: 44, borderRadius: 22,
+                      backgroundColor: gender === opt.key ? Colors.accent + '25' : Colors.surface2,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Text style={{ fontSize: 22 }}>{opt.emoji || '–'}</Text>
+                    </View>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{opt.label}</Text>
+                    {gender === opt.key && (
+                      <Text style={{ color: Colors.accent, fontSize: 20, fontWeight: '900' }}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                onPress={next}
+                disabled={!gender}
+                style={{
+                  backgroundColor: gender ? Colors.accent : Colors.surface,
+                  borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                  borderWidth: !gender ? 1 : 0, borderColor: Colors.border,
+                }}
+              >
+                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setGender('other'); next(); }} style={{ alignItems: 'center' }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* ── STEP 1: BODYWEIGHT ─────────────────────────────────────────── */}
           {step === 'bodyweight' && (
             <View style={{ gap: 24 }}>
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 1 of 4
+                  Step 2 of 5
                 </Text>
                 <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
                   First things first.
@@ -165,7 +231,7 @@ export default function OnboardingScreen() {
             <View style={{ gap: 24 }}>
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 2 of 4
+                  Step 3 of 5
                 </Text>
                 <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
                   Where are you in the journey?
@@ -215,7 +281,7 @@ export default function OnboardingScreen() {
             <View style={{ gap: 24 }}>
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 3 of 4
+                  Step 4 of 5
                 </Text>
                 <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
                   What are you training for?
@@ -272,7 +338,7 @@ export default function OnboardingScreen() {
             <View style={{ gap: 24 }}>
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-                  Step 4 of 4
+                  Step 5 of 5
                 </Text>
                 <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
                   How do you train?
