@@ -259,6 +259,7 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
           </View>
 
           {/* Muscle group filter — ScrollView instead of FlatList for reliable pill display */}
+          <View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -267,7 +268,8 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
-              paddingHorizontal: 16,
+              paddingLeft: 16,
+              paddingRight: 40,
               paddingBottom: 10,
             }}>
               {MUSCLE_GROUPS.map((group, i) => (
@@ -295,6 +297,21 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
               ))}
             </View>
           </ScrollView>
+          {/* Right fade to signal more pills exist */}
+          <View style={{
+            position: 'absolute', right: 0, top: 0, bottom: 10,
+            width: 32,
+            backgroundImage: undefined,
+          }}
+            pointerEvents="none"
+          >
+            <View style={{
+              flex: 1,
+              backgroundColor: Colors.bg,
+              opacity: 0.7,
+            }} />
+          </View>
+          </View>
 
           {/* Exercise list */}
           {loading ? (
