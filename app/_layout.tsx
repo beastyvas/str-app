@@ -14,7 +14,7 @@ try {
     Purchases.configure({ apiKey });
   }
 } catch {
-  // Expo Go or web — RC runs in browser mode, no config needed
+  // Expo Go — RC runs in browser mode
 }
 
 SplashScreen.preventAutoHideAsync();

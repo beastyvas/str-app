@@ -31,6 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .single();
     if (data) setProfile(data);
+
+    // Identify user in RevenueCat so subscriptions are tied to their account
+    try {
+      const Purchases = require('react-native-purchases').default;
+      await Purchases.logIn(userId);
+    } catch {
+      // Expo Go or RC not available
+    }
   };
 
   useEffect(() => {
