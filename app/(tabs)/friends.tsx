@@ -113,9 +113,11 @@ export default function SocialScreen() {
         `)
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
+      console.log('[Friends] total friendships:', friendships?.length ?? 0);
       const accepted = (friendships ?? []).filter(f => f.status === 'accepted');
       const incoming = (friendships ?? []).filter(f => f.status === 'pending' && f.addressee_id === user.id);
       const friendIds = accepted.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
+      console.log('[Friends] accepted:', accepted.length, 'friendIds:', friendIds);
 
       setPending(incoming.map(f => ({
         id: (f.requester as any).id,
