@@ -262,28 +262,37 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 10 }}
+            contentContainerStyle={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 16,
+              paddingBottom: 10,
+            }}
           >
-            {MUSCLE_GROUPS.map(group => (
+            {MUSCLE_GROUPS.map((group, i) => (
               <TouchableOpacity
                 key={group}
                 onPress={() => setSelectedGroup(group)}
                 style={{
                   paddingHorizontal: 14,
-                  paddingVertical: 7,
+                  paddingVertical: 8,
                   borderRadius: 20,
                   backgroundColor: selectedGroup === group ? Colors.accent : Colors.surface2,
                   borderWidth: 1,
                   borderColor: selectedGroup === group ? Colors.accent : Colors.border,
+                  marginRight: i < MUSCLE_GROUPS.length - 1 ? 8 : 0,
                   flexShrink: 0,
+                  flexGrow: 0,
                 }}
               >
-                <Text style={{
-                  color: selectedGroup === group ? Colors.text : Colors.textMuted,
-                  fontSize: 12,
-                  fontWeight: '700',
-                  flexShrink: 0,
-                }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: selectedGroup === group ? Colors.text : Colors.textMuted,
+                    fontSize: 12,
+                    fontWeight: '700',
+                  }}
+                >
                   {group}
                 </Text>
               </TouchableOpacity>
