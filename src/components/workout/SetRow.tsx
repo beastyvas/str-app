@@ -104,6 +104,15 @@ export function SetInputRow({
     letterSpacing: -1,
   };
 
+  // Mode hint shown below the input row
+  const modeHint = mode === 'bw'
+    ? 'Your bodyweight is recorded as the weight'
+    : mode === 'plates'
+    ? plateWeight === cfg.barWeight
+      ? `${cfg.barWeight} ${cfg.label} = empty bar · tap +${cfg.plateOptions[0]} to add plates`
+      : describeWeight(plateWeight, cfg)
+    : null;
+
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -180,14 +189,14 @@ export function SetInputRow({
           onPress={cycleMode}
           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
           style={{
-            backgroundColor: mode !== 'number' ? Colors.accentDim : 'transparent',
-            borderRadius: 5, paddingHorizontal: 4, paddingVertical: 6,
-            borderWidth: mode !== 'number' ? 1 : 0,
-            borderColor: Colors.accent + '60',
+            backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
+            borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5,
+            borderWidth: 1,
+            borderColor: mode !== 'number' ? Colors.accent + '60' : Colors.border,
           }}
         >
           <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
-            {mode === 'number' ? '⚖' : mode === 'bw' ? 'BW' : 'PLT'}
+            {mode === 'number' ? 'lbs' : mode === 'bw' ? 'BW' : '🏋️'}
           </Text>
         </TouchableOpacity>
 
@@ -204,6 +213,15 @@ export function SetInputRow({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Mode hint — explains BW and plates to new users */}
+      {modeHint && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+          <Text style={{ color: Colors.accent + 'CC', fontSize: 10, fontStyle: 'italic' }}>
+            {modeHint}
+          </Text>
+        </View>
+      )}
 
       {/* Extras — RPE and note, only shown when expanded */}
       {showExtras && (
