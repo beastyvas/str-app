@@ -4,17 +4,21 @@ import { Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import Constants from 'expo-constants';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 
-// Initialize RevenueCat once at app start
-try {
-  const Purchases = require('react-native-purchases').default;
-  const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
-  if (apiKey && Platform.OS === 'ios') {
-    Purchases.configure({ apiKey });
+// Initialize RevenueCat — skip in Expo Go (purchases only work in real builds)
+const isExpoGo = Constants.appOwnership === 'expo';
+if (!isExpoGo) {
+  try {
+    const Purchases = require('react-native-purchases').default;
+    const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
+    if (apiKey && Platform.OS === 'ios') {
+      Purchases.configure({ apiKey });
+    }
+  } catch {
+    // RC not available
   }
-} catch {
-  // Expo Go — RC runs in browser mode
 }
 
 SplashScreen.preventAutoHideAsync();
