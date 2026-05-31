@@ -171,27 +171,32 @@ export default function SocialScreen() {
         });
       }
 
-      // Load feed — ALL completed workouts (notes optional, like a caption)
-      if (friendIds.length > 0) {
+      // Load feed — your workouts + friends' workouts
+      const feedUserIds = [user.id, ...friendIds];
+      if (feedUserIds.length > 0) {
         const { data: workouts } = await supabase
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes,
             workout_sets(weight, reps, set_number, exercises(name))
           `)
-          .in('user_id', friendIds)
+          .in('user_id', feedUserIds)
           .not('ended_at', 'is', null)
           .order('ended_at', { ascending: false })
           .limit(30);
 
         const posts: FeedPost[] = (workouts ?? [])
           .map((w: any) => {
-            const friendship = accepted.find(f =>
+            // If it's your own workout, use your profile
+            const isOwn = w.user_id === user.id;
+            const friendship = !isOwn ? accepted.find(f =>
               f.requester_id === w.user_id || f.addressee_id === w.user_id
-            );
-            const other = friendship
-              ? (friendship.requester_id === w.user_id ? friendship.requester : friendship.addressee) as any
-              : null;
+            ) : null;
+            const other = isOwn
+              ? { display_name: profile?.display_name, avatar_url: profile?.avatar_url, bodyweight_lbs: profile?.bodyweight_lbs }
+              : friendship
+                ? (friendship.requester_id === w.user_id ? friendship.requester : friendship.addressee) as any
+                : null;
             const sets = w.workout_sets ?? [];
             const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
             const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
