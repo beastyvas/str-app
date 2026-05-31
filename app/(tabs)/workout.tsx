@@ -48,8 +48,11 @@ export default function WorkoutTab() {
   const [finishNotes, setFinishNotes] = useState('');
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
+  const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
+  const [builderName, setBuilderName] = useState('');
+  const [builderExercises, setBuilderExercises] = useState<any[]>([]);
+  const [showBuilderPicker, setShowBuilderPicker] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
@@ -537,6 +540,31 @@ export default function WorkoutTab() {
             </View>
           )}
 
+          {/* Create template from scratch */}
+          <TouchableOpacity
+            onPress={() => { setBuilderName(''); setBuilderExercises([]); setShowTemplateBuilder(true); }}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+              borderWidth: 1, borderColor: Colors.border, marginBottom: 20,
+            }}
+          >
+            <View style={{
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: Colors.surface2,
+              borderWidth: 1, borderColor: Colors.border,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 22, lineHeight: 26 }}>+</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>Create Template</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
+                Build a reusable workout from scratch
+              </Text>
+            </View>
+          </TouchableOpacity>
+
           {/* Recent history templates grid */}
           {templates.length > 0 && (
             <>
@@ -614,6 +642,116 @@ export default function WorkoutTab() {
             <ActivityIndicator color={Colors.textMuted} style={{ marginTop: 40 }} />
           )}
         </ScrollView>
+
+        {/* Template Builder Modal */}
+        <Modal visible={showTemplateBuilder} animationType="slide" presentationStyle="pageSheet">
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              paddingHorizontal: 20, paddingVertical: 16,
+              borderBottomWidth: 1, borderBottomColor: Colors.border,
+            }}>
+              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>New Template</Text>
+              <TouchableOpacity onPress={() => setShowTemplateBuilder(false)}>
+                <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+              {/* Template name */}
+              <TextInput
+                value={builderName}
+                onChangeText={setBuilderName}
+                placeholder="Template name (e.g. Push Day, Leg Day...)"
+                placeholderTextColor={Colors.textMuted}
+                autoFocus
+                style={{
+                  backgroundColor: Colors.surface, borderRadius: 12,
+                  paddingHorizontal: 16, paddingVertical: 14,
+                  color: Colors.text, fontSize: 17, fontWeight: '700',
+                  borderWidth: 1, borderColor: Colors.border,
+                }}
+              />
+
+              {/* Added exercises */}
+              {builderExercises.length > 0 && (
+                <View style={{ gap: 8 }}>
+                  {builderExercises.map((ex, i) => (
+                    <View key={i} style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 12,
+                      backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>{ex.name}</Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>{ex.muscle_group}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setBuilderExercises(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ padding: 6 }}
+                      >
+                        <Text style={{ color: Colors.danger, fontSize: 16 }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Add exercise button */}
+              <TouchableOpacity
+                onPress={() => setShowBuilderPicker(true)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  backgroundColor: Colors.surface2, borderRadius: 12, padding: 14,
+                  borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+                }}
+              >
+                <Text style={{ color: Colors.textMuted, fontSize: 20 }}>+</Text>
+                <Text style={{ color: Colors.textMuted, fontWeight: '600' }}>Add Exercise</Text>
+              </TouchableOpacity>
+
+              {/* Save */}
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!builderName.trim()) { Alert.alert('Add a name'); return; }
+                  if (builderExercises.length === 0) { Alert.alert('Add at least one exercise'); return; }
+                  await supabase.from('workout_templates').insert({
+                    user_id: user!.id,
+                    name: builderName.trim(),
+                    exercises: builderExercises,
+                  });
+                  await loadSavedTemplates();
+                  setShowTemplateBuilder(false);
+                }}
+                disabled={!builderName.trim() || builderExercises.length === 0}
+                style={{
+                  backgroundColor: builderName.trim() && builderExercises.length > 0 ? Colors.accent : Colors.surface2,
+                  borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>
+                  Save Template ({builderExercises.length} exercises)
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+
+          {/* Exercise picker for builder */}
+          <ExercisePickerModal
+            visible={showBuilderPicker}
+            alreadyAdded={builderExercises.map(e => e.id)}
+            onSelect={(ex) => {
+              setBuilderExercises(prev => [...prev, {
+                id: ex.id, name: ex.name,
+                muscle_group: ex.muscle_group,
+                equipment_type: ex.equipment_type,
+              }]);
+              setShowBuilderPicker(false);
+            }}
+            onClose={() => setShowBuilderPicker(false)}
+          />
+        </Modal>
 
         {/* Name modal for blank workouts */}
         <Modal visible={showNameModal} transparent animationType="fade">
