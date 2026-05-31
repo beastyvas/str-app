@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, KeyboardAvoidingView,
-  Platform, ScrollView, Animated,
+  Platform, ScrollView, Animated, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
@@ -654,7 +654,41 @@ export default function OnboardingScreen() {
                   </Text>
                 </View>
 
-                <View style={{ width: '100%', gap: 10 }}>
+                <View style={{ width: '100%', gap: 12 }}>
+                  {/* Creator shoutout */}
+                  <View style={{
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14, padding: 16,
+                    borderWidth: 1, borderColor: Colors.border,
+                    flexDirection: 'row', alignItems: 'center', gap: 14,
+                  }}>
+                    <Text style={{ fontSize: 32 }}>👋</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800', marginBottom: 2 }}>
+                        Built by Nick Vasquez Jr
+                      </Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, lineHeight: 16 }}>
+                        If STR helps your training, follow along — I post updates, features, and lifting content.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL('https://instagram.com/beastyvas')}
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderRadius: 12, paddingVertical: 14,
+                      alignItems: 'center', flexDirection: 'row',
+                      justifyContent: 'center', gap: 10,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>📸</Text>
+                    <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 14 }}>
+                      Follow @beastyvas on Instagram
+                    </Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     onPress={() => refreshProfile()}
                     style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
