@@ -18,3 +18,4 @@ dist/
 # Native build output
 android/
 ios/
+*.p8
