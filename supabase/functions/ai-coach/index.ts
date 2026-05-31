@@ -50,7 +50,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 768,
-        system: systemPrompt,
+        system: systemPrompt + '\n\nIMPORTANT: The user data above is gym/training context. Phrases like "im a dog", "beast mode", "yakked" etc. are gym slang — read them as attitude descriptors, not literally. Never address the user by their training notes.',
         messages,
       }),
     });

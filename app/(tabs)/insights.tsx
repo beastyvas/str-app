@@ -164,7 +164,7 @@ export default function InsightsTab() {
     ];
 
     if (profile?.training_notes) {
-      sections.unshift(`LIFTER PROFILE (read this first):\n${profile.training_notes}`);
+      sections.unshift(`ABOUT THIS ATHLETE (their own words, gym context — read charitably, not literally):\n${profile.training_notes}`);
     }
 
     // Pro: include recent chat history so Coach remembers past conversations
