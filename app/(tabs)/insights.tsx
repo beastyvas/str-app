@@ -391,58 +391,133 @@ ${context}`;
         >
           <ScrollView
             ref={scrollRef}
-            contentContainerStyle={{ padding: 16, paddingBottom: 12 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
           >
             {messages.length === 0 && (
-              <View style={{ gap: 10 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 8, marginTop: 24 }}>
-                  Ask your coach anything about your training
-                </Text>
-                {STARTER_PROMPTS.map((p, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    onPress={() => sendMessage(p)}
-                    style={{
+              <View style={{ gap: 12, paddingTop: 8 }}>
+                {/* Coach avatar + intro */}
+                <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+                  <View style={{
+                    width: 72, height: 72, borderRadius: 36,
+                    backgroundColor: Colors.accent + '20',
+                    borderWidth: 2, borderColor: Colors.accent + '60',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Text style={{ fontSize: 32 }}>⚡</Text>
+                  </View>
+                  <View style={{ alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>
+                      Coach
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                      20+ years in the weight room.{'\n'}Reads your logs. Talks like it.
+                    </Text>
+                  </View>
+                  {!isPro && (
+                    <View style={{
                       backgroundColor: Colors.surface,
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      borderWidth: 1,
-                      borderColor: Colors.border,
-                    }}
-                  >
-                    <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>{p}</Text>
-                  </TouchableOpacity>
-                ))}
+                      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+                        {aiAsksRemaining} free ask{aiAsksRemaining !== 1 ? 's' : ''} left this week
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Divider */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Ask something</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+                </View>
+
+                {/* Prompt cards — 2 column grid */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {STARTER_PROMPTS.map((p, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => sendMessage(p)}
+                      style={{
+                        width: '47%',
+                        backgroundColor: Colors.surface,
+                        borderRadius: 14,
+                        padding: 14,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={{ fontSize: 22 }}>
+                        {['📊', '💪', '⚖️', '🔄'][i] ?? '⚡'}
+                      </Text>
+                      <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '600', lineHeight: 17 }}>
+                        {p}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
 
+            {/* Messages */}
             {messages.map((m, i) => (
               <View key={i} style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                marginBottom: 12,
+                flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
+                alignItems: 'flex-end',
+                gap: 8,
+                marginBottom: 14,
               }}>
-                <View style={{
-                  backgroundColor: m.role === 'user' ? Colors.accent : Colors.surface,
-                  borderRadius: 16,
-                  borderBottomRightRadius: m.role === 'user' ? 4 : 16,
-                  borderBottomLeftRadius: m.role === 'assistant' ? 4 : 16,
-                  padding: 14,
-                  borderWidth: m.role === 'assistant' ? 1 : 0,
-                  borderColor: Colors.border,
-                }}>
-                  <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21 }}>
-                    {m.content}
-                  </Text>
+                {/* Coach avatar on assistant messages */}
+                {m.role === 'assistant' && (
+                  <View style={{
+                    width: 30, height: 30, borderRadius: 15,
+                    backgroundColor: Colors.accent + '20',
+                    borderWidth: 1, borderColor: Colors.accent + '40',
+                    alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Text style={{ fontSize: 14 }}>⚡</Text>
+                  </View>
+                )}
+                <View style={{ maxWidth: '80%' }}>
+                  <View style={{
+                    backgroundColor: m.role === 'user' ? Colors.accent : Colors.surface,
+                    borderRadius: 18,
+                    borderBottomRightRadius: m.role === 'user' ? 4 : 18,
+                    borderBottomLeftRadius: m.role === 'assistant' ? 4 : 18,
+                    padding: 14,
+                    borderWidth: m.role === 'assistant' ? 1 : 0,
+                    borderColor: Colors.border,
+                  }}>
+                    <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 22 }}>
+                      {m.content}
+                    </Text>
+                  </View>
                 </View>
               </View>
             ))}
 
+            {/* Typing indicator */}
             {loading && (
-              <View style={{ alignSelf: 'flex-start', padding: 14 }}>
-                <ActivityIndicator color={Colors.accent} size="small" />
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 14 }}>
+                <View style={{
+                  width: 30, height: 30, borderRadius: 15,
+                  backgroundColor: Colors.accent + '20',
+                  borderWidth: 1, borderColor: Colors.accent + '40',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ fontSize: 14 }}>⚡</Text>
+                </View>
+                <View style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 18, borderBottomLeftRadius: 4,
+                  padding: 14, borderWidth: 1, borderColor: Colors.border,
+                }}>
+                  <ActivityIndicator color={Colors.accent} size="small" />
+                </View>
               </View>
             )}
           </ScrollView>

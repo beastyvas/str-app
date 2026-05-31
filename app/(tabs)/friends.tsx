@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, RefreshControl, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { CameraView, Camera } from 'expo-camera';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
@@ -291,7 +291,7 @@ export default function SocialScreen() {
   };
 
   const openScanner = async () => {
-    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    const { status } = await Camera.requestCameraPermissionsAsync();
     if (status === 'granted') setShowScanner(true);
     else Alert.alert('Camera permission needed to scan QR codes');
   };
@@ -709,8 +709,9 @@ export default function SocialScreen() {
               <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <BarCodeScanner
-            onBarCodeScanned={handleQRScan}
+          <CameraView
+            onBarcodeScanned={({ data }) => handleQRScan({ data })}
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             style={{ flex: 1 }}
           />
           <View style={{ padding: 24, alignItems: 'center' }}>
