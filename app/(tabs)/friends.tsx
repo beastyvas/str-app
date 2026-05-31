@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
 import { getAnimeTierResult } from '@/constants/animeTiers';
 import * as Haptics from 'expo-haptics';
+import { FriendProfileModal } from '@/components/FriendProfileModal';
 
 type SubTab = 'feed' | 'people';
 
@@ -97,6 +98,7 @@ export default function SocialScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [suggested, setSuggested] = useState<any[]>([]);
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -422,7 +424,7 @@ export default function SocialScreen() {
             </View>
           ) : (
             feed.map(post => (
-              <View key={post.workoutId} style={{
+              <TouchableOpacity key={post.workoutId} onPress={() => setSelectedFriendId(post.userId)} activeOpacity={0.9} style={{
                 backgroundColor: Colors.surface,
                 borderRadius: 16,
                 marginBottom: 14,
@@ -501,7 +503,7 @@ export default function SocialScreen() {
                     ))}
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </ScrollView>
@@ -663,6 +665,7 @@ export default function SocialScreen() {
               {friends.map(f => (
                 <TouchableOpacity
                   key={f.id}
+                  onPress={() => setSelectedFriendId(f.id)}
                   onLongPress={() => removeFriend(f.friendshipId, f.display_name)}
                   delayLongPress={600}
                   activeOpacity={0.85}
@@ -705,6 +708,13 @@ export default function SocialScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* Friend Profile Modal */}
+      <FriendProfileModal
+        visible={!!selectedFriendId}
+        userId={selectedFriendId}
+        onClose={() => setSelectedFriendId(null)}
+      />
 
       {/* QR Scanner Modal */}
       <Modal visible={showScanner} animationType="slide">
