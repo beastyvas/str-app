@@ -262,41 +262,38 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
+            bounces={false}
+          >
+            <View style={{
               flexDirection: 'row',
               alignItems: 'center',
               paddingHorizontal: 16,
               paddingBottom: 10,
-            }}
-          >
-            {MUSCLE_GROUPS.map((group, i) => (
-              <TouchableOpacity
-                key={group}
-                onPress={() => setSelectedGroup(group)}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                  backgroundColor: selectedGroup === group ? Colors.accent : Colors.surface2,
-                  borderWidth: 1,
-                  borderColor: selectedGroup === group ? Colors.accent : Colors.border,
-                  marginRight: i < MUSCLE_GROUPS.length - 1 ? 8 : 0,
-                  flexShrink: 0,
-                  flexGrow: 0,
-                }}
-              >
-                <Text
-                  numberOfLines={1}
+            }}>
+              {MUSCLE_GROUPS.map((group, i) => (
+                <TouchableOpacity
+                  key={group}
+                  onPress={() => setSelectedGroup(group)}
                   style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: selectedGroup === group ? Colors.accent : Colors.surface2,
+                    borderWidth: 1,
+                    borderColor: selectedGroup === group ? Colors.accent : Colors.border,
+                    marginRight: i < MUSCLE_GROUPS.length - 1 ? 8 : 0,
+                  }}
+                >
+                  <Text style={{
                     color: selectedGroup === group ? Colors.text : Colors.textMuted,
                     fontSize: 12,
                     fontWeight: '700',
-                  }}
-                >
-                  {group}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  }}>
+                    {group}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </ScrollView>
 
           {/* Exercise list */}
@@ -380,39 +377,43 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
 
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Muscle Group</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  {MUSCLE_GROUPS.filter(g => g !== 'All').map(g => (
-                    <TouchableOpacity
-                      key={g}
-                      onPress={() => setNewGroup(g)}
-                      style={{
-                        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-                        backgroundColor: newGroup === g ? Colors.accent : Colors.surface2,
-                        borderWidth: 1, borderColor: newGroup === g ? Colors.accent : Colors.border,
-                      }}
-                    >
-                      <Text style={{ color: newGroup === g ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{g}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {MUSCLE_GROUPS.filter(g => g !== 'All').map(g => (
+                      <TouchableOpacity
+                        key={g}
+                        onPress={() => setNewGroup(g)}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                          backgroundColor: newGroup === g ? Colors.accent : Colors.surface2,
+                          borderWidth: 1, borderColor: newGroup === g ? Colors.accent : Colors.border,
+                        }}
+                      >
+                        <Text style={{ color: newGroup === g ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{g}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </ScrollView>
               </View>
 
               <View>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Equipment</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  {EQUIPMENT_OPTIONS.map(eq => (
-                    <TouchableOpacity
-                      key={eq}
-                      onPress={() => setNewEquipment(eq)}
-                      style={{
-                        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-                        backgroundColor: newEquipment === eq ? Colors.accent : Colors.surface2,
-                        borderWidth: 1, borderColor: newEquipment === eq ? Colors.accent : Colors.border,
-                      }}
-                    >
-                      <Text style={{ color: newEquipment === eq ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{eq}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {EQUIPMENT_OPTIONS.map(eq => (
+                      <TouchableOpacity
+                        key={eq}
+                        onPress={() => setNewEquipment(eq)}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                          backgroundColor: newEquipment === eq ? Colors.accent : Colors.surface2,
+                          borderWidth: 1, borderColor: newEquipment === eq ? Colors.accent : Colors.border,
+                        }}
+                      >
+                        <Text style={{ color: newEquipment === eq ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{eq}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </ScrollView>
               </View>
 
