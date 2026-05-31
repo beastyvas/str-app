@@ -243,13 +243,19 @@ export default function SocialScreen() {
     if (!search.trim() || !user) return;
     setSearching(true);
     try {
-      const q = search.trim().replace(/^@/, ''); // strip leading @ for username search
-      const { data: users } = await supabase
+      const q = search.trim().replace(/^@/, '');
+      const { data: users, error: searchError } = await supabase
         .from('users')
         .select('id, display_name, avatar_url, bio, username')
         .or(`display_name.ilike.%${q}%,username.ilike.%${q}%`)
         .neq('id', user.id)
         .limit(10);
+
+      if (searchError) {
+        Alert.alert('Search error', searchError.message);
+        return;
+      }
+      console.log('[Search] query:', q, 'results:', users?.length, users?.map(u => u.username));
 
       const { data: myFriendships } = await supabase
         .from('friendships')
