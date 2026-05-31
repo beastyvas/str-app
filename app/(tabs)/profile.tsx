@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
 import { QRModal } from '@/components/QRModal';
+import { TierLadderModal } from '@/components/TierLadderModal';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getAnimeTierResult } from '@/constants/animeTiers';
 
@@ -67,6 +68,7 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [bioEditing, setBioEditing] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showTierLadder, setShowTierLadder] = useState(false);
 
   useEffect(() => {
     if (user) loadStats();
@@ -320,21 +322,45 @@ export default function ProfileScreen() {
             </Text>
           )}
 
-          {/* Anime tier badge */}
-          {animeTier && stats?.allPRs.some(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName)) && (
-            <View style={{
-              backgroundColor: tierColor + '18',
-              borderRadius: 8,
-              paddingHorizontal: 14,
-              paddingVertical: 6,
-              borderWidth: 1,
-              borderColor: tierColor + '40',
-              marginBottom: 12,
-            }}>
-              <Text style={{ color: tierColor, fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
-                {animeTier.animeTier.label}
+          {/* Anime tier card — tappable to open ladder */}
+          {animeTier && (
+            <TouchableOpacity
+              onPress={() => setShowTierLadder(true)}
+              style={{
+                backgroundColor: tierColor + '12',
+                borderRadius: 14,
+                padding: 16,
+                borderWidth: 1.5,
+                borderColor: tierColor + '50',
+                marginBottom: 12,
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{
+                  backgroundColor: tierColor + '25',
+                  borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
+                }}>
+                  <Text style={{ color: tierColor, fontWeight: '900', fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' }}>
+                    {animeTier.animeTier.label}
+                  </Text>
+                </View>
+                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                  {animeTier.avgScore > 0 ? `${animeTier.avgScore.toFixed(1)} / 5.0` : 'Set SBD to rank'}
+                </Text>
+              </View>
+              <Text style={{
+                color: Colors.textSecondary, fontSize: 12,
+                fontStyle: 'italic', textAlign: 'center', lineHeight: 18,
+              }}>
+                "{animeTier.animeTier.tagline}"
               </Text>
-            </View>
+              <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700', opacity: 0.7 }}>
+                Tap to see all ranks →
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Bio */}
@@ -620,6 +646,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Tier Ladder Modal */}
+      <TierLadderModal
+        visible={showTierLadder}
+        onClose={() => setShowTierLadder(false)}
+        result={animeTier}
+      />
 
       {/* QR Modal */}
       {user && (
