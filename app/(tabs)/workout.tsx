@@ -519,6 +519,16 @@ export default function WorkoutTab() {
       setPrevSetsCache({});
       setIsFirstWorkout(false);
       setTutorialStep('done');
+      // Pre-flag for celebration toast on home screen (cleared after shown)
+      if (user) {
+        try {
+          const AS = (await import('@react-native-async-storage/async-storage')).default;
+          const alreadyCelebrated = await AS.getItem(`celebrated_workout_${user.id}`);
+          if (!alreadyCelebrated) {
+            // Leave it for home screen to pick up — it will show AND mark as shown
+          }
+        } catch {}
+      }
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');

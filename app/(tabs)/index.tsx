@@ -94,20 +94,23 @@ export default function HomeScreen() {
       const allDone = hasWorkout && hasFriend && hasCoach;
       const newSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
 
-      // Detect task completions and fire celebrations
-      const prev = prevFirstSteps.current;
-      if (prev !== null) {
-        // Compare against previous known state
-        if (prev && !prev.hasWorkout && hasWorkout) {
-          setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
-        } else if (prev && !prev.hasCoach && hasCoach) {
-          setCelebration({ emoji: '⚡', title: 'Weekly plan incoming!', sub: 'Check Coach for your program.' });
-        } else if (prev && !prev.hasFriend && hasFriend) {
-          setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
-        }
+      // Check AsyncStorage flags for celebrations — reliable, not state-comparison-based
+      const [workoutCelebrated, friendCelebrated, onboardingDone] = await Promise.all([
+        AsyncStorage.getItem(`celebrated_workout_${uid}`),
+        AsyncStorage.getItem(`celebrated_friend_${uid}`),
+        AsyncStorage.getItem(`onboarding_done_${uid}`),
+      ]);
+
+      if (onboardingDone === 'pending') {
+        await AsyncStorage.setItem(`onboarding_done_${uid}`, 'shown');
+        setCelebration({ emoji: '🎉', title: "You're in the system!", sub: 'Your arc officially begins. Go crush it.' });
+      } else if (hasWorkout && !workoutCelebrated) {
+        await AsyncStorage.setItem(`celebrated_workout_${uid}`, 'true');
+        setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
+      } else if (hasFriend && !friendCelebrated) {
+        await AsyncStorage.setItem(`celebrated_friend_${uid}`, 'true');
+        setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
       }
-      // Seed on first load so subsequent changes are detected
-      prevFirstSteps.current = { hasWorkout, hasFriend, hasCoach };
       setFirstSteps(newSteps);
       const [prRes, workoutRes, friendRes] = await Promise.all([
         // SBD PRs for anime tier
@@ -415,7 +418,7 @@ export default function HomeScreen() {
                 <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasFriend ? 'line-through' : 'none' }}>
                   Add your first friend
                 </Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Tap to add <Text style={{ color: Colors.accent }}>@the_chunkyhunk</Text> — the creator 👑</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Tap to add <Text style={{ color: Colors.accent }}>@beastyvas</Text> — the creator 👑</Text>
               </View>
               {!firstSteps.hasFriend && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
             </TouchableOpacity>

@@ -672,7 +672,7 @@ export default function OnboardingScreen() {
                   </View>
 
                   <TouchableOpacity
-                    onPress={() => Linking.openURL('https://instagram.com/the_chunkyhunk')}
+                    onPress={() => Linking.openURL('https://instagram.com/beastyvas')}
                     style={{
                       backgroundColor: Colors.surface,
                       borderRadius: 12, paddingVertical: 14,
@@ -683,12 +683,12 @@ export default function OnboardingScreen() {
                   >
                     <Text style={{ fontSize: 20 }}>📸</Text>
                     <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 14 }}>
-                      Follow @the_chunkyhunk on Instagram
+                      Follow @beastyvas on Instagram
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={() => refreshProfile()}
+                    onPress={async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; if (user?.id) await AS.setItem('onboarding_done_' + user.id, 'pending'); } catch {} refreshProfile(); }}
                     style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
                   >
                     <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.3 }}>
