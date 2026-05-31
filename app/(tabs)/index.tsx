@@ -93,16 +93,18 @@ export default function HomeScreen() {
 
       // Detect task completions and fire celebrations
       const prev = prevFirstSteps.current;
-      if (prev) {
-        if (!prev.hasWorkout && hasWorkout) {
+      if (prev !== null) {
+        // Compare against previous known state
+        if (prev && !prev.hasWorkout && hasWorkout) {
           setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
-        } else if (!prev.hasCoach && hasCoach) {
+        } else if (prev && !prev.hasCoach && hasCoach) {
           setCelebration({ emoji: '⚡', title: 'Weekly plan incoming!', sub: 'Check Coach for your program.' });
-        } else if (!prev.hasFriend && hasFriend) {
+        } else if (prev && !prev.hasFriend && hasFriend) {
           setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
         }
       }
-      prevFirstSteps.current = newSteps;
+      // Seed on first load so subsequent changes are detected
+      prevFirstSteps.current = { hasWorkout, hasFriend, hasCoach };
       setFirstSteps(newSteps);
       const [prRes, workoutRes, friendRes] = await Promise.all([
         // SBD PRs for anime tier

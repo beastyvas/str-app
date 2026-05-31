@@ -115,21 +115,19 @@ export default function OnboardingScreen() {
             achieved_at: new Date().toISOString(),
           }, { onConflict: 'user_id,exercise_id' });
         }
-        // Calculate and show tier
         const prs = sbdEntries.map(e => ({
           exerciseName: e.name, weight: parseFloat(e.val), reps: 1,
         }));
         const result = getAnimeTierResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
         setRevealTier(result.animeTier);
-        setShowTierReveal(true);
+      } else {
+        // No SBD — show NINJA as starting rank
+        setRevealTier(ANIME_TIERS[0]);
       }
 
-      await refreshProfile();
-      if (!sbdEntries.length) {
-        // No SBD — still give them the NINJA tier reveal as a starting point
-        setRevealTier(ANIME_TIERS[0]); // NINJA
-        setShowTierReveal(true);
-      }
+      setShowTierReveal(true);
+      // Note: refreshProfile() is called on the done screen's "Let's get it →"
+      // so navigation doesn't fire before the tier reveal animates
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
