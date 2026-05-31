@@ -57,20 +57,23 @@ export default function HomeScreen() {
   const [creatorId, setCreatorId] = useState<string | null>(null);
   const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
   const [trainingDays, setTrainingDays] = useState('4');
+  const [recentFriendPost, setRecentFriendPost] = useState<{
+    displayName: string;
+    workoutName: string;
+    notes?: string;
+    exercises: string[];
+    endedAt: string;
+  } | null>(null);
 
   // SBD manual entry
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
 
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user, profile?.bodyweight_lbs]);
-
-  // Refresh when returning to home (picks up completed workouts, new friends etc)
+  // Single source of truth — useFocusEffect handles both initial load and returns
   useFocusEffect(useCallback(() => {
     if (user) fetchData();
-  }, [user]));
+  }, [user, profile?.bodyweight_lbs]));
 
   const fetchData = async () => {
     try {
@@ -172,6 +175,39 @@ export default function HomeScreen() {
           achieved_at: pr.achieved_at,
           unit_pref: pr.users.unit_pref,
         })));
+      }
+
+      // Most recent friend workout post for crew activity card
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+        .eq('status', 'accepted');
+      const friendIds = (friendships ?? []).map(f =>
+        f.requester_id === uid ? f.addressee_id : f.requester_id
+      );
+      if (friendIds.length > 0) {
+        const { data: recentPost } = await supabase
+          .from('workouts')
+          .select('name, ended_at, notes, user_id, workout_sets(exercises(name)), users!inner(display_name)')
+          .in('user_id', friendIds)
+          .not('ended_at', 'is', null)
+          .order('ended_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (recentPost) {
+          const sets = (recentPost as any).workout_sets ?? [];
+          const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
+          setRecentFriendPost({
+            displayName: (recentPost as any).users?.display_name ?? 'Friend',
+            workoutName: recentPost.name,
+            notes: recentPost.notes?.trim() || undefined,
+            exercises: exs,
+            endedAt: recentPost.ended_at!,
+          });
+        } else {
+          setRecentFriendPost(null);
+        }
       }
     } catch (e) {
       // silence
@@ -657,33 +693,63 @@ export default function HomeScreen() {
           <Text style={{ color: Colors.textMuted, fontSize: 20 }}>›</Text>
         </TouchableOpacity>
 
-        {/* ── CREW ACTIVITY — taps to Social feed ─────────────────── */}
+        {/* ── CREW ACTIVITY ────────────────────────────────────────── */}
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/friends')}
+          activeOpacity={0.85}
           style={{
             backgroundColor: Colors.surface,
-            borderRadius: 14, padding: 16,
-            borderWidth: 1, borderColor: Colors.border,
-            flexDirection: 'row', alignItems: 'center', gap: 14,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: recentFriendPost ? Colors.accent + '30' : Colors.border,
+            overflow: 'hidden',
           }}
         >
-          <View style={{
-            width: 40, height: 40, borderRadius: 20,
-            backgroundColor: Colors.accentDim,
-            borderWidth: 1, borderColor: Colors.accent + '40',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Text style={{ fontSize: 20 }}>👥</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Crew Activity</Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
-              {friendPRs.length > 0
-                ? `${friendPRs[0].display_name} and others are active`
-                : 'See your friends\' workouts and PRs'}
-            </Text>
-          </View>
-          <Text style={{ color: Colors.accent, fontSize: 16 }}>›</Text>
+          {recentFriendPost ? (
+            <>
+              {/* Post preview */}
+              <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 15 }}>👥</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800' }}>{recentFriendPost.displayName}</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{recentFriendPost.workoutName} · {timeAgo(recentFriendPost.endedAt)}</Text>
+                </View>
+                <Text style={{ color: Colors.accent, fontSize: 14, fontWeight: '700' }}>Feed →</Text>
+              </View>
+              {recentFriendPost.notes && (
+                <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
+                  <Text style={{ color: Colors.text, fontSize: 13, lineHeight: 19 }} numberOfLines={2}>
+                    {recentFriendPost.notes}
+                  </Text>
+                </View>
+              )}
+              {recentFriendPost.exercises.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingHorizontal: 14, paddingBottom: 12 }}>
+                  {recentFriendPost.exercises.slice(0, 4).map((ex, i) => (
+                    <View key={i} style={{ backgroundColor: Colors.surface2, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{ex}</Text>
+                    </View>
+                  ))}
+                  {recentFriendPost.exercises.length > 4 && (
+                    <Text style={{ color: Colors.textMuted, fontSize: 10, alignSelf: 'center' }}>+{recentFriendPost.exercises.length - 4}</Text>
+                  )}
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 20 }}>👥</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Crew Activity</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>Add friends to see their workouts here</Text>
+              </View>
+              <Text style={{ color: Colors.accent, fontSize: 16 }}>›</Text>
+            </View>
+          )}
         </TouchableOpacity>
         {/* Weekly Plan Prompt Modal */}
         <Modal visible={weeklyPlanModal} transparent animationType="slide">
