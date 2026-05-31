@@ -45,7 +45,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         .not('ended_at', 'is', null)
         .order('started_at', { ascending: false })
         .limit(3),
-    ]).then(([{ data: prof }, { data: prData }, { data: workouts }]) => {
+    ]).then(async ([{ data: prof }, { data: prData }, { data: workouts }]) => {
       setProfile(prof);
       setPrs(prData ?? []);
       setRecentWorkouts(workouts ?? []);
