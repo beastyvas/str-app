@@ -4,7 +4,7 @@ import {
   Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -63,6 +63,11 @@ export default function HomeScreen() {
   useEffect(() => {
     if (user) fetchData();
   }, [user, profile?.bodyweight_lbs]);
+
+  // Refresh when returning to home (picks up completed workouts, new friends etc)
+  useFocusEffect(useCallback(() => {
+    if (user) fetchData();
+  }, [user]));
 
   const fetchData = async () => {
     try {

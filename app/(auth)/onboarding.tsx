@@ -125,7 +125,11 @@ export default function OnboardingScreen() {
       }
 
       await refreshProfile();
-      if (!sbdEntries.length) animateNext('done');
+      if (!sbdEntries.length) {
+        // No SBD — still give them the NINJA tier reveal as a starting point
+        setRevealTier(ANIME_TIERS[0]); // NINJA
+        setShowTierReveal(true);
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
