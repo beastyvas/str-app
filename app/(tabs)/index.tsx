@@ -63,9 +63,10 @@ export default function HomeScreen() {
         // SBD PRs for anime tier
         supabase
           .from('personal_records')
-          .select('weight, reps, exercises!inner(name)')
+          .select('weight, reps, achieved_at, exercises!inner(name)')
           .eq('user_id', uid)
-          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']),
+          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
+          .order('achieved_at', { ascending: false }),
 
         // Last completed workout
         supabase
@@ -92,8 +93,10 @@ export default function HomeScreen() {
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight,
           reps: p.reps,
+          achievedAt: p.achieved_at,
         }));
-        setAnimeResult(getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185));
+        // useDecay=true: rank based on last 6 months only
+        setAnimeResult(getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185, true));
       } else {
         setAnimeResult(getAnimeTierResult([], profile?.bodyweight_lbs ?? 185));
       }

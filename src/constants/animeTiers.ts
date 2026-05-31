@@ -13,44 +13,44 @@ export const ANIME_TIERS: AnimeTier[] = [
   {
     key: 'civilian',
     label: 'NINJA',
-    tagline: "The discipline is real. The power isn't there yet — but it will be.",
-    color: '#CD7F32',
+    tagline: "Every legend had a day one. This is yours. Keep showing up.",
+    color: '#F97316',       // Naruto orange
     minScore: 0,
   },
   {
     key: 'training_arc',
-    label: 'GRAPPLER',
-    tagline: "You're in the fight. Most people never get this far.",
-    color: '#A67C52',
-    minScore: 0.5,
+    label: 'DEMON',
+    tagline: "You've unlocked something. The real training starts now.",
+    color: '#EF4444',       // Tanjiro / Demon Slayer red
+    minScore: 0.75,
   },
   {
     key: 'tournament_arc',
-    label: 'BLACK SWORDSMAN',
-    tagline: "You carry weight others can't imagine. Keep grinding.",
-    color: '#A8A9AD',
-    minScore: 1.5,
+    label: 'SORCERERS',
+    tagline: "Limitless. You see things most lifters never will.",
+    color: '#818CF8',       // Gojo blue-purple
+    minScore: 1.75,
   },
   {
     key: 'rival_level',
     label: 'HOLLOW',
-    tagline: "You've crossed a line most lifters don't even know exists.",
-    color: '#FFB800',
-    minScore: 2.5,
+    tagline: "You've transcended. The power isn't borrowed anymore — it's yours.",
+    color: '#38BDF8',       // Bleach — hollow white-blue
+    minScore: 2.75,
   },
   {
     key: 'final_boss',
     label: 'SOLO',
-    tagline: "S-rank. Different breed. The gym knows your name.",
-    color: '#9B8FFF',
-    minScore: 3.5,
+    tagline: "You arose alone. S-rank. The gap between you and others is silent.",
+    color: '#A78BFA',       // Jin Woo dark purple
+    minScore: 3.75,
   },
   {
     key: 'god_tier',
-    label: 'FREEDOM',
-    tagline: "No ceiling. No constraints. There is no next level.",
-    color: '#B9F2FF',
-    minScore: 4.5,
+    label: 'WARRIOR',
+    tagline: "Saiyan level. There is no ceiling because you already broke it.",
+    color: '#FBBF24',       // Super Saiyan gold
+    minScore: 4.75,
   },
 ];
 
@@ -78,52 +78,64 @@ export interface AnimeTierResult {
 }
 
 export function getAnimeTierResult(
-  prs: { exerciseName: string; weight: number; reps: number }[],
-  bodyweightLbs: number
+  prs: { exerciseName: string; weight: number; reps: number; achievedAt?: string }[],
+  bodyweightLbs: number,
+  useDecay = false  // if true, only count PRs from last 6 months for rank
 ): AnimeTierResult {
   const bw = bodyweightLbs || 185;
+  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
 
   const lifts: SBDResult[] = SBD_EXERCISES.map(ex => {
-    const pr = prs.find(p => p.exerciseName.toLowerCase() === ex.key);
+    // For ranking: use recent PR if decay enabled, else use best overall
+    const allMatching = prs.filter(p => p.exerciseName.toLowerCase() === ex.key);
+    const recentMatching = useDecay
+      ? allMatching.filter(p => !p.achievedAt || new Date(p.achievedAt) >= sixMonthsAgo)
+      : allMatching;
+
+    const pr = recentMatching.length > 0 ? recentMatching[0] : null;
     const weight = pr ? pr.weight : 0;
     const tier = getTierForWeight(ex.name, weight, bw);
     const tierScore = TIER_ORDER.indexOf(tier);
 
-    // Calculate weight needed for next tier
     const standard = STRENGTH_STANDARDS[ex.key];
     let nextTierWeight: number | null = null;
     if (standard && tierScore < 5) {
       const nextTierName = TIER_ORDER[tierScore + 1];
       const nextThreshold = standard.thresholds[nextTierName];
-      if (standard.type === 'bodyweight_multiplier') {
-        nextTierWeight = Math.ceil(nextThreshold * bw);
-      } else {
-        nextTierWeight = nextThreshold;
-      }
+      nextTierWeight = standard.type === 'bodyweight_multiplier'
+        ? Math.ceil(nextThreshold * bw)
+        : nextThreshold;
     }
 
     return { exercise: ex.name, label: ex.label, weight, tier, tierScore, nextTierWeight };
   });
 
-  const logsgedLifts = lifts.filter(l => l.weight > 0);
-  const avgScore = logsgedLifts.length > 0
-    ? logsgedLifts.reduce((s, l) => s + l.tierScore, 0) / logsgedLifts.length
+  const loggedLifts = lifts.filter(l => l.weight > 0);
+
+  // ── WEAKEST LINK RULE ─────────────────────────────────────────────────────
+  // Rank = your lowest SBD tier. Can't hide a weak lift.
+  const rankScore = loggedLifts.length > 0
+    ? Math.min(...loggedLifts.map(l => l.tierScore))
     : 0;
 
-  // Find current anime tier
+  // avgScore still shown for display purposes
+  const avgScore = loggedLifts.length > 0
+    ? loggedLifts.reduce((s, l) => s + l.tierScore, 0) / loggedLifts.length
+    : 0;
+
   let animeTier = ANIME_TIERS[0];
   for (const at of ANIME_TIERS) {
-    if (avgScore >= at.minScore) animeTier = at;
+    if (rankScore >= at.minScore) animeTier = at;
   }
 
-  const nextAnimeTier = ANIME_TIERS.find(at => at.minScore > avgScore) ?? null;
+  const nextAnimeTier = ANIME_TIERS.find(at => at.minScore > rankScore) ?? null;
 
-  // Bottleneck = lift with lowest tierScore (what's holding you back)
-  const bottleneck = logsgedLifts.length > 0
+  // Bottleneck = the weakest lift (what's holding rank back)
+  const bottleneck = loggedLifts.length > 0
     ? [...lifts].sort((a, b) => a.tierScore - b.tierScore)[0]
     : null;
 
-  return { animeTier, nextAnimeTier, avgScore, lifts, bottleneck };
+  return { animeTier, nextAnimeTier, avgScore: rankScore, lifts, bottleneck };
 }
 
 // How much each lift needs to increase for the next anime tier
