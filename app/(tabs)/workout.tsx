@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Animated,
+  KeyboardAvoidingView, Platform, Animated, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +48,8 @@ export default function WorkoutTab() {
   const [workoutName, setWorkoutName] = useState('');
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishNotes, setFinishNotes] = useState('');
+  const [finishPhoto, setFinishPhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
@@ -406,6 +410,18 @@ export default function WorkoutTab() {
     setShowFinishModal(true);
   };
 
+  const pickFinishPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [4, 3], quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setFinishPhoto(result.assets[0].uri);
+    }
+  };
+
   const handleFinishConfirm = async () => {
     setFinishing(true);
     setShowFinishModal(false);
@@ -418,7 +434,32 @@ export default function WorkoutTab() {
       setTemplateName('');
 
       const summary = await finishWorkout(finishNotes.trim() || undefined);
+
+      // Upload photo if selected
+      if (finishPhoto && summary?.workoutId && user) {
+        try {
+          setUploadingPhoto(true);
+          const ext = finishPhoto.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const fileName = `${user.id}/${summary.workoutId}.${ext}`;
+          const base64 = await FileSystem.readAsStringAsync(finishPhoto, { encoding: 'base64' as any });
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const { data: uploadData } = await supabase.storage
+            .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType: `image/${ext}` });
+          if (uploadData) {
+            const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
+            await supabase.from('workout_photos').insert({
+              workout_id: summary.workoutId,
+              user_id: user.id,
+              photo_url: urlData.publicUrl,
+            });
+          }
+        } catch (e) { /* silent */ } finally { setUploadingPhoto(false); }
+      }
+
       setFinishNotes('');
+      setFinishPhoto(null);
       setPrMap({});
       setPrevSetsCache({});
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
@@ -1108,6 +1149,35 @@ export default function WorkoutTab() {
                 </View>
               ))}
             </View>
+
+            {/* Photo picker */}
+            <TouchableOpacity
+              onPress={pickFinishPhoto}
+              style={{
+                borderRadius: 12, overflow: 'hidden',
+                borderWidth: 1, borderColor: finishPhoto ? Colors.accent + '40' : Colors.border,
+                borderStyle: finishPhoto ? 'solid' : 'dashed',
+                height: finishPhoto ? 160 : 52,
+                alignItems: 'center', justifyContent: 'center',
+                backgroundColor: Colors.surface2,
+              }}
+            >
+              {finishPhoto ? (
+                <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 18 }}>📷</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '600' }}>
+                    Add a photo to your post
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {finishPhoto && (
+              <TouchableOpacity onPress={() => setFinishPhoto(null)} style={{ alignSelf: 'flex-end' }}>
+                <Text style={{ color: Colors.danger, fontSize: 12 }}>Remove photo</Text>
+              </TouchableOpacity>
+            )}
 
             <TextInput
               value={finishNotes}

@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, RefreshControl, Image, Modal,
+  ActivityIndicator, Alert, RefreshControl, Image, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, Camera } from 'expo-camera';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +29,10 @@ interface FeedPost {
   exercises: string[];
   animeTierLabel?: string;
   animeTierColor?: string;
+  photoUrl?: string;
+  likeCount: number;
+  isLiked: boolean;
+  commentCount: number;
 }
 
 interface Friend {
@@ -102,7 +107,15 @@ export default function SocialScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [suggested, setSuggested] = useState<any[]>([]);
+  const scanHandled = useRef(false);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+
+  // Comments
+  const [commentWorkoutId, setCommentWorkoutId] = useState<string | null>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -189,6 +202,10 @@ export default function SocialScreen() {
               setsCount: sets.length,
               totalVolume: vol,
               exercises: exs,
+              photoUrl: undefined as string | undefined,
+              likeCount: 0,
+              isLiked: false,
+              commentCount: 0,
               animeTierLabel: (sbdByUser[w.user_id] ?? []).length > 0
                 ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
                     exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
@@ -201,7 +218,26 @@ export default function SocialScreen() {
                 : undefined,
             };
           });
-        setFeed(posts);
+        // Enrich with likes, comments, photos
+        if (posts.length > 0) {
+          const workoutIds = posts.map(p => p.workoutId);
+          const [{ data: likesData }, { data: commentsData }, { data: photosData }] = await Promise.all([
+            supabase.from('workout_likes').select('workout_id, user_id').in('workout_id', workoutIds),
+            supabase.from('workout_comments').select('workout_id').in('workout_id', workoutIds),
+            supabase.from('workout_photos').select('workout_id, photo_url').in('workout_id', workoutIds),
+          ]);
+          const myId = user!.id;
+          const enriched = posts.map(p => ({
+            ...p,
+            likeCount: (likesData ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
+            isLiked: (likesData ?? []).some((l: any) => l.workout_id === p.workoutId && l.user_id === myId),
+            commentCount: (commentsData ?? []).filter((c: any) => c.workout_id === p.workoutId).length,
+            photoUrl: (photosData ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
+          }));
+          setFeed(enriched);
+        } else {
+          setFeed(posts);
+        }
       }
 
       const friendList: Friend[] = accepted
@@ -303,13 +339,66 @@ export default function SocialScreen() {
     setPending(prev => prev.filter(p => p.friendshipId !== friendshipId));
   };
 
+  const toggleLike = async (workoutId: string, isLiked: boolean) => {
+    if (!user) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Optimistic update
+    setFeed(prev => prev.map(p => p.workoutId === workoutId
+      ? { ...p, isLiked: !isLiked, likeCount: p.likeCount + (isLiked ? -1 : 1) }
+      : p
+    ));
+    if (isLiked) {
+      await supabase.from('workout_likes').delete().eq('workout_id', workoutId).eq('user_id', user.id);
+    } else {
+      await supabase.from('workout_likes').insert({ workout_id: workoutId, user_id: user.id });
+    }
+  };
+
+  const openComments = async (workoutId: string) => {
+    setCommentWorkoutId(workoutId);
+    setComments([]);
+    setLoadingComments(true);
+    const { data } = await supabase
+      .from('workout_comments')
+      .select('id, content, created_at, users(display_name, avatar_url)')
+      .eq('workout_id', workoutId)
+      .order('created_at', { ascending: true });
+    setComments(data ?? []);
+    setLoadingComments(false);
+  };
+
+  const sendComment = async () => {
+    if (!commentText.trim() || !user || !commentWorkoutId) return;
+    setSendingComment(true);
+    const { data } = await supabase
+      .from('workout_comments')
+      .insert({ workout_id: commentWorkoutId, user_id: user.id, content: commentText.trim() })
+      .select('id, content, created_at, users(display_name, avatar_url)')
+      .single();
+    if (data) {
+      setComments(prev => [...prev, data]);
+      setFeed(prev => prev.map(p => p.workoutId === commentWorkoutId
+        ? { ...p, commentCount: p.commentCount + 1 }
+        : p
+      ));
+    }
+    setCommentText('');
+    setSendingComment(false);
+  };
+
   const openScanner = async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
-    if (status === 'granted') setShowScanner(true);
-    else Alert.alert('Camera permission needed to scan QR codes');
+    if (status === 'granted') {
+      scanHandled.current = false; // reset for new scan session
+      setShowScanner(true);
+    } else {
+      Alert.alert('Camera permission needed to scan QR codes');
+    }
   };
 
   const handleQRScan = async ({ data }: { data: string }) => {
+    if (scanHandled.current) return; // prevent duplicate fires
+    scanHandled.current = true;
     setShowScanner(false);
     // QR value is "str://profile/USER_ID"
     const match = data.match(/str:\/\/profile\/(.+)/);
@@ -469,27 +558,51 @@ export default function SocialScreen() {
                   </View>
                 </TouchableOpacity>
 
-                {/* The note — this IS the post, make it prominent */}
-                <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                {/* Photo */}
+                {post.photoUrl && (
+                  <Image source={{ uri: post.photoUrl }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
+                )}
+
+                {/* The note */}
+                <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
                   <Text style={{ color: Colors.text, fontSize: 16, lineHeight: 24, fontWeight: '400' }}>
                     {post.notes}
                   </Text>
                 </View>
 
-                {/* Workout context — subtle metadata */}
+                {/* Like + Comment bar */}
                 <View style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  paddingHorizontal: 16, paddingVertical: 10,
                   borderTopWidth: 1, borderTopColor: Colors.border,
-                  paddingHorizontal: 16, paddingVertical: 12,
-                  flexDirection: 'row', alignItems: 'center', gap: 0,
+                  gap: 20,
                 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 2 }}>
-                      {post.workoutName}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                      {formatDuration(post.startedAt, post.endedAt)} · {post.setsCount} sets · {formatVolume(post.totalVolume)} lbs
-                    </Text>
-                  </View>
+                  <TouchableOpacity
+                    onPress={() => toggleLike(post.workoutId, post.isLiked)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <Text style={{ fontSize: 20 }}>{post.isLiked ? '❤️' : '🤍'}</Text>
+                    {post.likeCount > 0 && (
+                      <Text style={{ color: post.isLiked ? Colors.accent : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
+                        {post.likeCount}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => openComments(post.workoutId)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <Text style={{ fontSize: 18 }}>💬</Text>
+                    {post.commentCount > 0 && (
+                      <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
+                        {post.commentCount}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }} />
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                    {formatDuration(post.startedAt, post.endedAt)} · {post.setsCount} sets
+                  </Text>
                 </View>
 
                 {/* Exercise tags */}
@@ -755,6 +868,93 @@ export default function SocialScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* Comments Modal */}
+      <Modal visible={!!commentWorkoutId} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              paddingHorizontal: 20, paddingVertical: 16,
+              borderBottomWidth: 1, borderBottomColor: Colors.border,
+            }}>
+              <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>Comments</Text>
+              <TouchableOpacity onPress={() => setCommentWorkoutId(null)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14, flexGrow: 1 }}>
+              {loadingComments ? (
+                <ActivityIndicator color={Colors.accent} style={{ marginTop: 40 }} />
+              ) : comments.length === 0 ? (
+                <Text style={{ color: Colors.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 }}>
+                  No comments yet. Be first.
+                </Text>
+              ) : (
+                comments.map((c: any, i: number) => (
+                  <View key={c.id ?? i} style={{ flexDirection: 'row', gap: 10 }}>
+                    <Avatar
+                      url={c.users?.avatar_url}
+                      name={c.users?.display_name ?? '?'}
+                      color={Colors.accent}
+                      size={34}
+                    />
+                    <View style={{
+                      flex: 1, backgroundColor: Colors.surface,
+                      borderRadius: 12, padding: 12,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}>
+                      <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+                        {c.users?.display_name ?? 'Unknown'}
+                      </Text>
+                      <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 20 }}>{c.content}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Comment input */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'flex-end',
+              paddingHorizontal: 16, paddingVertical: 12,
+              borderTopWidth: 1, borderTopColor: Colors.border,
+              backgroundColor: Colors.bg, gap: 10,
+            }}>
+              <TextInput
+                value={commentText}
+                onChangeText={setCommentText}
+                placeholder="Add a comment..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                style={{
+                  flex: 1, backgroundColor: Colors.surface2, borderRadius: 20,
+                  paddingHorizontal: 16, paddingVertical: 10,
+                  color: Colors.text, fontSize: 14, maxHeight: 100,
+                  borderWidth: 1, borderColor: Colors.border,
+                }}
+              />
+              <TouchableOpacity
+                onPress={sendComment}
+                disabled={!commentText.trim() || sendingComment}
+                style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  backgroundColor: commentText.trim() ? Colors.accent : Colors.surface2,
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {sendingComment
+                  ? <ActivityIndicator color={Colors.text} size="small" />
+                  : <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '700' }}>↑</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Friend Profile Modal */}
       <FriendProfileModal

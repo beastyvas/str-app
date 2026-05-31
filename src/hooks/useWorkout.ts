@@ -240,6 +240,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
     const durationSeconds = Math.round((Date.now() - activeWorkout.startedAt.getTime()) / 1000);
 
     const summary = {
+      workoutId: activeWorkout.id,
       name: activeWorkout.name,
       duration: durationSeconds,
       totalSets: allSets.length,
