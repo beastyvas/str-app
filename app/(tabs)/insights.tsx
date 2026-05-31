@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
@@ -11,10 +11,12 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
+import { useChatStore, loadChatHistory, saveChatHistory } from '@/hooks/useChatStore';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  timestamp?: number;
 }
 
 const STARTER_PROMPTS = [
@@ -31,10 +33,13 @@ export default function InsightsTab() {
   const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
   const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Chat history — pro users get persistent history, free get one-off
+  const { messages, setMessages, addMessage, clearMessages } = useChatStore();
+  const historyLoaded = useRef(false);
 
   // Import tab state
   const [importText, setImportText] = useState('');
@@ -47,16 +52,28 @@ export default function InsightsTab() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
 
-  // Pick up pre-fill whenever screen comes into focus
+  // Load chat history for pro users on first focus
   useFocusEffect(useCallback(() => {
     const preFill = (global as any).__coachPreFill;
     if (preFill) {
       (global as any).__coachPreFill = null;
       setTab('coach');
-      // Small delay so tab switch renders first
       setTimeout(() => sendMessage(preFill), 100);
     }
-  }, []));
+
+    // Pro: load persistent history once
+    if (isPro && user && !historyLoaded.current) {
+      historyLoaded.current = true;
+      loadChatHistory(user.id).then(history => {
+        if (history.length > 0) setMessages(history);
+      });
+    }
+
+    // Free: clear messages every time they come back (one-off)
+    if (!isPro) {
+      clearMessages();
+    }
+  }, [isPro, user]));
 
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
@@ -118,6 +135,15 @@ export default function InsightsTab() {
       sections.unshift(`LIFTER PROFILE (read this first):\n${profile.training_notes}`);
     }
 
+    // Pro: include recent chat history so Coach remembers past conversations
+    if (isPro && messages.length > 2) {
+      const recentHistory = messages
+        .slice(-10) // last 10 messages
+        .map(m => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.content}`)
+        .join('\n');
+      sections.push(`RECENT CONVERSATION HISTORY:\n${recentHistory}`);
+    }
+
     return sections.join('\n\n');
   };
 
@@ -129,8 +155,8 @@ export default function InsightsTab() {
     }
     const allowed = await recordAIAsk();
     if (!allowed) { setShowPaywall(true); return; }
-    const userMsg: Message = { role: 'user', content: text.trim() };
-    setMessages(prev => [...prev, userMsg]);
+    const userMsg: Message = { role: 'user', content: text.trim(), timestamp: Date.now() };
+    addMessage(userMsg);
     setInput('');
     setLoading(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -164,13 +190,18 @@ ${context}`;
 
       if (fnError) throw fnError;
       const reply = fnData?.content?.[0]?.text ?? 'Something went wrong. Try again.';
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const assistantMsg: Message = { role: 'assistant', content: reply, timestamp: Date.now() };
+      addMessage(assistantMsg);
+
+      // Save history for pro users
+      if (isPro && user) {
+        const updated = [...useChatStore.getState().messages];
+        await saveChatHistory(user.id, updated);
+      }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Could not reach the AI. Check your connection.',
-      }]);
+      const errMsg: Message = { role: 'assistant', content: 'Could not reach the AI. Check your connection.', timestamp: Date.now() };
+      addMessage(errMsg);
     } finally {
       setLoading(false);
     }
