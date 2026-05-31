@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
 import { TIER_ORDER } from '@/constants/strengthStandards';
-import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES } from '@/constants/animeTiers';
+import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES, ROMAN } from '@/constants/animeTiers';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -212,9 +212,9 @@ export default function HomeScreen() {
           <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
             {profile?.display_name?.split(' ')[0] ?? 'Athlete'}
           </Text>
-          {animeResult && animeResult.avgScore > 0 && (
+          {animeResult && (
             <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '700', marginTop: 3, letterSpacing: 1.5 }}>
-              {animeResult.animeTier.label} TIER
+              {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
             </Text>
           )}
         </View>

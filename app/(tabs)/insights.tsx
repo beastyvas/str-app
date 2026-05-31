@@ -12,7 +12,7 @@ import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore, loadChatHistory, saveChatHistory } from '@/hooks/useChatStore';
-import { getAnimeTierResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY } from '@/constants/animeTiers';
+import { getAnimeTierResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY, ROMAN } from '@/constants/animeTiers';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -36,6 +36,7 @@ export default function InsightsTab() {
   // Derive coach identity from user's tier
   const [coachTierKey, setCoachTierKey] = useState('civilian');
   const [coachTierColor, setCoachTierColor] = useState('#F97316');
+  const [coachSubTier, setCoachSubTier] = useState(1);
 
   useEffect(() => {
     if (!user || !profile?.bodyweight_lbs) return;
@@ -52,10 +53,16 @@ export default function InsightsTab() {
         const result = getAnimeTierResult(prs, profile.bodyweight_lbs ?? 185, true);
         setCoachTierKey(result.animeTier.key);
         setCoachTierColor(result.animeTier.color);
+        setCoachSubTier(result.subTier);
       });
   }, [user, profile?.bodyweight_lbs]);
 
-  const coachName = TIER_COACH_NAME[coachTierKey] ?? 'Coach';
+  // e.g. "DEMON II Sensei"
+  const coachName = (() => {
+    const base = TIER_COACH_NAME[coachTierKey] ?? 'Coach';
+    // Insert sub-tier before "Sensei": "DEMON Sensei" → "DEMON II Sensei"
+    return base.replace(' Sensei', ` ${ROMAN[coachSubTier]} Sensei`);
+  })();
   const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
   const [input, setInput] = useState('');

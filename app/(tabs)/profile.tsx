@@ -12,7 +12,7 @@ import { Colors, TierName } from '@/constants/colors';
 import { QRModal } from '@/components/QRModal';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
-import { getAnimeTierResult } from '@/constants/animeTiers';
+import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -344,7 +344,7 @@ export default function ProfileScreen() {
                   borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
                 }}>
                   <Text style={{ color: tierColor, fontWeight: '900', fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' }}>
-                    {animeTier.animeTier.label}
+                    {animeTier.animeTier.label} {ROMAN[animeTier.subTier]}
                   </Text>
                 </View>
                 <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
@@ -443,7 +443,7 @@ export default function ProfileScreen() {
           {!loadingStats && stats && animeTier && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {[
-                { label: 'Rank', value: animeTier.animeTier.label, color: animeTier.animeTier.color },
+                { label: 'Rank', value: `${animeTier.animeTier.label} ${ROMAN[animeTier.subTier]}`, color: animeTier.animeTier.color },
                 { label: 'Volume', value: `${formatVolume(stats.totalVolume)} lbs`, color: null },
                 { label: 'PRs', value: String(stats.prsHit), color: null },
                 { label: 'Streak', value: `${stats.streakDays}d`, color: null },

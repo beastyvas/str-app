@@ -1,17 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, Animated, Modal, Dimensions } from 'react-native';
 import { Colors } from '@/constants/colors';
-import { AnimeTier } from '@/constants/animeTiers';
+import { AnimeTier, ROMAN } from '@/constants/animeTiers';
 
 interface Props {
   visible: boolean;
   tier: AnimeTier | null;
+  subTier?: number;       // 1-4; if provided shows sub-tier advance (DEMON II)
+  isSubTierAdvance?: boolean; // true = sub-tier advance, false = full tier advance
   onDismiss: () => void;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
+export function TierAdvancementScreen({ visible, tier, subTier, isSubTierAdvance = false, onDismiss }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.6)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -20,33 +22,35 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
   useEffect(() => {
     if (!visible || !tier) return;
 
-    // Reset
     fadeAnim.setValue(0);
     scaleAnim.setValue(0.6);
     glowAnim.setValue(0);
     taglineAnim.setValue(0);
 
-    // Sequence: glow in → scale + fade title → fade tagline → hold → fade out
     Animated.sequence([
-      // Glow pulse
       Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      // Title appears
       Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]),
-      // Short hold
       Animated.delay(200),
-      // Tagline fades in
       Animated.timing(taglineAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      // Hold at full visibility
-      Animated.delay(2200),
-      // Fade everything out
+      Animated.delay(isSubTierAdvance ? 1600 : 2200),
       Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
     ]).start(() => onDismiss());
   }, [visible, tier]);
 
   if (!tier) return null;
+
+  const heroText = isSubTierAdvance && subTier
+    ? `${tier.label} ${ROMAN[subTier]}`
+    : tier.label;
+
+  const topLabel = isSubTierAdvance ? 'LEVEL UP' : 'RANK UP';
+
+  const tagline = isSubTierAdvance
+    ? `${tier.label} ${ROMAN[subTier ?? 1]} unlocked.`
+    : tier.tagline;
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
@@ -57,14 +61,14 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
         justifyContent: 'center',
         opacity: fadeAnim,
       }}>
-        {/* Radial glow background */}
+        {/* Radial glow */}
         <Animated.View style={{
           position: 'absolute',
           width: width * 1.4,
           height: width * 1.4,
           borderRadius: width * 0.7,
           backgroundColor: tier.color,
-          opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }),
+          opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, isSubTierAdvance ? 0.05 : 0.08] }),
         }} />
         <Animated.View style={{
           position: 'absolute',
@@ -72,10 +76,10 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
           height: width * 0.8,
           borderRadius: width * 0.4,
           backgroundColor: tier.color,
-          opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
+          opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, isSubTierAdvance ? 0.08 : 0.12] }),
         }} />
 
-        {/* RANK UP label */}
+        {/* Top label */}
         <Animated.Text style={{
           color: tier.color,
           fontSize: 11,
@@ -85,13 +89,13 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
           marginBottom: 20,
           opacity: fadeAnim,
         }}>
-          RANK UP
+          {topLabel}
         </Animated.Text>
 
-        {/* Tier name — the hero element */}
+        {/* Hero tier name */}
         <Animated.Text style={{
           color: tier.color,
-          fontSize: tier.label.length > 10 ? 42 : 56,
+          fontSize: heroText.length > 12 ? 38 : heroText.length > 8 ? 46 : 56,
           fontWeight: '900',
           letterSpacing: -2,
           textAlign: 'center',
@@ -100,12 +104,33 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
           transform: [{ scale: scaleAnim }],
           textShadowColor: tier.color,
           textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 20,
+          textShadowRadius: isSubTierAdvance ? 12 : 20,
         }}>
-          {tier.label}
+          {heroText}
         </Animated.Text>
 
-        {/* Divider line */}
+        {/* Sub-tier dots — show all 4, fill up to current */}
+        {isSubTierAdvance && subTier && (
+          <Animated.View style={{
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 20,
+            opacity: fadeAnim,
+          }}>
+            {[1, 2, 3, 4].map(n => (
+              <View key={n} style={{
+                width: n <= subTier ? 10 : 8,
+                height: n <= subTier ? 10 : 8,
+                borderRadius: 5,
+                backgroundColor: n <= subTier ? tier.color : tier.color + '30',
+                borderWidth: n === subTier ? 0 : 1,
+                borderColor: tier.color + '40',
+              }} />
+            ))}
+          </Animated.View>
+        )}
+
+        {/* Divider */}
         <Animated.View style={{
           width: 48, height: 2,
           backgroundColor: tier.color,
@@ -116,14 +141,14 @@ export function TierAdvancementScreen({ visible, tier, onDismiss }: Props) {
         {/* Tagline */}
         <Animated.Text style={{
           color: Colors.textSecondary,
-          fontSize: 15,
+          fontSize: isSubTierAdvance ? 13 : 15,
           fontStyle: 'italic',
           textAlign: 'center',
           paddingHorizontal: 48,
-          lineHeight: 24,
+          lineHeight: 22,
           opacity: taglineAnim,
         }}>
-          "{tier.tagline}"
+          "{tagline}"
         </Animated.Text>
       </Animated.View>
     </Modal>

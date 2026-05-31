@@ -59,8 +59,11 @@ export default function WorkoutTab() {
 
   // Tier advancement
   const [tierAdvancement, setTierAdvancement] = useState<AnimeTier | null>(null);
+  const [tierAdvSubTier, setTierAdvSubTier] = useState<number | undefined>(undefined);
+  const [isSubTierAdvance, setIsSubTierAdvance] = useState(false);
   const [showTierAdvancement, setShowTierAdvancement] = useState(false);
-  const currentTierRef = useRef<string | null>(null);
+  // Track { key, subTier, minScore } so we can detect advancement vs regression
+  const currentTierRef = useRef<{ key: string; subTier: number; minScore: number } | null>(null);
 
   // Smart suggestion + templates
   const [daySuggestion, setDaySuggestion] = useState<{
@@ -238,12 +241,16 @@ export default function WorkoutTab() {
     const { data } = await supabase
       .from('personal_records')
       .select('weight, reps, exercises!inner(name)')
-      .eq('user_id', user.id)
-      .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']);
+      .eq('user_id', user.id);
     const prs = (data ?? []).map((p: any) => ({
       exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
     }));
-    currentTierRef.current = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185).animeTier.key;
+    const result = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
+    currentTierRef.current = {
+      key: result.animeTier.key,
+      subTier: result.subTier,
+      minScore: result.animeTier.minScore,
+    };
   };
 
   const startFromTemplate = async (
@@ -309,30 +316,50 @@ export default function WorkoutTab() {
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
     }
 
-    // Check for tier advancement on SBD PRs
+    // Check for tier/sub-tier advancement on SBD PRs
     if (result.isPR) {
       const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
       const exName = ex?.exerciseName ?? '';
-      if (SBD_NAMES.includes(exName)) {
-        const { data: sbdPrs } = await supabase
+      if (SBD_NAMES.some(n => exName.toLowerCase() === n.toLowerCase())) {
+        // Fetch ALL PRs (filter to SBD inside getAnimeTierResult)
+        const { data: allPrs } = await supabase
           .from('personal_records')
           .select('weight, reps, exercises!inner(name)')
-          .eq('user_id', user.id)
-          .in('exercises.name', SBD_NAMES);
+          .eq('user_id', user.id);
 
-        const prs = (sbdPrs ?? []).map((p: any) => ({
+        const prs = (allPrs ?? []).map((p: any) => ({
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight, reps: p.reps,
         }));
-        const newTierResult = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
-        const newTierKey = newTierResult.animeTier.key;
+        const newResult = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
+        const newKey = newResult.animeTier.key;
+        const newMinScore = newResult.animeTier.minScore;
+        const newSubTier = newResult.subTier;
 
-        if (currentTierRef.current && currentTierRef.current !== newTierKey) {
-          // Tier advanced!
-          setTierAdvancement(newTierResult.animeTier);
+        const prev = currentTierRef.current;
+
+        if (!prev) {
+          // First ever SBD PR — always fire the modal
+          setTierAdvancement(newResult.animeTier);
+          setTierAdvSubTier(newSubTier);
+          setIsSubTierAdvance(false);
+          setShowTierAdvancement(true);
+        } else if (newMinScore > prev.minScore) {
+          // Full tier advance (e.g., NINJA → DEMON)
+          setTierAdvancement(newResult.animeTier);
+          setTierAdvSubTier(undefined);
+          setIsSubTierAdvance(false);
+          setShowTierAdvancement(true);
+        } else if (newKey === prev.key && newSubTier > prev.subTier) {
+          // Sub-tier advance within same tier (e.g., DEMON I → DEMON II)
+          setTierAdvancement(newResult.animeTier);
+          setTierAdvSubTier(newSubTier);
+          setIsSubTierAdvance(true);
           setShowTierAdvancement(true);
         }
-        currentTierRef.current = newTierKey;
+        // If regression (new minScore < prev): silently update ref, no modal
+
+        currentTierRef.current = { key: newKey, subTier: newSubTier, minScore: newMinScore };
       }
     }
 
@@ -987,7 +1014,14 @@ export default function WorkoutTab() {
       <TierAdvancementScreen
         visible={showTierAdvancement}
         tier={tierAdvancement}
-        onDismiss={() => { setShowTierAdvancement(false); setTierAdvancement(null); }}
+        subTier={tierAdvSubTier}
+        isSubTierAdvance={isSubTierAdvance}
+        onDismiss={() => {
+          setShowTierAdvancement(false);
+          setTierAdvancement(null);
+          setTierAdvSubTier(undefined);
+          setIsSubTierAdvance(false);
+        }}
       />
 
       {/* Exercise Picker */}

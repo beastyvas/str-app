@@ -1,7 +1,7 @@
 import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, TierName } from '@/constants/colors';
-import { ANIME_TIERS, AnimeTierResult } from '@/constants/animeTiers';
+import { ANIME_TIERS, AnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
 interface Props {
   visible: boolean;
@@ -85,7 +85,7 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
                         color: tier.color,
                         fontSize: 16, fontWeight: '900', letterSpacing: 1,
                       }}>
-                        {tier.label}
+                        {tier.label}{isCurrent && result?.subTier ? ` ${ROMAN[result.subTier]}` : ''}
                       </Text>
                       {isCurrent && (
                         <View style={{

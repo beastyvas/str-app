@@ -91,10 +91,15 @@ export interface SBDResult {
 export interface AnimeTierResult {
   animeTier: AnimeTier;
   nextAnimeTier: AnimeTier | null;
-  avgScore: number;
+  avgScore: number;      // weakest-link rank score (used for competitive rank)
+  actualAvgScore: number; // true average across logged lifts (used for sub-tier)
+  subTier: number;        // 1-4 progress within current anime tier
   lifts: SBDResult[];
   bottleneck: SBDResult | null; // the weakest lift holding overall tier back
 }
+
+// Roman numerals for sub-tier display
+export const ROMAN = ['', 'I', 'II', 'III', 'IV'] as const;
 
 export function getAnimeTierResult(
   prs: { exerciseName: string; weight: number; reps: number; achievedAt?: string }[],
@@ -137,8 +142,8 @@ export function getAnimeTierResult(
     ? Math.min(...loggedLifts.map(l => l.tierScore))
     : 0;
 
-  // avgScore still shown for display purposes
-  const avgScore = loggedLifts.length > 0
+  // True average — used for sub-tier display (not gated by weakest link)
+  const actualAvgScore = loggedLifts.length > 0
     ? loggedLifts.reduce((s, l) => s + l.tierScore, 0) / loggedLifts.length
     : 0;
 
@@ -149,12 +154,23 @@ export function getAnimeTierResult(
 
   const nextAnimeTier = ANIME_TIERS.find(at => at.minScore > rankScore) ?? null;
 
+  // ── SUB-TIER (1-4) within current anime tier ──────────────────────────────
+  // Measures progress through the tier using the actual average score,
+  // so logging a new lift at a lower level doesn't collapse your sub-tier.
+  const currentMinScore = animeTier.minScore;
+  const nextMinScore = nextAnimeTier?.minScore ?? (currentMinScore + 1.0);
+  const rangeSize = nextMinScore - currentMinScore;
+  const posInRange = rangeSize > 0
+    ? Math.max(0, (actualAvgScore - currentMinScore) / rangeSize)
+    : 1;
+  const subTier = Math.min(4, Math.max(1, Math.floor(posInRange * 4) + 1));
+
   // Bottleneck = the weakest lift (what's holding rank back)
   const bottleneck = loggedLifts.length > 0
     ? [...lifts].sort((a, b) => a.tierScore - b.tierScore)[0]
     : null;
 
-  return { animeTier, nextAnimeTier, avgScore: rankScore, lifts, bottleneck };
+  return { animeTier, nextAnimeTier, avgScore: rankScore, actualAvgScore, subTier, lifts, bottleneck };
 }
 
 // How much each lift needs to increase for the next anime tier
