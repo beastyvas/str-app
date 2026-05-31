@@ -9,6 +9,25 @@ export interface AnimeTier {
   minScore: number; // average tier score needed
 }
 
+// Coach personality per tier — same AI, different energy
+export const TIER_COACH_PERSONALITY: Record<string, string> = {
+  civilian: "You're speaking to a lifter early in their journey. Be encouraging and foundational. Build their confidence. Don't overwhelm — focus on habits and basics.",
+  training_arc: "This lifter is building something real. Push them harder than they push themselves. Be direct, be motivating. They can handle honest feedback.",
+  tournament_arc: "Technical territory. Speak to programming concepts — RPE, volume landmarks, weak point training. This lifter wants to understand the why, not just the what.",
+  rival_level: "This athlete has transcended most lifters. Cold analysis, no hand-holding. Peer-level conversation. Call out what others won't.",
+  final_boss: "S-rank mentality. Surgical feedback. Precise programming. This lifter operates at a level most never reach. Respect it and match it.",
+  god_tier: "Saiyan level. You are speaking to someone who has broken the ceiling. Assume elite knowledge. No basics, no encouragement needed — just pure precision.",
+};
+
+export const TIER_COACH_NAME: Record<string, string> = {
+  civilian: 'NINJA Sensei',
+  training_arc: 'DEMON Sensei',
+  tournament_arc: 'SORCERERS Sensei',
+  rival_level: 'HOLLOW Sensei',
+  final_boss: 'SOLO Sensei',
+  god_tier: 'WARRIOR Sensei',
+};
+
 export const ANIME_TIERS: AnimeTier[] = [
   {
     key: 'civilian',

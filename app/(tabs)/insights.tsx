@@ -12,6 +12,7 @@ import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore, loadChatHistory, saveChatHistory } from '@/hooks/useChatStore';
+import { getAnimeTierResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY } from '@/constants/animeTiers';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -31,6 +32,30 @@ type Tab = 'coach' | 'import';
 export default function InsightsTab() {
   const { user, profile } = useAuth();
   const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
+
+  // Derive coach identity from user's tier
+  const [coachTierKey, setCoachTierKey] = useState('civilian');
+  const [coachTierColor, setCoachTierColor] = useState('#F97316');
+
+  useEffect(() => {
+    if (!user || !profile?.bodyweight_lbs) return;
+    supabase
+      .from('personal_records')
+      .select('weight, reps, achieved_at, exercises!inner(name)')
+      .eq('user_id', user.id)
+      .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
+      .then(({ data }) => {
+        const prs = (data ?? []).map((p: any) => ({
+          exerciseName: p.exercises?.name ?? '',
+          weight: p.weight, reps: p.reps, achievedAt: p.achieved_at,
+        }));
+        const result = getAnimeTierResult(prs, profile.bodyweight_lbs ?? 185, true);
+        setCoachTierKey(result.animeTier.key);
+        setCoachTierColor(result.animeTier.color);
+      });
+  }, [user, profile?.bodyweight_lbs]);
+
+  const coachName = TIER_COACH_NAME[coachTierKey] ?? 'Coach';
   const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
   const [input, setInput] = useState('');
@@ -163,17 +188,18 @@ export default function InsightsTab() {
 
     try {
       const context = await buildContext();
-      const systemPrompt = `You are Coach, a seasoned strength and physique coach with 20+ years in the weight room. You've coached everyone from raw beginners to competitive powerlifters and natural bodybuilders.
+      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['civilian'];
+      const systemPrompt = `You are ${coachName}, a strength and physique coach identity tied to the user's current rank in the STR app.
 
-Your communication style:
-- Direct, no fluff, no corporate wellness speak
-- You talk like someone who's actually been under the bar thousands of times
-- You notice things — RPE trends, note patterns, recovery signals — and you call them out specifically
-- You give REAL advice, not generic "eat more protein and sleep more" filler
-- You know both worlds: powerlifting (SBD strength, peaking, periodization) AND bodybuilding (hypertrophy, muscle balance, aesthetics, weak points)
-- When someone's bench is behind their squat and deadlift, you say it and give them a fix
-- 2-4 short paragraphs max. No bullet lists. No headers. Talk like a coach, not a textbook.
-- The user's strength rank (NINJA/GRAPPLER/HOLLOW/SOLO etc) reflects where they sit — speak to that level appropriately. A SOLO-tier lifter doesn't need basic cues. A NINJA-tier lifter doesn't need elite programming nuance yet.
+Tier-specific energy: ${tierPersonality}
+
+Core coaching style (always):
+- Direct. No fluff. No corporate wellness speak.
+- You've been under the bar. You talk like it.
+- Call out specific patterns — RPE trends, recurring notes, recovery signals.
+- Real advice only. Never generic filler.
+- Know both worlds: powerlifting (SBD, peaking, periodization) AND bodybuilding (hypertrophy, weak points, aesthetics).
+- 2-4 short paragraphs max. No bullet lists. No headers. Just talk.
 
 User data:
 ${context}`;
@@ -331,8 +357,8 @@ ${context}`;
         borderBottomColor: Colors.border,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
-            Coach
+          <Text style={{ color: coachTierColor, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
+            {coachName}
           </Text>
           {!isPro && (
             <TouchableOpacity
@@ -400,15 +426,15 @@ ${context}`;
                 <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
                   <View style={{
                     width: 72, height: 72, borderRadius: 36,
-                    backgroundColor: Colors.accent + '20',
-                    borderWidth: 2, borderColor: Colors.accent + '60',
+                    backgroundColor: coachTierColor + '20',
+                    borderWidth: 2, borderColor: coachTierColor + '60',
                     alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Text style={{ fontSize: 32 }}>⚡</Text>
                   </View>
                   <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>
-                      Coach
+                    <Text style={{ color: coachTierColor, fontSize: 20, fontWeight: '900' }}>
+                      {coachName}
                     </Text>
                     <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
                       20+ years in the weight room.{'\n'}Reads your logs. Talks like it.
@@ -474,8 +500,8 @@ ${context}`;
                 {m.role === 'assistant' && (
                   <View style={{
                     width: 30, height: 30, borderRadius: 15,
-                    backgroundColor: Colors.accent + '20',
-                    borderWidth: 1, borderColor: Colors.accent + '40',
+                    backgroundColor: coachTierColor + '20',
+                    borderWidth: 1, borderColor: coachTierColor + '40',
                     alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                   }}>
@@ -516,7 +542,7 @@ ${context}`;
                   borderRadius: 18, borderBottomLeftRadius: 4,
                   padding: 14, borderWidth: 1, borderColor: Colors.border,
                 }}>
-                  <ActivityIndicator color={Colors.accent} size="small" />
+                  <ActivityIndicator color={coachTierColor} size="small" />
                 </View>
               </View>
             )}
