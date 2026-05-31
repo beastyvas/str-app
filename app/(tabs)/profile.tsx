@@ -191,7 +191,7 @@ export default function ProfileScreen() {
 
       // Read file as base64 then convert to bytes — the only reliable way in RN
       const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as any,
       });
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
