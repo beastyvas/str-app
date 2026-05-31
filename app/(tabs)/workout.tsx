@@ -46,6 +46,10 @@ export default function WorkoutTab() {
   const [workoutName, setWorkoutName] = useState('');
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishNotes, setFinishNotes] = useState('');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
@@ -171,6 +175,61 @@ export default function WorkoutTab() {
 
   // Start directly from a template — no name modal
   // Seed current tier ref when starting a workout
+  // Load saved templates
+  const loadSavedTemplates = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('workout_templates')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('last_used_at', { ascending: false, nullsFirst: false });
+    setSavedTemplates(data ?? []);
+  };
+
+  useEffect(() => {
+    if (user && !activeWorkout) loadSavedTemplates();
+  }, [user, activeWorkout]);
+
+  const saveTemplate = async (name: string, exercises: any[]) => {
+    if (!user || !name.trim() || exercises.length === 0) return;
+    await supabase.from('workout_templates').insert({
+      user_id: user.id,
+      name: name.trim(),
+      exercises: exercises.map(e => ({
+        id: e.exerciseId,
+        name: e.exerciseName,
+        muscle_group: e.muscleGroup,
+        equipment_type: e.equipmentType,
+      })),
+    });
+    await loadSavedTemplates();
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    await supabase.from('workout_templates').delete().eq('id', templateId);
+    setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
+  };
+
+  const startFromSavedTemplate = async (tmpl: any) => {
+    if (!user) return;
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    try {
+      await seedCurrentTier();
+      await startWorkout(`${day} · ${tmpl.name}`, user.id);
+      (tmpl.exercises as any[]).forEach(ex => addExercise({
+        id: ex.id, name: ex.name,
+        muscle_group: ex.muscle_group,
+        equipment_type: ex.equipment_type,
+      }));
+      // Update last_used_at
+      await supabase.from('workout_templates')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', tmpl.id);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
   const seedCurrentTier = async () => {
     if (!user) return;
     const { data } = await supabase
@@ -292,6 +351,13 @@ export default function WorkoutTab() {
     setFinishing(true);
     setShowFinishModal(false);
     try {
+      // Save as template if requested
+      if (saveAsTemplate && activeWorkout && templateName.trim()) {
+        await saveTemplate(templateName.trim(), activeWorkout.exercises);
+      }
+      setSaveAsTemplate(false);
+      setTemplateName('');
+
       const summary = await finishWorkout(finishNotes.trim() || undefined);
       setFinishNotes('');
       setPrMap({});
@@ -414,7 +480,64 @@ export default function WorkoutTab() {
             </Text>
           </TouchableOpacity>
 
-          {/* Recent templates grid */}
+          {/* Saved templates */}
+          {savedTemplates.length > 0 && (
+            <View style={{ marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  Saved Templates
+                </Text>
+              </View>
+              <View style={{ gap: 10 }}>
+                {savedTemplates.map(tmpl => (
+                  <TouchableOpacity
+                    key={tmpl.id}
+                    onPress={() => startFromSavedTemplate(tmpl)}
+                    onLongPress={() => Alert.alert(
+                      tmpl.name,
+                      'Delete this template?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(tmpl.id) },
+                      ]
+                    )}
+                    style={{
+                      backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+                      borderWidth: 1, borderColor: Colors.accent + '30',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                        {tmpl.name}
+                      </Text>
+                      <View style={{
+                        backgroundColor: Colors.accentDim, borderRadius: 8,
+                        paddingHorizontal: 10, paddingVertical: 6,
+                        borderWidth: 1, borderColor: Colors.accent + '40',
+                      }}>
+                        <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>Start →</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {(tmpl.exercises as any[]).map((ex: any, i: number) => (
+                        <View key={i} style={{
+                          backgroundColor: Colors.surface2, borderRadius: 6,
+                          paddingHorizontal: 8, paddingVertical: 4,
+                        }}>
+                          <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{ex.name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 8 }}>
+                      Long press to delete · {(tmpl.exercises as any[]).length} exercises
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Recent history templates grid */}
           {templates.length > 0 && (
             <>
               <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
@@ -804,16 +927,53 @@ export default function WorkoutTab() {
               }}
             />
 
+            {/* Save as template toggle */}
+            <TouchableOpacity
+              onPress={() => {
+                setSaveAsTemplate(!saveAsTemplate);
+                if (!saveAsTemplate) setTemplateName(activeWorkout?.name ?? '');
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 10,
+                backgroundColor: saveAsTemplate ? Colors.accentDim : Colors.surface2,
+                borderRadius: 12, padding: 14,
+                borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent + '40' : Colors.border,
+              }}
+            >
+              <View style={{
+                width: 22, height: 22, borderRadius: 6,
+                backgroundColor: saveAsTemplate ? Colors.accent : Colors.surface,
+                borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent : Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
+              </View>
+              <Text style={{ color: saveAsTemplate ? Colors.text : Colors.textMuted, fontWeight: '600', flex: 1 }}>
+                Save as template
+              </Text>
+            </TouchableOpacity>
+
+            {saveAsTemplate && (
+              <TextInput
+                value={templateName}
+                onChangeText={setTemplateName}
+                placeholder="Template name (e.g. Push Day)"
+                placeholderTextColor={Colors.textMuted}
+                style={{
+                  backgroundColor: Colors.surface2, borderRadius: 12,
+                  paddingHorizontal: 14, paddingVertical: 12,
+                  color: Colors.text, fontSize: 15,
+                  borderWidth: 1, borderColor: Colors.border,
+                }}
+              />
+            )}
+
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => setShowFinishModal(false)}
                 style={{
-                  flex: 1,
-                  paddingVertical: 16,
-                  borderRadius: 14,
-                  backgroundColor: Colors.surface2,
-                  borderWidth: 1,
-                  borderColor: Colors.border,
+                  flex: 1, paddingVertical: 16, borderRadius: 14,
+                  backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
                   alignItems: 'center',
                 }}
               >
@@ -821,13 +981,7 @@ export default function WorkoutTab() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleFinishConfirm}
-                style={{
-                  flex: 2,
-                  paddingVertical: 16,
-                  borderRadius: 14,
-                  backgroundColor: Colors.accent,
-                  alignItems: 'center',
-                }}
+                style={{ flex: 2, paddingVertical: 16, borderRadius: 14, backgroundColor: Colors.accent, alignItems: 'center' }}
               >
                 <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE WORKOUT</Text>
               </TouchableOpacity>

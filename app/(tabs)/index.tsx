@@ -216,8 +216,8 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── ANIME TIER CARD ─────────────────────────────────────── */}
-        {animeResult && (
+        {/* ── ANIME TIER CARD (moved to profile) ──────────────────── */}
+        {false && animeResult && (
           <View style={{
             backgroundColor: Colors.surface,
             borderRadius: 20,
