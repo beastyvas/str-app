@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
 import { TIER_ORDER } from '@/constants/strengthStandards';
 import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES, ROMAN } from '@/constants/animeTiers';
+import { CelebrationToast } from '@/components/CelebrationToast';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -51,6 +52,8 @@ export default function HomeScreen() {
     hasFriend: boolean;
     hasCoach: boolean;
   } | null>(null);
+  const prevFirstSteps = useRef<typeof firstSteps>(null);
+  const [celebration, setCelebration] = useState<{ emoji: string; title: string; sub: string } | null>(null);
   const [creatorId, setCreatorId] = useState<string | null>(null);
   const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
   const [trainingDays, setTrainingDays] = useState('4');
@@ -86,7 +89,21 @@ export default function HomeScreen() {
       const hasCoach = weeklyPlanDone === 'true';
       if (creator?.id) setCreatorId(creator.id);
       const allDone = hasWorkout && hasFriend && hasCoach;
-      setFirstSteps(allDone ? null : { hasWorkout, hasFriend, hasCoach });
+      const newSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
+
+      // Detect task completions and fire celebrations
+      const prev = prevFirstSteps.current;
+      if (prev) {
+        if (!prev.hasWorkout && hasWorkout) {
+          setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
+        } else if (!prev.hasCoach && hasCoach) {
+          setCelebration({ emoji: '⚡', title: 'Weekly plan incoming!', sub: 'Check Coach for your program.' });
+        } else if (!prev.hasFriend && hasFriend) {
+          setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
+        }
+      }
+      prevFirstSteps.current = newSteps;
+      setFirstSteps(newSteps);
       const [prRes, workoutRes, friendRes] = await Promise.all([
         // SBD PRs for anime tier
         supabase
@@ -849,6 +866,13 @@ export default function HomeScreen() {
           </KeyboardAvoidingView>
         </Modal>
       </ScrollView>
+      <CelebrationToast
+        visible={!!celebration}
+        emoji={celebration?.emoji ?? '🎉'}
+        title={celebration?.title ?? ''}
+        sub={celebration?.sub}
+        onDone={() => setCelebration(null)}
+      />
     </SafeAreaView>
   );
 }

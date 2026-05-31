@@ -620,21 +620,48 @@ export default function OnboardingScreen() {
             {step === 'done' && (
               <View style={{ flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 40 }}>
                 <View />
-                <View style={{ alignItems: 'center', gap: 16 }}>
-                  <Text style={{ color: Colors.accent, fontSize: 60, fontWeight: '900', letterSpacing: -3 }}>STR</Text>
-                  <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
-                    You're in.
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
-                    Log your first workout.{'\n'}Every PR gets tracked automatically.{'\n'}Your rank climbs as you get stronger.
+                <View style={{ alignItems: 'center', gap: 20 }}>
+                  {/* Big animated emoji */}
+                  <Text style={{ fontSize: 72 }}>🏆</Text>
+
+                  <View style={{ alignItems: 'center', gap: 8 }}>
+                    <Text style={{ color: Colors.text, fontSize: 34, fontWeight: '900', textAlign: 'center', letterSpacing: -1 }}>
+                      You're in.
+                    </Text>
+                    <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '700', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase' }}>
+                      Your arc begins now
+                    </Text>
+                  </View>
+
+                  <View style={{
+                    backgroundColor: Colors.surface, borderRadius: 16, padding: 20,
+                    borderWidth: 1, borderColor: Colors.border, gap: 12, width: '100%',
+                  }}>
+                    {[
+                      { emoji: '🏋️', text: 'Log your first workout' },
+                      { emoji: '⚡', text: 'Get your weekly plan from Coach' },
+                      { emoji: '👥', text: 'Add your first friend' },
+                    ].map((item, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Text style={{ fontSize: 20 }}>{item.emoji}</Text>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: '600' }}>{item.text}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                    Three quick tasks wait on your home screen.{'\n'}Every PR tracked. Every rank earned.
                   </Text>
                 </View>
-                <View style={{ width: '100%', gap: 12 }}>
+
+                <View style={{ width: '100%', gap: 10 }}>
                   <TouchableOpacity
                     onPress={() => refreshProfile()}
                     style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
                   >
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Start Training →</Text>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.3 }}>
+                      Let's get it →
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
