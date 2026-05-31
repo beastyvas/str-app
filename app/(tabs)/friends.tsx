@@ -250,25 +250,30 @@ export default function SocialScreen() {
                 : undefined,
             };
           });
-        // Enrich with likes, comments, photos
-        if (posts.length > 0) {
-          const workoutIds = posts.map(p => p.workoutId);
-          const [{ data: likesData }, { data: commentsData }, { data: photosData }] = await Promise.all([
-            supabase.from('workout_likes').select('workout_id, user_id').in('workout_id', workoutIds),
-            supabase.from('workout_comments').select('workout_id').in('workout_id', workoutIds),
-            supabase.from('workout_photos').select('workout_id, photo_url').in('workout_id', workoutIds),
-          ]);
-          const myId = user!.id;
-          const enriched = posts.map(p => ({
-            ...p,
-            likeCount: (likesData ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
-            isLiked: (likesData ?? []).some((l: any) => l.workout_id === p.workoutId && l.user_id === myId),
-            commentCount: (commentsData ?? []).filter((c: any) => c.workout_id === p.workoutId).length,
-            photoUrl: (photosData ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
-          }));
-          setFeed(enriched);
-        } else {
-          setFeed(posts);
+        // Enrich with likes/comments/photos — wrapped separately so missing tables don't kill friends list
+        try {
+          if (posts.length > 0) {
+            const workoutIds = posts.map(p => p.workoutId);
+            const [likesRes, commentsRes, photosRes] = await Promise.all([
+              supabase.from('workout_likes').select('workout_id, user_id').in('workout_id', workoutIds),
+              supabase.from('workout_comments').select('workout_id').in('workout_id', workoutIds),
+              supabase.from('workout_photos').select('workout_id, photo_url').in('workout_id', workoutIds),
+            ]);
+            const myId = user!.id;
+            const enriched = posts.map(p => ({
+              ...p,
+              likeCount: (likesRes.data ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
+              isLiked: (likesRes.data ?? []).some((l: any) => l.workout_id === p.workoutId && l.user_id === myId),
+              commentCount: (commentsRes.data ?? []).filter((c: any) => c.workout_id === p.workoutId).length,
+              photoUrl: (photosRes.data ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
+            }));
+            setFeed(enriched);
+          } else {
+            setFeed(posts);
+          }
+        } catch (enrichErr) {
+          console.log('[Feed] enrichment skipped (tables may not exist):', enrichErr);
+          setFeed(posts); // show posts without likes/comments/photos
         }
       }
 
