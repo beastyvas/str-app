@@ -13,13 +13,15 @@ import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
+import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
+import { getAnimeTierResult, AnimeTier } from '@/constants/animeTiers';
 
 // PR localId → isPR lookup, built as sets come in
 type PRMap = Record<string, boolean>;
 
 export default function WorkoutTab() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const {
     activeWorkout,
@@ -47,6 +49,11 @@ export default function WorkoutTab() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
+
+  // Tier advancement
+  const [tierAdvancement, setTierAdvancement] = useState<AnimeTier | null>(null);
+  const [showTierAdvancement, setShowTierAdvancement] = useState(false);
+  const currentTierRef = useRef<string | null>(null);
 
   // Smart suggestion + templates
   const [daySuggestion, setDaySuggestion] = useState<{
@@ -163,6 +170,20 @@ export default function WorkoutTab() {
   };
 
   // Start directly from a template — no name modal
+  // Seed current tier ref when starting a workout
+  const seedCurrentTier = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('personal_records')
+      .select('weight, reps, exercises!inner(name)')
+      .eq('user_id', user.id)
+      .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts']);
+    const prs = (data ?? []).map((p: any) => ({
+      exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
+    }));
+    currentTierRef.current = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185).animeTier.key;
+  };
+
   const startFromTemplate = async (
     name: string,
     exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[]
@@ -171,6 +192,7 @@ export default function WorkoutTab() {
     const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const wName = `${day} · ${name}`;
     try {
+      await seedCurrentTier();
       await startWorkout(wName, user.id);
       exercises.forEach(ex => addExercise({ ...ex, equipment_type: ex.equipment_type }));
     } catch (e: any) {
@@ -182,6 +204,7 @@ export default function WorkoutTab() {
     if (!user || !workoutName.trim()) return;
     setShowNameModal(false);
     try {
+      await seedCurrentTier();
       await startWorkout(workoutName.trim(), user.id);
       if (repeatLast && lastWorkoutExercises.length > 0) {
         lastWorkoutExercises.forEach(ex => addExercise(ex));
@@ -216,12 +239,41 @@ export default function WorkoutTab() {
   ) => {
     if (!activeWorkout?.id || !user) return { isPR: false };
     const result = await logSet(exerciseId, data, activeWorkout.id, user.id);
+
     // Tag the most recently logged set with isPR
     const ex = useWorkoutStore.getState().activeWorkout?.exercises.find(e => e.exerciseId === exerciseId);
     if (ex && ex.sets.length > 0) {
       const lastSet = ex.sets[ex.sets.length - 1];
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
     }
+
+    // Check for tier advancement on SBD PRs
+    if (result.isPR) {
+      const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
+      const exName = ex?.exerciseName ?? '';
+      if (SBD_NAMES.includes(exName)) {
+        const { data: sbdPrs } = await supabase
+          .from('personal_records')
+          .select('weight, reps, exercises!inner(name)')
+          .eq('user_id', user.id)
+          .in('exercises.name', SBD_NAMES);
+
+        const prs = (sbdPrs ?? []).map((p: any) => ({
+          exerciseName: p.exercises?.name ?? '',
+          weight: p.weight, reps: p.reps,
+        }));
+        const newTierResult = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
+        const newTierKey = newTierResult.animeTier.key;
+
+        if (currentTierRef.current && currentTierRef.current !== newTierKey) {
+          // Tier advanced!
+          setTierAdvancement(newTierResult.animeTier);
+          setShowTierAdvancement(true);
+        }
+        currentTierRef.current = newTierKey;
+      }
+    }
+
     return result;
   };
 
@@ -669,6 +721,13 @@ export default function WorkoutTab() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Tier Advancement */}
+      <TierAdvancementScreen
+        visible={showTierAdvancement}
+        tier={tierAdvancement}
+        onDismiss={() => { setShowTierAdvancement(false); setTierAdvancement(null); }}
+      />
 
       {/* Exercise Picker */}
       <ExercisePickerModal

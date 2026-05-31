@@ -488,38 +488,78 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         {/* ── FRIEND ACTIVITY ─────────────────────────────────────── */}
-        <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-          Friend Activity
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
+            Crew Activity
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/friends')}>
+            <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>See all →</Text>
+          </TouchableOpacity>
+        </View>
+
         {loading ? (
           <ActivityIndicator color={Colors.textMuted} />
         ) : friendPRs.length === 0 ? (
-          <View style={{ backgroundColor: Colors.surface, borderRadius: 12, padding: 18, borderWidth: 1, borderColor: Colors.border }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Add friends to see their PRs here.</Text>
-          </View>
-        ) : (
-          friendPRs.map((pr, i) => (
-            <View key={i} style={{
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/friends')}
+            style={{
               backgroundColor: Colors.surface,
-              borderRadius: 12,
-              padding: 14,
-              marginBottom: 8,
-              borderWidth: 1,
-              borderColor: Colors.border,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              borderRadius: 14, padding: 20,
+              borderWidth: 1, borderColor: Colors.border,
+              alignItems: 'center', gap: 6,
+            }}
+          >
+            <Text style={{ fontSize: 28 }}>👥</Text>
+            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>No crew yet</Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Add friends to see their PRs here</Text>
+            <View style={{
+              marginTop: 4,
+              backgroundColor: Colors.accentDim,
+              borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7,
+              borderWidth: 1, borderColor: Colors.accent + '40',
             }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 2 }}>{pr.display_name}</Text>
-                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
-                  🏆 {pr.exercise_name} — {pr.weight} {pr.unit_pref}
-                </Text>
-                {pr.reps > 1 && <Text style={{ color: Colors.textMuted, fontSize: 12 }}>{pr.reps} reps</Text>}
-              </View>
-              <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{timeAgo(pr.achieved_at)}</Text>
+              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>Find Friends →</Text>
             </View>
-          ))
+          </TouchableOpacity>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {friendPRs.map((pr, i) => (
+              <View key={i} style={{
+                backgroundColor: Colors.surface,
+                borderRadius: 14,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: Colors.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}>
+                {/* Gold trophy circle */}
+                <View style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  backgroundColor: Colors.goldDim,
+                  borderWidth: 1, borderColor: Colors.gold + '40',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ fontSize: 18 }}>🏆</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 2 }}>
+                    {pr.display_name}
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
+                    {pr.exercise_name}
+                  </Text>
+                  <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '700', marginTop: 1 }}>
+                    {pr.weight} {pr.unit_pref}{pr.reps > 1 ? ` × ${pr.reps}` : ''}
+                  </Text>
+                </View>
+                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                  {timeAgo(pr.achieved_at)}
+                </Text>
+              </View>
+            ))}
+          </View>
         )}
         {/* SBD Entry Modal */}
         <Modal visible={sbdModalOpen} transparent animationType="slide">
