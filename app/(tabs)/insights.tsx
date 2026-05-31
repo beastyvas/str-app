@@ -7,8 +7,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubscription } from '@/hooks/useSubscription';
 import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
+import { PaywallModal } from '@/components/PaywallModal';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -26,6 +28,8 @@ type Tab = 'coach' | 'import';
 
 export default function InsightsTab() {
   const { user, profile } = useAuth();
+  const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -91,6 +95,12 @@ export default function InsightsTab() {
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading || !user) return;
+    if (!canAskCoach) {
+      setShowPaywall(true);
+      return;
+    }
+    const allowed = await recordAIAsk();
+    if (!allowed) { setShowPaywall(true); return; }
     const userMsg: Message = { role: 'user', content: text.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -260,9 +270,30 @@ ${context}`;
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
       }}>
-        <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 12 }}>
-          Coach
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
+            Coach
+          </Text>
+          {!isPro && (
+            <TouchableOpacity
+              onPress={() => setShowPaywall(true)}
+              style={{
+                backgroundColor: Colors.accentDim,
+                borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+                borderWidth: 1, borderColor: Colors.accent + '40',
+              }}
+            >
+              <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>
+                {aiAsksRemaining > 0 ? `${aiAsksRemaining} asks left · Go Pro` : 'Limit reached · Go Pro'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {isPro && (
+            <View style={{ backgroundColor: Colors.accent + '20', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>PRO</Text>
+            </View>
+          )}
+        </View>
         {/* Tab toggle */}
         <View style={{ flexDirection: 'row', gap: 0 }}>
           {([
@@ -691,6 +722,13 @@ ${context}`;
           </ScrollView>
         </KeyboardAvoidingView>
       )}
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason={aiAsksRemaining === 0
+          ? `You've used your ${3} free AI messages this week. Go Pro for unlimited coaching.`
+          : undefined}
+      />
     </SafeAreaView>
   );
 }

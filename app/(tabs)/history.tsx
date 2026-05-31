@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+import { useSubscription } from '@/hooks/useSubscription';
+import { PaywallModal } from '@/components/PaywallModal';
 
 interface WorkoutSet {
   weight: number;
@@ -174,19 +176,28 @@ function computeInsights(workouts: WorkoutData[]): Insight[] {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { isPro, historyLimit } = useSubscription();
   const [workouts, setWorkouts] = useState<WorkoutData[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('workouts')
       .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
       .not('ended_at', 'is', null)
       .order('started_at', { ascending: false })
       .limit(60);
+
+    // Free tier — limit to 90 days
+    if (historyLimit) {
+      query = query.gte('started_at', historyLimit.toISOString());
+    }
+
+    const { data } = await query;
 
     if (data) {
       const mapped: WorkoutData[] = data.map((w: any) => {
@@ -518,8 +529,37 @@ export default function HistoryScreen() {
               );
             })
           )}
+          {/* Free tier history limit banner */}
+          {!isPro && workouts.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowPaywall(true)}
+              style={{
+                backgroundColor: Colors.surface,
+                borderRadius: 14,
+                padding: 16,
+                marginTop: 8,
+                borderWidth: 1,
+                borderColor: Colors.accent + '40',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                Showing last 90 days
+              </Text>
+              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '600' }}>
+                Upgrade to Pro for full history →
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason="Pro unlocks your complete workout history — every session, forever."
+      />
     </SafeAreaView>
   );
 }
