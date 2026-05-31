@@ -68,12 +68,16 @@ function Avatar({ url, name, color, size = 44 }: { url?: string; name: string; c
 }
 
 function timeAgo(iso: string) {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
-  if (h < 1) return 'just now';
-  if (h < 24) return `${h}h ago`;
-  if (d === 1) return 'yesterday';
-  return `${d}d ago`;
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: days > 365 ? 'numeric' : undefined });
 }
 
 function formatVolume(v: number) {
@@ -426,28 +430,27 @@ export default function SocialScreen() {
             </View>
           ) : (
             feed.map(post => (
-              <TouchableOpacity key={post.workoutId} onPress={() => setSelectedFriendId(post.userId)} activeOpacity={0.9} style={{
+              <View key={post.workoutId} style={{
                 backgroundColor: Colors.surface,
-                borderRadius: 16,
-                marginBottom: 14,
+                borderRadius: 18,
+                marginBottom: 16,
                 borderWidth: 1,
                 borderColor: Colors.border,
                 overflow: 'hidden',
               }}>
-                {/* Post header */}
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 12,
-                  padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
-                }}>
-                  <Avatar
-                    url={post.avatarUrl}
-                    name={post.displayName}
-                    color={Colors.accent}
-                    size={40}
-                  />
+                {/* Post header — tap to view profile */}
+                <TouchableOpacity
+                  onPress={() => setSelectedFriendId(post.userId)}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    padding: 14,
+                  }}
+                >
+                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.animeTierColor ?? Colors.accent} size={44} />
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
                         {post.displayName}
                       </Text>
                       {post.animeTierLabel && (
@@ -461,51 +464,52 @@ export default function SocialScreen() {
                         </View>
                       )}
                     </View>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                      {post.workoutName} · {timeAgo(post.endedAt)}
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                      {timeAgo(post.endedAt)}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
-                {/* Session note — the "post" */}
-                <View style={{ padding: 14, paddingBottom: 10 }}>
-                  <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
+                {/* The note — this IS the post, make it prominent */}
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                  <Text style={{ color: Colors.text, fontSize: 16, lineHeight: 24, fontWeight: '400' }}>
                     {post.notes}
                   </Text>
                 </View>
 
-                {/* Workout stats */}
+                {/* Workout context — subtle metadata */}
                 <View style={{
-                  flexDirection: 'row', gap: 16, paddingHorizontal: 14, paddingBottom: 12,
+                  borderTopWidth: 1, borderTopColor: Colors.border,
+                  paddingHorizontal: 16, paddingVertical: 12,
+                  flexDirection: 'row', alignItems: 'center', gap: 0,
                 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {formatDuration(post.startedAt, post.endedAt)}
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {post.setsCount} sets
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {formatVolume(post.totalVolume)} lbs
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 2 }}>
+                      {post.workoutName}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                      {formatDuration(post.startedAt, post.endedAt)} · {post.setsCount} sets · {formatVolume(post.totalVolume)} lbs
+                    </Text>
+                  </View>
                 </View>
 
-                {/* Exercises */}
+                {/* Exercise tags */}
                 {post.exercises.length > 0 && (
                   <View style={{
-                    paddingHorizontal: 14, paddingBottom: 14,
-                    flexDirection: 'row', flexWrap: 'wrap', gap: 5,
+                    paddingHorizontal: 16, paddingBottom: 14,
+                    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
                   }}>
                     {post.exercises.map((ex, i) => (
                       <View key={i} style={{
-                        backgroundColor: Colors.surface2, borderRadius: 5,
-                        paddingHorizontal: 7, paddingVertical: 3,
+                        backgroundColor: Colors.surface2, borderRadius: 6,
+                        paddingHorizontal: 8, paddingVertical: 4,
                       }}>
-                        <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{ex}</Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '500' }}>{ex}</Text>
                       </View>
                     ))}
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             ))
           )}
         </ScrollView>
@@ -572,11 +576,15 @@ export default function SocialScreen() {
             <View style={{ marginBottom: 20, gap: 8 }}>
               <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Results</Text>
               {searchResults.map((u: any) => (
-                <View key={u.id} style={{
-                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-                  flexDirection: 'row', alignItems: 'center', gap: 12,
-                  borderWidth: 1, borderColor: Colors.border,
-                }}>
+                <TouchableOpacity
+                  key={u.id}
+                  onPress={() => setSelectedFriendId(u.id)}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}>
                   <Avatar url={u.avatar_url} name={u.display_name} color={Colors.accent} size={40} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: Colors.text, fontWeight: '600' }}>{u.display_name}</Text>
@@ -595,7 +603,7 @@ export default function SocialScreen() {
                       <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>+ Add</Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
