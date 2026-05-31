@@ -40,8 +40,9 @@ export function QRModal({ visible, userId, username, displayName, tierLabel, tie
           borderBottomWidth: 1, borderBottomColor: Colors.border,
         }}>
           <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>My QR Code</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: Colors.textMuted, fontSize: 22 }}>×</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
           </TouchableOpacity>
         </View>
 

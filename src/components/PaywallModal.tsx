@@ -125,9 +125,16 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           {/* Close */}
           <TouchableOpacity
             onPress={onClose}
-            style={{ alignSelf: 'flex-end', padding: 4, marginBottom: 8 }}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            style={{
+              alignSelf: 'flex-end', marginBottom: 8,
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: Colors.surface2,
+              borderWidth: 1, borderColor: Colors.border,
+              alignItems: 'center', justifyContent: 'center',
+            }}
           >
-            <Text style={{ color: Colors.textMuted, fontSize: 22 }}>×</Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
           </TouchableOpacity>
 
           {/* Header */}

@@ -78,8 +78,9 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
           flexDirection: 'row', justifyContent: 'flex-end',
           paddingHorizontal: 20, paddingVertical: 12,
         }}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: Colors.textMuted, fontSize: 22 }}>×</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            style={{ padding: 8, borderRadius: 20, backgroundColor: Colors.surface2 }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, width: 20, textAlign: 'center' }}>×</Text>
           </TouchableOpacity>
         </View>
 
