@@ -102,7 +102,7 @@ function formatDuration(start: string, end: string) {
 }
 
 export default function SocialScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [subTab, setSubTab] = useState<SubTab>('feed');
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
