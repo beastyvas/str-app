@@ -64,7 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    const redirectUri = AuthSession.makeRedirectUri();
+    // Use Expo auth proxy for Expo Go (stable URL, not LAN IP that changes)
+    // For real builds (str:// scheme), use native redirect
+    const isExpoGo = (await import('expo-constants')).default.appOwnership === 'expo';
+    const redirectUri = isExpoGo
+      ? 'https://auth.expo.io/@beastyvas/str'
+      : AuthSession.makeRedirectUri({ scheme: 'str' });
     console.log('[Auth] redirectUri:', redirectUri);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
