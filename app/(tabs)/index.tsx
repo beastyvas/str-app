@@ -526,48 +526,49 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ) : (
           <View style={{ gap: 8 }}>
-            {/* Show at most 3 — one per friend ideally */}
-            {friendPRs.slice(0, 3).map((pr, i) => (
-              <View key={i} style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 14,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: Colors.gold + '20',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-              }}>
-                <View style={{
-                  width: 36, height: 36, borderRadius: 18,
-                  backgroundColor: Colors.goldDim,
-                  alignItems: 'center', justifyContent: 'center',
+            {/* Group by friend — show one card per person with their best recent PR */}
+            {Object.entries(
+              friendPRs.reduce<Record<string, typeof friendPRs>>((acc, pr) => {
+                if (!acc[pr.display_name]) acc[pr.display_name] = [];
+                acc[pr.display_name].push(pr);
+                return acc;
+              }, {})
+            ).slice(0, 3).map(([name, prs], i) => {
+              const topPR = prs[0]; // already sorted by achieved_at desc
+              const otherCount = prs.length - 1;
+              return (
+                <View key={i} style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 14, padding: 14,
+                  borderWidth: 1, borderColor: Colors.border,
                 }}>
-                  <Text style={{ fontSize: 16 }}>🏆</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
-                      {pr.display_name}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>· {timeAgo(pr.achieved_at)}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <View style={{
+                      width: 32, height: 32, borderRadius: 16,
+                      backgroundColor: Colors.goldDim,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Text style={{ fontSize: 14 }}>🏆</Text>
+                    </View>
+                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800', flex: 1 }}>{name}</Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{timeAgo(topPR.achieved_at)}</Text>
                   </View>
-                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
-                    {pr.exercise_name}
+                  <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '700' }}>
+                    {topPR.exercise_name} — {topPR.weight} {topPR.unit_pref}{topPR.reps > 1 ? ` × ${topPR.reps}` : ''}
                   </Text>
-                  <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
-                    {pr.weight} {pr.unit_pref}{pr.reps > 1 ? ` × ${pr.reps}` : ' — 1RM'}
-                  </Text>
+                  {otherCount > 0 && (
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>
+                      +{otherCount} more PR{otherCount !== 1 ? 's' : ''} this session
+                    </Text>
+                  )}
                 </View>
-              </View>
-            ))}
-            {friendPRs.length > 3 && (
-              <TouchableOpacity onPress={() => router.push('/(tabs)/friends')} style={{ alignItems: 'center', padding: 10 }}>
-                <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                  +{friendPRs.length - 3} more PRs → See all
-                </Text>
-              </TouchableOpacity>
-            )}
+              );
+            })}
+            <TouchableOpacity onPress={() => router.push('/(tabs)/friends')} style={{ alignItems: 'center', padding: 8 }}>
+              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+                See full feed →
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
         {/* SBD Entry Modal */}

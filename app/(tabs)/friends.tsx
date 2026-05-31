@@ -174,7 +174,8 @@ export default function SocialScreen() {
       // Load feed — your workouts + friends' workouts
       const feedUserIds = [user.id, ...friendIds];
       if (feedUserIds.length > 0) {
-        const { data: workouts } = await supabase
+        // Wrap feed separately so errors don't kill the friends list
+        const { data: workouts, error: feedErr } = await supabase
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes,
@@ -182,11 +183,16 @@ export default function SocialScreen() {
           `)
           .in('user_id', feedUserIds)
           .not('ended_at', 'is', null)
-          .eq('is_imported', false)   // never show imported workouts in feed
           .order('ended_at', { ascending: false })
           .limit(30);
 
+        if (feedErr) {
+          console.log('[Feed] error (non-fatal):', feedErr.message);
+        }
+
+        // Filter out imported workouts client-side (is_imported might not exist yet)
         const posts: FeedPost[] = (workouts ?? [])
+          .filter((w: any) => !w.is_imported)
           .map((w: any) => {
             // If it's your own workout, use your profile
             const isOwn = w.user_id === user.id;

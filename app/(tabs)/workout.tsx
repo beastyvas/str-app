@@ -1019,8 +1019,10 @@ export default function WorkoutTab() {
       )}
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 160 }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
       >
         {activeWorkout.exercises.length === 0 && (
           <View style={{ padding: 40, alignItems: 'center' }}>
