@@ -67,8 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Use Expo auth proxy for Expo Go (stable URL, not LAN IP that changes)
     // For real builds (str:// scheme), use native redirect
     const isExpoGo = (await import('expo-constants')).default.appOwnership === 'expo';
+    // In Expo Go: makeRedirectUri() auto-generates the right proxy/exp URL
+    // In real build: use str:// scheme
     const redirectUri = isExpoGo
-      ? 'https://auth.expo.io/@beastyvas/str'
+      ? AuthSession.makeRedirectUri()
       : AuthSession.makeRedirectUri({ scheme: 'str' });
     console.log('[Auth] redirectUri:', redirectUri);
 
