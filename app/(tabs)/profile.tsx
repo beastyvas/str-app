@@ -69,6 +69,9 @@ export default function ProfileScreen() {
   const [bioEditing, setBioEditing] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showTierLadder, setShowTierLadder] = useState(false);
+  const [sbdModalOpen, setSbdModalOpen] = useState(false);
+  const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
+  const [sbdSaving, setSbdSaving] = useState(false);
 
   useEffect(() => {
     if (user) loadStats();
@@ -244,6 +247,36 @@ export default function ProfileScreen() {
     setBioEditing(false);
   };
 
+  const saveSBD = async () => {
+    if (!user) return;
+    const entries = [
+      { key: 'barbell back squats', val: sbdInputs.sq, name: 'Barbell Back Squats' },
+      { key: 'barbell bench press', val: sbdInputs.bp, name: 'Barbell Bench Press' },
+      { key: 'deadlifts',           val: sbdInputs.dl, name: 'Deadlifts' },
+    ].filter(e => parseFloat(e.val) > 0);
+    if (entries.length === 0) { Alert.alert('Enter at least one lift'); return; }
+    setSbdSaving(true);
+    try {
+      const { data: exRows } = await supabase.from('exercises').select('id, name').in('name', entries.map(e => e.name));
+      for (const entry of entries) {
+        const ex = (exRows ?? []).find((e: any) => e.name.toLowerCase() === entry.key);
+        if (!ex) continue;
+        await supabase.from('personal_records').upsert({
+          user_id: user.id, exercise_id: ex.id,
+          weight: parseFloat(entry.val), reps: 1,
+          achieved_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,exercise_id' });
+      }
+      setSbdModalOpen(false);
+      setSbdInputs({ sq: '', bp: '', dl: '' });
+      await loadStats();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSbdSaving(false);
+    }
+  };
+
   const formatVolume = (v: number) => {
     if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
     if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
@@ -357,9 +390,23 @@ export default function ProfileScreen() {
               }}>
                 "{animeTier.animeTier.tagline}"
               </Text>
-              <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700', opacity: 0.7 }}>
-                Tap to see all ranks →
-              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700', opacity: 0.7 }}>
+                  Tap to see all ranks →
+                </Text>
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); setSbdModalOpen(true); }}
+                  style={{
+                    backgroundColor: tierColor + '20',
+                    borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
+                    borderWidth: 1, borderColor: tierColor + '40',
+                  }}
+                >
+                  <Text style={{ color: tierColor, fontSize: 10, fontWeight: '800' }}>
+                    {animeTier.lifts.some(l => l.weight > 0) ? 'Update SBD' : 'Set SBD →'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
           )}
 
@@ -666,6 +713,55 @@ export default function ProfileScreen() {
           onClose={() => setShowQR(false)}
         />
       )}
+
+      {/* SBD Entry Modal */}
+      <Modal visible={sbdModalOpen} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={() => setSbdModalOpen(false)} />
+          <View style={{
+            backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            padding: 24, borderTopWidth: 1, borderTopColor: Colors.border, gap: 16,
+          }}>
+            <View>
+              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Your SBD Maxes</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 4 }}>
+                Best single or heavy working set. Updates your rank instantly.
+              </Text>
+            </View>
+            {[
+              { label: 'Squat', key: 'sq' as const, placeholder: '315' },
+              { label: 'Bench', key: 'bp' as const, placeholder: '225' },
+              { label: 'Deadlift', key: 'dl' as const, placeholder: '405' },
+            ].map(({ label, key, placeholder }) => (
+              <View key={key}>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
+                  {label} (lbs)
+                </Text>
+                <TextInput
+                  value={sbdInputs[key]}
+                  onChangeText={v => setSbdInputs(prev => ({ ...prev, [key]: v }))}
+                  keyboardType="number-pad"
+                  placeholder={placeholder}
+                  placeholderTextColor={Colors.textMuted}
+                  style={{
+                    backgroundColor: Colors.surface2, borderRadius: 12,
+                    paddingHorizontal: 16, paddingVertical: 14,
+                    color: Colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -1,
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}
+                />
+              </View>
+            ))}
+            <TouchableOpacity
+              onPress={saveSBD}
+              disabled={sbdSaving}
+              style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 }}
+            >
+              {sbdSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE & UPDATE RANK</Text>}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── EDIT MODAL ──────────────────────────────────────────────────────── */}
       <Modal visible={editing} animationType="slide" presentationStyle="pageSheet">
