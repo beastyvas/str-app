@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, RefreshControl, Image, Modal, KeyboardAvoidingView, Platform,
@@ -319,6 +320,16 @@ export default function SocialScreen() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Auto-open creator profile if navigated from First Steps on home
+  useFocusEffect(useCallback(() => {
+    const creatorToOpen = (global as any).__openFriendProfile;
+    if (creatorToOpen) {
+      (global as any).__openFriendProfile = null;
+      setSubTab('people');
+      setTimeout(() => setSelectedFriendId(creatorToOpen), 300);
+    }
+  }, []));
 
   const handleSearch = async () => {
     if (!search.trim() || !user) return;

@@ -51,6 +51,9 @@ export default function HomeScreen() {
     hasFriend: boolean;
     hasCoach: boolean;
   } | null>(null);
+  const [creatorId, setCreatorId] = useState<string | null>(null);
+  const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
+  const [trainingDays, setTrainingDays] = useState('4');
 
   // SBD manual entry
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
@@ -65,13 +68,17 @@ export default function HomeScreen() {
     try {
       const uid = user!.id;
       // Check first steps completion
-      const [{ count: workoutCount }, { count: friendCount }] = await Promise.all([
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const [{ count: workoutCount }, { count: friendCount }, weeklyPlanDone, { data: creator }] = await Promise.all([
         supabase.from('workouts').select('id', { count: 'exact', head: true }).eq('user_id', uid).not('ended_at', 'is', null),
         supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${uid},addressee_id.eq.${uid}`).eq('status', 'accepted'),
+        AsyncStorage.getItem(`weekly_plan_done_${uid}`),
+        supabase.from('users').select('id').eq('is_owner', true).single(),
       ]);
       const hasWorkout = (workoutCount ?? 0) > 0;
       const hasFriend = (friendCount ?? 0) > 0;
-      const hasCoach = (profile?.training_notes?.length ?? 0) > 0; // proxy — they engaged with Coach/DNA
+      const hasCoach = weeklyPlanDone === 'true';
+      if (creator?.id) setCreatorId(creator.id);
       const allDone = hasWorkout && hasFriend && hasCoach;
       setFirstSteps(allDone ? null : { hasWorkout, hasFriend, hasCoach });
       const [prRes, workoutRes, friendRes] = await Promise.all([
@@ -293,10 +300,7 @@ export default function HomeScreen() {
 
             {/* Task 2 — Ask Coach to build weekly plan */}
             <TouchableOpacity
-              onPress={() => {
-                (global as any).__coachPreFill = `Based on my goals and training style, build me a weekly workout template. Give me specific days, exercises, sets, and reps. Make it realistic for my level.`;
-                router.push('/(tabs)/insights');
-              }}
+              onPress={() => !firstSteps?.hasCoach && setWeeklyPlanModal(true)}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
@@ -320,9 +324,15 @@ export default function HomeScreen() {
               {!firstSteps.hasCoach && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
             </TouchableOpacity>
 
-            {/* Task 3 — Add a friend (suggest the creator) */}
+            {/* Task 3 — Add a friend — open creator profile directly */}
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/friends')}
+              onPress={() => {
+                if (firstSteps?.hasFriend) return;
+                if (creatorId) {
+                  (global as any).__openFriendProfile = creatorId;
+                }
+                router.push('/(tabs)/friends');
+              }}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 14,
@@ -341,7 +351,7 @@ export default function HomeScreen() {
                 <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasFriend ? 'line-through' : 'none' }}>
                   Add your first friend
                 </Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Search <Text style={{ color: Colors.accent }}>@nickjr</Text> — the creator 👑</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>Tap to add <Text style={{ color: Colors.accent }}>@beastyvas</Text> — the creator 👑</Text>
               </View>
               {!firstSteps.hasFriend && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
             </TouchableOpacity>
@@ -700,6 +710,58 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
+        {/* Weekly Plan Prompt Modal */}
+        <Modal visible={weeklyPlanModal} transparent animationType="slide">
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={() => setWeeklyPlanModal(false)} />
+            <View style={{
+              backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              padding: 24, borderTopWidth: 1, borderTopColor: Colors.border, gap: 16,
+            }}>
+              <View>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Build your weekly plan</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 6, lineHeight: 19 }}>
+                  Coach will build you a full week of training based on your goals. This uses one of your free Coach asks.
+                </Text>
+              </View>
+              <View>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+                  How many days per week can you train?
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {['2', '3', '4', '5', '6'].map(d => (
+                    <TouchableOpacity
+                      key={d}
+                      onPress={() => setTrainingDays(d)}
+                      style={{
+                        flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+                        backgroundColor: trainingDays === d ? Colors.accent : Colors.surface2,
+                        borderWidth: 1, borderColor: trainingDays === d ? Colors.accent : Colors.border,
+                      }}
+                    >
+                      <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={async () => {
+                  setWeeklyPlanModal(false);
+                  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                  if (user) await AsyncStorage.setItem(`weekly_plan_done_${user.id}`, 'true');
+                  setFirstSteps(prev => prev ? { ...prev, hasCoach: true } : null);
+                  const msg = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;
+                  (global as any).__coachPreFill = msg;
+                  router.push('/(tabs)/insights');
+                }}
+                style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+              >
+                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>Build My Plan → (uses 1 ask)</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
         {/* SBD Entry Modal */}
         <Modal visible={sbdModalOpen} transparent animationType="slide">
           <KeyboardAvoidingView

@@ -11,8 +11,8 @@ import { Colors } from '@/constants/colors';
 import { getAnimeTierResult, ANIME_TIERS, ROMAN } from '@/constants/animeTiers';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 
-type Step = 'welcome' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
-const STEPS: Step[] = ['welcome', 'gender', 'bodyweight', 'goals', 'sbd', 'dna', 'done'];
+type Step = 'welcome' | 'identity' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
+const STEPS: Step[] = ['welcome', 'identity', 'gender', 'bodyweight', 'goals', 'sbd', 'dna', 'done'];
 
 const EXPERIENCE_OPTIONS = [
   { key: 'beginner', label: 'Just starting', sub: 'Under 1 year' },
@@ -38,11 +38,13 @@ const STYLE_OPTIONS = [
 ];
 
 export default function OnboardingScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [step, setStep] = useState<Step>('welcome');
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Form state
+  const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
+  const [username, setUsername] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [bodyweight, setBodyweight] = useState('');
   const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
@@ -81,7 +83,10 @@ export default function OnboardingScreen() {
     setSaving(true);
     try {
       const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
       await supabase.from('users').update({
+        display_name: displayName.trim() || null,
+        username: cleanUsername || null,
         bodyweight_lbs: Math.round(bwLbs * 10) / 10,
         unit_pref: unit,
         gender: gender || null,
@@ -192,12 +197,79 @@ export default function OnboardingScreen() {
               </View>
             )}
 
+            {/* ── IDENTITY ────────────────────────────────────────────── */}
+            {step === 'identity' && (
+              <View style={{ gap: 24 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                    Step 1 of 6
+                  </Text>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                    What do we call you?
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
+                    Your name shows on your profile and in the feed. Pick a username so friends can find you.
+                  </Text>
+                </View>
+
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Display Name</Text>
+                  <TextInput
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                    placeholder="Nick Vasquez Jr"
+                    placeholderTextColor={Colors.textMuted}
+                    style={{
+                      backgroundColor: Colors.surface, borderRadius: 12,
+                      paddingHorizontal: 16, paddingVertical: 14,
+                      color: Colors.text, fontSize: 18, fontWeight: '700',
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  />
+                </View>
+
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Username</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border }}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 16, paddingLeft: 16 }}>@</Text>
+                    <TextInput
+                      value={username}
+                      onChangeText={v => setUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+                      placeholder="nickjr"
+                      placeholderTextColor={Colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 14, color: Colors.text, fontSize: 17, fontWeight: '700' }}
+                    />
+                  </View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 6 }}>
+                    Friends can find you with @{username || 'yourhandle'}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={next}
+                  disabled={!displayName.trim()}
+                  style={{
+                    backgroundColor: displayName.trim() ? Colors.accent : Colors.surface,
+                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    borderWidth: !displayName.trim() ? 1 : 0, borderColor: Colors.border,
+                  }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={next} style={{ alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Set later in profile</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* ── GENDER ──────────────────────────────────────────────── */}
             {step === 'gender' && (
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 1 of 5
+                    Step 2 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
                     Who's training?
@@ -252,7 +324,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 2 of 5
+                    Step 3 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
                     Your bodyweight.
@@ -312,7 +384,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 20 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 3 of 5
+                    Step 4 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
                     What are you training for?
@@ -408,7 +480,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 4 of 5
+                    Step 5 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
                     What are your{'\n'}best lifts?
@@ -487,7 +559,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 5 of 5
+                    Step 6 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
                     Tell Coach{'\n'}about you.
