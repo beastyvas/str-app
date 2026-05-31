@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Modal, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, Modal, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, TierName } from '@/constants/colors';
 import { UserBadges } from './UserBadges';
@@ -25,12 +25,14 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [prs, setPrs] = useState<any[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<any[]>([]);
   const [animeTier, setAnimeTier] = useState<ReturnType<typeof getAnimeTierResult> | null>(null);
+  const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
+  const [addingFriend, setAddingFriend] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) return;
     setLoading(true);
     Promise.all([
-      supabase.from('users').select('*').eq('id', userId).single(),
+      supabase.from('users').select('*').eq('id', userId!).single(),
       supabase
         .from('personal_records')
         .select('weight, reps, achieved_at, exercises(name, muscle_group)')
@@ -52,11 +54,44 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
         .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
       setAnimeTier(getAnimeTierResult(sbdPrs, prof?.bodyweight_lbs ?? 185));
+
+      // Check friendship status with current user
+      const { data: { user: me } } = await supabase.auth.getUser();
+      if (me && userId) {
+        const { data: friendship } = await supabase
+          .from('friendships')
+          .select('status')
+          .or(`requester_id.eq.${me.id},addressee_id.eq.${me.id}`)
+          .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+          .maybeSingle();
+        if (friendship?.status === 'accepted') setFriendStatus('friends');
+        else if (friendship?.status === 'pending') setFriendStatus('pending');
+        else setFriendStatus('none');
+      }
+
       setLoading(false);
     });
   }, [visible, userId]);
 
   const initials = (name: string) => name?.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) ?? '?';
+
+  const sendFriendRequest = async () => {
+    if (!userId) return;
+    setAddingFriend(true);
+    try {
+      const { data: { user: me } } = await supabase.auth.getUser();
+      if (!me) return;
+      const { error } = await supabase.from('friendships').insert({
+        requester_id: me.id, addressee_id: userId,
+      });
+      if (error) throw error;
+      setFriendStatus('pending');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setAddingFriend(false);
+    }
+  };
   const tierColor = animeTier?.animeTier.color ?? Colors.accent;
 
   const formatDuration = (start: string, end: string) => {
@@ -76,12 +111,37 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         {/* Header */}
         <View style={{
-          flexDirection: 'row', justifyContent: 'flex-end',
+          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
           paddingHorizontal: 20, paddingVertical: 12,
         }}>
+          {/* Add Friend / status button */}
+          {!loading && friendStatus === 'none' && (
+            <TouchableOpacity
+              onPress={sendFriendRequest}
+              disabled={addingFriend}
+              style={{ backgroundColor: Colors.accent, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 }}
+            >
+              {addingFriend
+                ? <ActivityIndicator color={Colors.text} size="small" />
+                : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 14 }}>+ Add Friend</Text>
+              }
+            </TouchableOpacity>
+          )}
+          {!loading && friendStatus === 'pending' && (
+            <View style={{ backgroundColor: Colors.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 }}>
+              <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 13 }}>Request Sent</Text>
+            </View>
+          )}
+          {!loading && friendStatus === 'friends' && (
+            <View style={{ backgroundColor: Colors.success + '20', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 }}>
+              <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>Friends ✓</Text>
+            </View>
+          )}
+          {loading && <View />}
+
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            style={{ padding: 8, borderRadius: 20, backgroundColor: Colors.surface2 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, width: 20, textAlign: 'center' }}>×</Text>
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, textAlign: 'center' }}>×</Text>
           </TouchableOpacity>
         </View>
 
