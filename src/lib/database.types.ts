@@ -13,6 +13,7 @@ export interface Database {
           avatar_url: string | null;
           training_notes: string | null;
           bio: string | null;
+          username: string | null;
           created_at: string;
         };
         Insert: {

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, RefreshControl, Image,
+  ActivityIndicator, Alert, RefreshControl, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
@@ -94,6 +95,8 @@ export default function SocialScreen() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [suggested, setSuggested] = useState<any[]>([]);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -240,10 +243,11 @@ export default function SocialScreen() {
     if (!search.trim() || !user) return;
     setSearching(true);
     try {
+      const q = search.trim().replace(/^@/, ''); // strip leading @ for username search
       const { data: users } = await supabase
         .from('users')
-        .select('id, display_name, avatar_url, bio')
-        .ilike('display_name', `%${search.trim()}%`)
+        .select('id, display_name, avatar_url, bio, username')
+        .or(`display_name.ilike.%${q}%,username.ilike.%${q}%`)
         .neq('id', user.id)
         .limit(10);
 
@@ -284,6 +288,55 @@ export default function SocialScreen() {
   const declineRequest = async (friendshipId: string) => {
     await supabase.from('friendships').delete().eq('id', friendshipId);
     setPending(prev => prev.filter(p => p.friendshipId !== friendshipId));
+  };
+
+  const openScanner = async () => {
+    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    if (status === 'granted') setShowScanner(true);
+    else Alert.alert('Camera permission needed to scan QR codes');
+  };
+
+  const handleQRScan = async ({ data }: { data: string }) => {
+    setShowScanner(false);
+    // QR value is "str://profile/USER_ID"
+    const match = data.match(/str:\/\/profile\/(.+)/);
+    if (!match) { Alert.alert('Invalid QR code'); return; }
+    const scannedUserId = match[1];
+    if (scannedUserId === user?.id) { Alert.alert('That\'s your own QR code 😄'); return; }
+
+    // Check if already friends
+    const alreadyFriend = friends.find(f => f.id === scannedUserId);
+    if (alreadyFriend) { Alert.alert('Already friends!'); return; }
+
+    // Get their profile
+    const { data: profile } = await supabase
+      .from('users')
+      .select('display_name, username')
+      .eq('id', scannedUserId)
+      .single();
+
+    const name = profile?.display_name ?? 'this person';
+    Alert.alert(
+      `Add ${name}?`,
+      profile?.username ? `@${profile.username}` : undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add Friend', onPress: () => sendRequest(scannedUserId) },
+      ]
+    );
+  };
+
+  const loadSuggested = async () => {
+    if (!user || friends.length === 0) return;
+    // Suggest users with similar SBD tier who aren't already friends
+    const { data } = await supabase
+      .from('users')
+      .select('id, display_name, username, avatar_url, bodyweight_lbs')
+      .neq('id', user.id)
+      .not('id', 'in', `(${friends.map(f => f.id).join(',')})`)
+      .not('display_name', 'is', null)
+      .limit(6);
+    setSuggested(data ?? []);
   };
 
   const removeFriend = (friendshipId: string, name: string) => {
@@ -454,12 +507,39 @@ export default function SocialScreen() {
           contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
         >
+          {/* QR Scan button */}
+          <TouchableOpacity
+            onPress={openScanner}
+            style={{
+              backgroundColor: Colors.surface,
+              borderRadius: 14, padding: 16, marginBottom: 16,
+              borderWidth: 1, borderColor: Colors.accent + '40',
+              flexDirection: 'row', alignItems: 'center', gap: 14,
+            }}
+          >
+            <View style={{
+              width: 44, height: 44, borderRadius: 22,
+              backgroundColor: Colors.accentDim,
+              borderWidth: 1, borderColor: Colors.accent + '40',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 22 }}>📷</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Scan QR Code</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
+                Scan a friend's profile QR to instantly add them
+              </Text>
+            </View>
+            <Text style={{ color: Colors.accent, fontSize: 16 }}>›</Text>
+          </TouchableOpacity>
+
           {/* Search */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search by display name..."
+              placeholder="Search @username or name..."
               placeholderTextColor={Colors.textMuted}
               onSubmitEditing={handleSearch}
               returnKeyType="search"
@@ -490,7 +570,8 @@ export default function SocialScreen() {
                   <Avatar url={u.avatar_url} name={u.display_name} color={Colors.accent} size={40} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: Colors.text, fontWeight: '600' }}>{u.display_name}</Text>
-                    {u.bio && <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{u.bio}</Text>}
+                    {u.username && <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>@{u.username}</Text>}
+                    {u.bio && <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{u.bio}</Text>}
                   </View>
                   {u.alreadyFriend ? (
                     <Text style={{ color: Colors.success, fontSize: 12, fontWeight: '700' }}>Friends ✓</Text>
@@ -531,6 +612,34 @@ export default function SocialScreen() {
                     style={{ backgroundColor: Colors.goldDim, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.gold + '40' }}
                   >
                     <Text style={{ color: Colors.gold, fontWeight: '700', fontSize: 12 }}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Suggested friends */}
+          {!loading && friends.length > 0 && suggested.length > 0 && searchResults.length === 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                People You May Know
+              </Text>
+              {suggested.map((u: any) => (
+                <View key={u.id} style={{
+                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                  marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12,
+                  borderWidth: 1, borderColor: Colors.border,
+                }}>
+                  <Avatar url={u.avatar_url} name={u.display_name ?? '?'} color={Colors.textMuted} size={40} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontWeight: '600' }}>{u.display_name}</Text>
+                    {u.username && <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>@{u.username}</Text>}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => sendRequest(u.id)}
+                    style={{ backgroundColor: Colors.accentDim, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.accent + '40' }}
+                  >
+                    <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>+ Add</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -590,6 +699,27 @@ export default function SocialScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* QR Scanner Modal */}
+      <Modal visible={showScanner} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
+            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Scan QR Code</Text>
+            <TouchableOpacity onPress={() => setShowScanner(false)}>
+              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <BarCodeScanner
+            onBarCodeScanned={handleQRScan}
+            style={{ flex: 1 }}
+          />
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+              Point your camera at a friend's STR QR code
+            </Text>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
+import { QRModal } from '@/components/QRModal';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getAnimeTierResult } from '@/constants/animeTiers';
 
@@ -49,6 +50,8 @@ export default function ProfileScreen() {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
+  const [username, setUsername] = useState(profile?.username ?? '');
+  const [usernameError, setUsernameError] = useState('');
   const [bodyweight, setBodyweight] = useState(profile?.bodyweight_lbs?.toString() ?? '');
   const [unit, setUnit] = useState<'lbs' | 'kg'>(profile?.unit_pref ?? 'lbs');
   const [saving, setSaving] = useState(false);
@@ -63,6 +66,7 @@ export default function ProfileScreen() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [bioEditing, setBioEditing] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   useEffect(() => {
     if (user) loadStats();
@@ -148,11 +152,25 @@ export default function ProfileScreen() {
   const saveProfile = async () => {
     const bw = parseFloat(bodyweight);
     if (!bw || bw < 50) { Alert.alert('Invalid bodyweight'); return; }
+
+    // Validate username
+    const uname = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+    if (username.trim() && uname.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      return;
+    }
+    setUsernameError('');
+
     setSaving(true);
     const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
     const { error } = await supabase
       .from('users')
-      .update({ display_name: displayName.trim(), bodyweight_lbs: Math.round(bwLbs * 10) / 10, unit_pref: unit })
+      .update({
+        display_name: displayName.trim(),
+        bodyweight_lbs: Math.round(bwLbs * 10) / 10,
+        unit_pref: unit,
+        username: uname || null,
+      })
       .eq('id', user!.id);
     if (error) Alert.alert('Error', error.message);
     else { await refreshProfile(); setEditing(false); }
@@ -293,9 +311,14 @@ export default function ProfileScreen() {
           <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 }}>
             {profile?.display_name ?? user?.email}
           </Text>
-          <Text style={{ color: Colors.textMuted, fontSize: 13, marginBottom: 12 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 13, marginBottom: 4 }}>
             {bwDisplay}
           </Text>
+          {profile?.username && (
+            <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700', marginBottom: 12 }}>
+              @{profile.username}
+            </Text>
+          )}
 
           {/* Anime tier badge */}
           {animeTier && stats?.allPRs.some(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName)) && (
@@ -365,21 +388,27 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Edit button */}
-          <TouchableOpacity
-            onPress={() => {
-              setDisplayName(profile?.display_name ?? '');
-              setBodyweight(profile?.bodyweight_lbs?.toString() ?? '');
-              setUnit(profile?.unit_pref ?? 'lbs');
-              setEditing(true);
-            }}
-            style={{
-              paddingHorizontal: 20, paddingVertical: 8,
-              borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
-            }}
-          >
-            <Text style={{ color: Colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Edit Profile</Text>
-          </TouchableOpacity>
+          {/* Buttons row */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setDisplayName(profile?.display_name ?? '');
+                setUsername(profile?.username ?? '');
+                setBodyweight(profile?.bodyweight_lbs?.toString() ?? '');
+                setUnit(profile?.unit_pref ?? 'lbs');
+                setEditing(true);
+              }}
+              style={{ paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.border }}
+            >
+              <Text style={{ color: Colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Edit Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowQR(true)}
+              style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.accent + '50', backgroundColor: Colors.accentDim }}
+            >
+              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 13 }}>QR Code</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ padding: 20, gap: 16 }}>
@@ -592,6 +621,19 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
+      {/* QR Modal */}
+      {user && (
+        <QRModal
+          visible={showQR}
+          userId={user.id}
+          username={profile?.username ?? undefined}
+          displayName={profile?.display_name ?? 'Athlete'}
+          tierLabel={animeTier?.animeTier.label}
+          tierColor={animeTier?.animeTier.color}
+          onClose={() => setShowQR(false)}
+        />
+      )}
+
       {/* ── EDIT MODAL ──────────────────────────────────────────────────────── */}
       <Modal visible={editing} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -621,6 +663,29 @@ export default function ProfileScreen() {
                     color: Colors.text, fontSize: 16,
                   }}
                 />
+              </View>
+
+              <View>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
+                  Username
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderColor: usernameError ? Colors.danger : Colors.border, borderWidth: 1, borderRadius: 12 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 16, paddingLeft: 16 }}>@</Text>
+                  <TextInput
+                    value={username}
+                    onChangeText={v => { setUsername(v); setUsernameError(''); }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="yourhandle"
+                    placeholderTextColor={Colors.textMuted}
+                    style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 14, color: Colors.text, fontSize: 16 }}
+                  />
+                </View>
+                {usernameError ? (
+                  <Text style={{ color: Colors.danger, fontSize: 11, marginTop: 4 }}>{usernameError}</Text>
+                ) : (
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>Friends can find you with @{username || 'handle'}</Text>
+                )}
               </View>
 
               <View>
