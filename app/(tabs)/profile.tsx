@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
-  Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
+  Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
@@ -58,6 +59,9 @@ export default function ProfileScreen() {
   const [dnaModalOpen, setDnaModalOpen] = useState(false);
   const [dnaText, setDnaText] = useState(profile?.training_notes ?? '');
   const [dnaSaving, setDnaSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [bio, setBio] = useState(profile?.bio ?? '');
+  const [bioEditing, setBioEditing] = useState(false);
 
   useEffect(() => {
     if (user) loadStats();
@@ -166,6 +170,52 @@ export default function ProfileScreen() {
     setDnaSaving(false);
   };
 
+  const pickAndUploadPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access to upload a profile picture.'); return; }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploadingPhoto(true);
+    try {
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() ?? 'jpg';
+      const fileName = `${user!.id}.${ext}`;
+
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, { upsert: true, contentType: `image/${ext}` });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const publicUrl = urlData.publicUrl + `?t=${Date.now()}`; // bust cache
+
+      await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', user!.id);
+      await refreshProfile();
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload photo. Make sure the avatars bucket exists in Supabase Storage.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const saveBio = async () => {
+    if (!user) return;
+    await supabase.from('users').update({ bio: bio.trim() || null }).eq('id', user.id);
+    await refreshProfile();
+    setBioEditing(false);
+  };
+
   const formatVolume = (v: number) => {
     if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
     if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
@@ -193,19 +243,43 @@ export default function ProfileScreen() {
           borderBottomColor: Colors.border,
         }}>
           {/* Avatar */}
-          <View style={{
-            width: 80, height: 80, borderRadius: 40,
-            backgroundColor: tierColor + '20',
-            borderWidth: 2.5,
-            borderColor: tierColor + '80',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 14,
-          }}>
-            <Text style={{ color: tierColor, fontWeight: '900', fontSize: 28 }}>
-              {initials(profile?.display_name ?? user?.email ?? '?')}
-            </Text>
-          </View>
+          <TouchableOpacity
+            onPress={pickAndUploadPhoto}
+            disabled={uploadingPhoto}
+            style={{ marginBottom: 14 }}
+          >
+            <View style={{
+              width: 88, height: 88, borderRadius: 44,
+              backgroundColor: tierColor + '20',
+              borderWidth: 2.5,
+              borderColor: tierColor + '80',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              {uploadingPhoto ? (
+                <ActivityIndicator color={tierColor} />
+              ) : profile?.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={{ width: 88, height: 88, borderRadius: 44 }}
+                />
+              ) : (
+                <Text style={{ color: tierColor, fontWeight: '900', fontSize: 28 }}>
+                  {initials(profile?.display_name ?? user?.email ?? '?')}
+                </Text>
+              )}
+            </View>
+            <View style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 26, height: 26, borderRadius: 13,
+              backgroundColor: Colors.surface,
+              borderWidth: 2, borderColor: Colors.bg,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 12 }}>📷</Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Name + bodyweight */}
           <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 }}>
@@ -230,6 +304,57 @@ export default function ProfileScreen() {
                 {animeTier.animeTier.label}
               </Text>
             </View>
+          )}
+
+          {/* Bio */}
+          {bioEditing ? (
+            <View style={{ width: '100%', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                value={bio}
+                onChangeText={setBio}
+                autoFocus
+                multiline
+                placeholder="Add a bio..."
+                placeholderTextColor={Colors.textMuted}
+                maxLength={150}
+                style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  color: Colors.text,
+                  fontSize: 14,
+                  textAlign: 'center',
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                  lineHeight: 20,
+                }}
+              />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => { setBioEditing(false); setBio(profile?.bio ?? ''); }}
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}
+                >
+                  <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '700' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={saveBio}
+                  style={{ flex: 2, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.accent, alignItems: 'center' }}
+                >
+                  <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '800' }}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => { setBio(profile?.bio ?? ''); setBioEditing(true); }} style={{ marginBottom: 12 }}>
+              <Text style={{
+                color: profile?.bio ? Colors.textSecondary : Colors.textMuted,
+                fontSize: 13, textAlign: 'center', lineHeight: 20,
+                fontStyle: profile?.bio ? 'normal' : 'italic',
+              }}>
+                {profile?.bio ?? 'Add a bio...'}
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Edit button */}

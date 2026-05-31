@@ -12,6 +12,7 @@ export interface Database {
           unit_pref: 'lbs' | 'kg';
           avatar_url: string | null;
           training_notes: string | null;
+          bio: string | null;
           created_at: string;
         };
         Insert: {
@@ -22,6 +23,7 @@ export interface Database {
           unit_pref?: 'lbs' | 'kg';
           avatar_url?: string | null;
           training_notes?: string | null;
+          bio?: string | null;
           created_at?: string;
         };
         Update: {
@@ -32,6 +34,7 @@ export interface Database {
           unit_pref?: 'lbs' | 'kg';
           avatar_url?: string | null;
           training_notes?: string | null;
+          bio?: string | null;
           created_at?: string;
         };
       };

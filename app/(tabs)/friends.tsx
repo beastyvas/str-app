@@ -1,23 +1,43 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { Colors, TierName } from '@/constants/colors';
-import { getAnimeTierResult, ANIME_TIERS } from '@/constants/animeTiers';
+import { Colors } from '@/constants/colors';
+import { getAnimeTierResult } from '@/constants/animeTiers';
 import * as Haptics from 'expo-haptics';
+
+type SubTab = 'feed' | 'people';
+
+interface FeedPost {
+  workoutId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  workoutName: string;
+  startedAt: string;
+  endedAt: string;
+  notes: string;
+  setsCount: number;
+  totalVolume: number;
+  exercises: string[];
+  animeTierLabel?: string;
+  animeTierColor?: string;
+}
 
 interface Friend {
   id: string;
   display_name: string;
+  avatar_url?: string;
+  bio?: string;
   bodyweight_lbs?: number;
   friendshipId: string;
   animeTierLabel?: string;
   animeTierColor?: string;
-  recentPR?: { exerciseName: string; weight: number; reps: number; achieved_at: string };
+  recentPR?: { exerciseName: string; weight: number; achieved_at: string };
 }
 
 interface PendingRequest {
@@ -27,48 +47,125 @@ interface PendingRequest {
   avatar_url?: string;
 }
 
-interface SearchResult {
-  id: string;
-  display_name: string;
-  bodyweight_lbs?: number;
-  alreadyFriend: boolean;
-  requestSent: boolean;
+function Avatar({ url, name, color, size = 44 }: { url?: string; name: string; color: string; size?: number }) {
+  const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: color + '20',
+      borderWidth: 2, borderColor: color + '60',
+      alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden',
+    }}>
+      {url
+        ? <Image source={{ uri: url }} style={{ width: size, height: size }} />
+        : <Text style={{ color, fontWeight: '900', fontSize: size * 0.3 }}>{initials}</Text>
+      }
+    </View>
+  );
 }
 
-export default function FriendsScreen() {
+function timeAgo(iso: string) {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  if (d === 1) return 'yesterday';
+  return `${d}d ago`;
+}
+
+function formatVolume(v: number) {
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+}
+
+function formatDuration(start: string, end: string) {
+  const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+export default function SocialScreen() {
   const { user } = useAuth();
-  const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [subTab, setSubTab] = useState<SubTab>('feed');
+  const [feed, setFeed] = useState<FeedPost[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pending, setPending] = useState<PendingRequest[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadFriends = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     try {
-      // Get all friendships
+      // Load friendships
       const { data: friendships } = await supabase
         .from('friendships')
         .select(`
           id, status, requester_id, addressee_id,
-          requester:users!friendships_requester_id_fkey(id, display_name, bodyweight_lbs),
-          addressee:users!friendships_addressee_id_fkey(id, display_name, bodyweight_lbs)
+          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs),
+          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs)
         `)
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
-      if (!friendships) return;
+      const accepted = (friendships ?? []).filter(f => f.status === 'accepted');
+      const incoming = (friendships ?? []).filter(f => f.status === 'pending' && f.addressee_id === user.id);
+      const friendIds = accepted.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
 
-      const accepted = friendships.filter(f => f.status === 'accepted');
-      const incomingPending = friendships.filter(f => f.status === 'pending' && f.addressee_id === user.id);
+      setPending(incoming.map(f => ({
+        id: (f.requester as any).id,
+        friendshipId: f.id,
+        display_name: (f.requester as any).display_name ?? 'Unknown',
+        avatar_url: (f.requester as any).avatar_url,
+      })));
+
+      // Load feed — friends' completed workouts with notes
+      if (friendIds.length > 0) {
+        const { data: workouts } = await supabase
+          .from('workouts')
+          .select(`
+            id, user_id, name, started_at, ended_at, notes,
+            workout_sets(weight, reps, exercises(name))
+          `)
+          .in('user_id', friendIds)
+          .not('ended_at', 'is', null)
+          .not('notes', 'is', null)
+          .order('ended_at', { ascending: false })
+          .limit(30);
+
+        const posts: FeedPost[] = (workouts ?? [])
+          .filter((w: any) => w.notes?.trim())
+          .map((w: any) => {
+            const friendship = accepted.find(f =>
+              f.requester_id === w.user_id || f.addressee_id === w.user_id
+            );
+            const other = friendship
+              ? (friendship.requester_id === w.user_id ? friendship.requester : friendship.addressee) as any
+              : null;
+            const sets = w.workout_sets ?? [];
+            const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
+            const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
+            return {
+              workoutId: w.id,
+              userId: w.user_id,
+              displayName: other?.display_name ?? 'Unknown',
+              avatarUrl: other?.avatar_url,
+              workoutName: w.name,
+              startedAt: w.started_at,
+              endedAt: w.ended_at,
+              notes: w.notes,
+              setsCount: sets.length,
+              totalVolume: vol,
+              exercises: exs,
+            };
+          });
+        setFeed(posts);
+      }
 
       // Build friends list with tiers
       const friendList: Friend[] = await Promise.all(
         accepted.map(async f => {
-          const other = f.requester_id === user.id ? (f.addressee as any) : (f.requester as any);
-
-          // Get their SBD PRs to calculate tier
+          const other = (f.requester_id === user.id ? f.addressee : f.requester) as any;
           const { data: prs } = await supabase
             .from('personal_records')
             .select('weight, reps, achieved_at, exercises!inner(name)')
@@ -76,8 +173,7 @@ export default function FriendsScreen() {
             .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
             .order('achieved_at', { ascending: false });
 
-          // Get their most recent PR (any exercise)
-          const { data: recentPRs } = await supabase
+          const { data: recentPR } = await supabase
             .from('personal_records')
             .select('weight, reps, achieved_at, exercises(name)')
             .eq('user_id', other.id)
@@ -86,38 +182,29 @@ export default function FriendsScreen() {
 
           const sbdPrs = (prs ?? []).map((p: any) => ({
             exerciseName: p.exercises?.name ?? '',
-            weight: p.weight,
-            reps: p.reps,
+            weight: p.weight, reps: p.reps,
           }));
-
           const tierResult = getAnimeTierResult(sbdPrs, other.bodyweight_lbs ?? 185);
-          const recentPR = recentPRs?.[0];
+          const pr = recentPR?.[0] as any;
 
           return {
             id: other.id,
             display_name: other.display_name ?? 'Unknown',
+            avatar_url: other.avatar_url,
+            bio: other.bio,
             bodyweight_lbs: other.bodyweight_lbs,
             friendshipId: f.id,
             animeTierLabel: tierResult.animeTier.label,
             animeTierColor: tierResult.animeTier.color,
-            recentPR: recentPR ? {
-              exerciseName: (recentPR as any).exercises?.name ?? '',
-              weight: recentPR.weight,
-              reps: recentPR.reps,
-              achieved_at: recentPR.achieved_at,
+            recentPR: pr ? {
+              exerciseName: pr.exercises?.name ?? '',
+              weight: pr.weight,
+              achieved_at: pr.achieved_at,
             } : undefined,
           };
         })
       );
-
       setFriends(friendList);
-      setPending(
-        incomingPending.map(f => ({
-          id: (f.requester as any).id,
-          friendshipId: f.id,
-          display_name: (f.requester as any).display_name ?? 'Unknown',
-        }))
-      );
     } catch (e) {
       // silence
     } finally {
@@ -126,7 +213,7 @@ export default function FriendsScreen() {
     }
   }, [user]);
 
-  useEffect(() => { loadFriends(); }, [loadFriends]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleSearch = async () => {
     if (!search.trim() || !user) return;
@@ -134,12 +221,11 @@ export default function FriendsScreen() {
     try {
       const { data: users } = await supabase
         .from('users')
-        .select('id, display_name, bodyweight_lbs')
+        .select('id, display_name, avatar_url, bio')
         .ilike('display_name', `%${search.trim()}%`)
         .neq('id', user.id)
         .limit(10);
 
-      // Check which ones are already friends or have pending requests
       const { data: myFriendships } = await supabase
         .from('friendships')
         .select('requester_id, addressee_id, status')
@@ -148,15 +234,12 @@ export default function FriendsScreen() {
       const friendIds = new Set((myFriendships ?? [])
         .filter(f => f.status === 'accepted')
         .map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id));
-
       const sentIds = new Set((myFriendships ?? [])
         .filter(f => f.status === 'pending' && f.requester_id === user.id)
         .map(f => f.addressee_id));
 
-      setSearchResults((users ?? []).map(u => ({
-        id: u.id,
-        display_name: u.display_name ?? 'Unknown',
-        bodyweight_lbs: u.bodyweight_lbs,
+      setSearchResults((users ?? []).map((u: any) => ({
+        ...u,
         alreadyFriend: friendIds.has(u.id),
         requestSent: sentIds.has(u.id),
       })));
@@ -174,7 +257,7 @@ export default function FriendsScreen() {
   const acceptRequest = async (friendshipId: string) => {
     await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    loadFriends();
+    loadData();
   };
 
   const declineRequest = async (friendshipId: string) => {
@@ -183,272 +266,297 @@ export default function FriendsScreen() {
   };
 
   const removeFriend = (friendshipId: string, name: string) => {
-    Alert.alert(
-      'Remove friend',
-      `Remove ${name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('friendships').delete().eq('id', friendshipId);
-            setFriends(prev => prev.filter(f => f.friendshipId !== friendshipId));
-          },
-        },
-      ]
-    );
+    Alert.alert('Remove', `Remove ${name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        await supabase.from('friendships').delete().eq('id', friendshipId);
+        setFriends(prev => prev.filter(f => f.friendshipId !== friendshipId));
+      }},
+    ]);
   };
-
-  const timeAgo = (iso: string) => {
-    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-    if (d === 0) return 'today';
-    if (d === 1) return 'yesterday';
-    return `${d}d ago`;
-  };
-
-  const initials = (name: string) =>
-    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadFriends(); }} tintColor={Colors.accent} />}
-      >
-        {/* Header */}
-        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginBottom: 20 }}>
-          Friends
+      {/* Header + tabs */}
+      <View style={{
+        paddingHorizontal: 20, paddingTop: 20, paddingBottom: 0,
+        borderBottomWidth: 1, borderBottomColor: Colors.border,
+      }}>
+        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginBottom: 12 }}>
+          Social
         </Text>
-
-        {/* Search */}
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search by display name..."
-            placeholderTextColor={Colors.textMuted}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-            style={{
-              flex: 1,
-              backgroundColor: Colors.surface,
-              borderColor: Colors.border,
-              borderWidth: 1,
-              borderRadius: 12,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              color: Colors.text,
-              fontSize: 14,
-            }}
-          />
-          <TouchableOpacity
-            onPress={handleSearch}
-            style={{
-              backgroundColor: Colors.accent,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              justifyContent: 'center',
-            }}
-          >
-            {searching
-              ? <ActivityIndicator color={Colors.text} size="small" />
-              : <Text style={{ color: Colors.text, fontWeight: '700' }}>Search</Text>
-            }
-          </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          {([
+            { key: 'feed' as SubTab, label: 'Feed' },
+            { key: 'people' as SubTab, label: `Friends${friends.length > 0 ? ` (${friends.length})` : ''}` },
+          ]).map(t => (
+            <TouchableOpacity
+              key={t.key}
+              onPress={() => setSubTab(t.key)}
+              style={{
+                paddingHorizontal: 16, paddingVertical: 10, marginRight: 4,
+                borderBottomWidth: 2,
+                borderBottomColor: subTab === t.key ? Colors.accent : 'transparent',
+              }}
+            >
+              <Text style={{
+                color: subTab === t.key ? Colors.text : Colors.textMuted,
+                fontSize: 13, fontWeight: subTab === t.key ? '700' : '500',
+              }}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-              Results
-            </Text>
-            {searchResults.map(u => (
-              <View key={u.id} style={{
+      {/* ── FEED ──────────────────────────────────────────────────────────── */}
+      {subTab === 'feed' && (
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.accent} style={{ marginTop: 60 }} />
+          ) : friends.length === 0 ? (
+            <View style={{ alignItems: 'center', marginTop: 80, gap: 8 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 20 }}>👥</Text>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>No friends yet</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+                Add friends in the Friends tab to see their workouts here.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setSubTab('people')}
+                style={{ marginTop: 12, backgroundColor: Colors.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}
+              >
+                <Text style={{ color: Colors.text, fontWeight: '700' }}>Find Friends →</Text>
+              </TouchableOpacity>
+            </View>
+          ) : feed.length === 0 ? (
+            <View style={{ alignItems: 'center', marginTop: 80, gap: 8 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 20 }}>📝</Text>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>Nothing in the feed yet</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                Friends' workouts show here when they add a session note after finishing.
+              </Text>
+            </View>
+          ) : (
+            feed.map(post => (
+              <View key={post.workoutId} style={{
                 backgroundColor: Colors.surface,
-                borderRadius: 12,
-                padding: 14,
-                marginBottom: 8,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
+                borderRadius: 16,
+                marginBottom: 14,
                 borderWidth: 1,
                 borderColor: Colors.border,
+                overflow: 'hidden',
               }}>
-                {/* Avatar */}
+                {/* Post header */}
                 <View style={{
-                  width: 40, height: 40, borderRadius: 20,
-                  backgroundColor: Colors.accentDim,
-                  borderWidth: 1,
-                  borderColor: Colors.accent + '40',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
                 }}>
-                  <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 14 }}>
-                    {initials(u.display_name)}
+                  <Avatar
+                    url={post.avatarUrl}
+                    name={post.displayName}
+                    color={Colors.accent}
+                    size={40}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
+                      {post.displayName}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                      {post.workoutName} · {timeAgo(post.endedAt)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Session note — the "post" */}
+                <View style={{ padding: 14, paddingBottom: 10 }}>
+                  <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
+                    {post.notes}
                   </Text>
                 </View>
-                <Text style={{ color: Colors.text, fontWeight: '600', flex: 1 }}>{u.display_name}</Text>
-                {u.alreadyFriend ? (
-                  <Text style={{ color: Colors.success, fontSize: 12, fontWeight: '700' }}>Friends</Text>
-                ) : u.requestSent ? (
-                  <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Sent</Text>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => sendRequest(u.id)}
-                    style={{
-                      backgroundColor: Colors.accentDim,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderWidth: 1,
-                      borderColor: Colors.accent + '40',
-                    }}
-                  >
-                    <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>+ Add</Text>
-                  </TouchableOpacity>
+
+                {/* Workout stats */}
+                <View style={{
+                  flexDirection: 'row', gap: 16, paddingHorizontal: 14, paddingBottom: 12,
+                }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                    {formatDuration(post.startedAt, post.endedAt)}
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                    {post.setsCount} sets
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                    {formatVolume(post.totalVolume)} lbs
+                  </Text>
+                </View>
+
+                {/* Exercises */}
+                {post.exercises.length > 0 && (
+                  <View style={{
+                    paddingHorizontal: 14, paddingBottom: 14,
+                    flexDirection: 'row', flexWrap: 'wrap', gap: 5,
+                  }}>
+                    {post.exercises.map((ex, i) => (
+                      <View key={i} style={{
+                        backgroundColor: Colors.surface2, borderRadius: 5,
+                        paddingHorizontal: 7, paddingVertical: 3,
+                      }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{ex}</Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
-            ))}
-          </View>
-        )}
+            ))
+          )}
+        </ScrollView>
+      )}
 
-        {/* Pending Requests */}
-        {pending.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-              Requests ({pending.length})
-            </Text>
-            {pending.map(f => (
-              <View key={f.friendshipId} style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 12,
-                padding: 14,
-                marginBottom: 8,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-                borderWidth: 1,
-                borderColor: Colors.gold + '40',
-              }}>
-                <View style={{
-                  width: 40, height: 40, borderRadius: 20,
-                  backgroundColor: Colors.goldDim,
-                  alignItems: 'center', justifyContent: 'center',
+      {/* ── PEOPLE ─────────────────────────────────────────────────────────── */}
+      {subTab === 'people' && (
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
+        >
+          {/* Search */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search by display name..."
+              placeholderTextColor={Colors.textMuted}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              style={{
+                flex: 1, backgroundColor: Colors.surface, borderColor: Colors.border,
+                borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+                color: Colors.text, fontSize: 14,
+              }}
+            />
+            <TouchableOpacity
+              onPress={handleSearch}
+              style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' }}
+            >
+              {searching ? <ActivityIndicator color={Colors.text} size="small" /> : <Text style={{ color: Colors.text, fontWeight: '700' }}>Go</Text>}
+            </TouchableOpacity>
+          </View>
+
+          {/* Search results */}
+          {searchResults.length > 0 && (
+            <View style={{ marginBottom: 20, gap: 8 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Results</Text>
+              {searchResults.map((u: any) => (
+                <View key={u.id} style={{
+                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  borderWidth: 1, borderColor: Colors.border,
                 }}>
-                  <Text style={{ color: Colors.gold, fontWeight: '800', fontSize: 14 }}>
-                    {initials(f.display_name)}
-                  </Text>
-                </View>
-                <Text style={{ color: Colors.text, fontWeight: '600', flex: 1 }}>{f.display_name}</Text>
-                <TouchableOpacity
-                  onPress={() => declineRequest(f.friendshipId)}
-                  style={{
-                    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-                    borderWidth: 1, borderColor: Colors.border,
-                  }}
-                >
-                  <Text style={{ color: Colors.textMuted, fontSize: 12 }}>✕</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => acceptRequest(f.friendshipId)}
-                  style={{
-                    backgroundColor: Colors.goldDim,
-                    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
-                    borderWidth: 1, borderColor: Colors.gold + '40',
-                  }}
-                >
-                  <Text style={{ color: Colors.gold, fontWeight: '700', fontSize: 12 }}>Accept</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Friends List */}
-        {loading ? (
-          <ActivityIndicator color={Colors.accent} style={{ marginTop: 40 }} />
-        ) : friends.length === 0 && pending.length === 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 40, gap: 8 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 15 }}>No friends yet.</Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Search above to find people.</Text>
-          </View>
-        ) : (
-          <View>
-            {friends.length > 0 && (
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                Your crew ({friends.length})
-              </Text>
-            )}
-            {friends.map(f => (
-              <TouchableOpacity
-                key={f.id}
-                onLongPress={() => removeFriend(f.friendshipId, f.display_name)}
-                delayLongPress={600}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.surface,
-                  borderRadius: 14,
-                  padding: 16,
-                  marginBottom: 10,
-                  borderWidth: 1,
-                  borderColor: Colors.border,
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  {/* Avatar */}
-                  <View style={{
-                    width: 46, height: 46, borderRadius: 23,
-                    backgroundColor: (f.animeTierColor ?? Colors.accent) + '20',
-                    borderWidth: 2,
-                    borderColor: (f.animeTierColor ?? Colors.accent) + '60',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Text style={{ color: f.animeTierColor ?? Colors.accent, fontWeight: '900', fontSize: 16 }}>
-                      {initials(f.display_name)}
-                    </Text>
-                  </View>
-
-                  {/* Info */}
+                  <Avatar url={u.avatar_url} name={u.display_name} color={Colors.accent} size={40} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', marginBottom: 2 }}>
-                      {f.display_name}
-                    </Text>
-                    {f.animeTierLabel && (
-                      <View style={{
-                        alignSelf: 'flex-start',
-                        backgroundColor: (f.animeTierColor ?? Colors.accent) + '18',
-                        borderRadius: 5,
-                        paddingHorizontal: 7,
-                        paddingVertical: 2,
-                        marginBottom: 4,
-                      }}>
-                        <Text style={{
-                          color: f.animeTierColor ?? Colors.accent,
-                          fontSize: 9, fontWeight: '900', letterSpacing: 1.5,
-                        }}>
-                          {f.animeTierLabel}
-                        </Text>
-                      </View>
-                    )}
-                    {f.recentPR && (
-                      <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                        🏆 {f.recentPR.exerciseName} {f.recentPR.weight} lbs · {timeAgo(f.recentPR.achieved_at)}
-                      </Text>
-                    )}
+                    <Text style={{ color: Colors.text, fontWeight: '600' }}>{u.display_name}</Text>
+                    {u.bio && <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{u.bio}</Text>}
                   </View>
+                  {u.alreadyFriend ? (
+                    <Text style={{ color: Colors.success, fontSize: 12, fontWeight: '700' }}>Friends ✓</Text>
+                  ) : u.requestSent ? (
+                    <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Sent</Text>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => sendRequest(u.id)}
+                      style={{ backgroundColor: Colors.accentDim, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.accent + '40' }}
+                    >
+                      <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 12 }}>+ Add</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </TouchableOpacity>
-            ))}
-            {friends.length > 0 && (
-              <Text style={{ color: Colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                Long press a friend to remove
+              ))}
+            </View>
+          )}
+
+          {/* Pending requests */}
+          {pending.length > 0 && (
+            <View style={{ marginBottom: 20, gap: 8 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
+                Requests ({pending.length})
               </Text>
-            )}
-          </View>
-        )}
-      </ScrollView>
+              {pending.map(f => (
+                <View key={f.friendshipId} style={{
+                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  borderWidth: 1, borderColor: Colors.gold + '40',
+                }}>
+                  <Avatar url={f.avatar_url} name={f.display_name} color={Colors.gold} size={40} />
+                  <Text style={{ color: Colors.text, fontWeight: '600', flex: 1 }}>{f.display_name}</Text>
+                  <TouchableOpacity onPress={() => declineRequest(f.friendshipId)} style={{ borderRadius: 8, padding: 6, borderWidth: 1, borderColor: Colors.border }}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 12 }}>✕</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => acceptRequest(f.friendshipId)}
+                    style={{ backgroundColor: Colors.goldDim, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.gold + '40' }}
+                  >
+                    <Text style={{ color: Colors.gold, fontWeight: '700', fontSize: 12 }}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Friends list */}
+          {loading ? (
+            <ActivityIndicator color={Colors.accent} style={{ marginTop: 40 }} />
+          ) : friends.length > 0 && (
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
+                Your Crew ({friends.length})
+              </Text>
+              {friends.map(f => (
+                <TouchableOpacity
+                  key={f.id}
+                  onLongPress={() => removeFriend(f.friendshipId, f.display_name)}
+                  delayLongPress={600}
+                  activeOpacity={0.85}
+                  style={{
+                    backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
+                    borderWidth: 1, borderColor: Colors.border,
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                  }}
+                >
+                  <Avatar url={f.avatar_url} name={f.display_name} color={f.animeTierColor ?? Colors.accent} size={46} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', marginBottom: 2 }}>{f.display_name}</Text>
+                    {f.bio && (
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 4 }} numberOfLines={1}>{f.bio}</Text>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {f.animeTierLabel && (
+                        <View style={{
+                          backgroundColor: (f.animeTierColor ?? Colors.accent) + '18',
+                          borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+                        }}>
+                          <Text style={{ color: f.animeTierColor ?? Colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 }}>
+                            {f.animeTierLabel}
+                          </Text>
+                        </View>
+                      )}
+                      {f.recentPR && (
+                        <Text style={{ color: Colors.textMuted, fontSize: 10 }}>
+                          🏆 {f.recentPR.exerciseName} {f.recentPR.weight} lbs · {timeAgo(f.recentPR.achieved_at)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginTop: 4 }}>
+                Long press to remove a friend
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
