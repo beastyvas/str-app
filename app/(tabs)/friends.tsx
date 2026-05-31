@@ -772,25 +772,62 @@ export default function SocialScreen() {
       />
 
       {/* QR Scanner Modal */}
-      <Modal visible={showScanner} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
-            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Scan QR Code</Text>
-            <TouchableOpacity onPress={() => setShowScanner(false)}>
-              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 16 }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+      <Modal visible={showScanner} animationType="slide" statusBarTranslucent>
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Full screen camera */}
           <CameraView
             onBarcodeScanned={({ data }) => handleQRScan({ data })}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             style={{ flex: 1 }}
           />
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center' }}>
-              Point your camera at a friend's STR QR code
+
+          {/* Overlay — sits on top of camera */}
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            {/* Darken edges */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} />
+
+            {/* Scan window */}
+            <View style={{
+              width: 260, height: 260,
+              borderRadius: 20,
+              borderWidth: 2,
+              borderColor: Colors.accent,
+              backgroundColor: 'transparent',
+              zIndex: 2,
+              shadowColor: Colors.accent,
+              shadowOpacity: 0.6,
+              shadowRadius: 20,
+            }} />
+
+            {/* Label */}
+            <Text style={{
+              color: Colors.text, fontSize: 14, fontWeight: '600',
+              marginTop: 24, zIndex: 2, textAlign: 'center',
+            }}>
+              Point at a friend's STR QR code
             </Text>
           </View>
-        </SafeAreaView>
+
+          {/* Close button — fixed at bottom, always visible */}
+          <SafeAreaView style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            alignItems: 'center', paddingBottom: 32,
+          }} edges={['bottom']}>
+            <TouchableOpacity
+              onPress={() => setShowScanner(false)}
+              style={{
+                backgroundColor: Colors.surface,
+                borderRadius: 50, paddingHorizontal: 32, paddingVertical: 16,
+                borderWidth: 1, borderColor: Colors.border,
+              }}
+            >
+              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Cancel</Text>
+            </TouchableOpacity>
+          </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
