@@ -54,6 +54,8 @@ interface Friend {
   animeTierLabel?: string;
   animeTierColor?: string;
   recentPR?: { exerciseName: string; weight: number; achieved_at: string };
+  is_owner?: boolean;
+  is_og?: boolean;
 }
 
 interface PendingRequest {
@@ -134,8 +136,8 @@ export default function SocialScreen() {
         .from('friendships')
         .select(`
           id, status, requester_id, addressee_id,
-          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs),
-          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs)
+          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og),
+          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og)
         `)
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
@@ -301,6 +303,8 @@ export default function SocialScreen() {
           friendshipId: f.id,
           animeTierLabel: tierResult.animeTier.label,
           animeTierColor: tierResult.animeTier.color,
+          is_owner: other.is_owner ?? false,
+          is_og: other.is_og ?? false,
           recentPR: pr ? {
             exerciseName: pr.exercises?.name ?? '',
             weight: pr.weight,
@@ -870,9 +874,12 @@ export default function SocialScreen() {
                   <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                     <Avatar url={f.avatar_url} name={f.display_name} color={f.animeTierColor ?? Colors.accent} size={56} />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
-                        {f.display_name}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
+                          {f.display_name}
+                        </Text>
+                        <UserBadges isOwner={f.is_owner} isOg={f.is_og} size="sm" />
+                      </View>
                       {/* @username if exists */}
                       {(f as any).username && (
                         <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 }}>

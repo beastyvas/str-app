@@ -18,6 +18,13 @@ import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getAnimeTierResult, AnimeTier } from '@/constants/animeTiers';
+import {
+  requestNotificationPermissions,
+  setupNotificationChannels,
+  notifyWorkoutStarted,
+  notifySetLogged,
+  clearWorkoutNotifications,
+} from '@/lib/workoutNotification';
 
 // PR localId → isPR lookup, built as sets come in
 type PRMap = Record<string, boolean>;
@@ -40,6 +47,15 @@ export default function WorkoutTab() {
     discardWorkout,
     clearPRs,
   } = useWorkoutStore();
+
+  // Rest alert target (seconds) — 0 = no alert
+  const [restAlertSeconds, setRestAlertSeconds] = useState(120); // default 2 min
+
+  // Request notification permissions on mount
+  useEffect(() => {
+    setupNotificationChannels();
+    requestNotificationPermissions();
+  }, []);
 
   // Local state
   const [showPicker, setShowPicker] = useState(false);
@@ -239,18 +255,19 @@ export default function WorkoutTab() {
   const startFromSavedTemplate = async (tmpl: any) => {
     if (!user) return;
     const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const wName = `${day} · ${tmpl.name}`;
     try {
       await seedCurrentTier();
-      await startWorkout(`${day} · ${tmpl.name}`, user.id);
+      await startWorkout(wName, user.id);
       (tmpl.exercises as any[]).forEach(ex => addExercise({
         id: ex.id, name: ex.name,
         muscle_group: ex.muscle_group,
         equipment_type: ex.equipment_type,
       }));
-      // Update last_used_at
       await supabase.from('workout_templates')
         .update({ last_used_at: new Date().toISOString() })
         .eq('id', tmpl.id);
+      notifyWorkoutStarted(wName);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -297,6 +314,7 @@ export default function WorkoutTab() {
       await seedCurrentTier();
       await startWorkout(wName, user.id);
       exercises.forEach(ex => addExercise({ ...ex, equipment_type: ex.equipment_type }));
+      notifyWorkoutStarted(wName);
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not start workout');
     }
@@ -312,6 +330,7 @@ export default function WorkoutTab() {
       if (repeatLast && lastWorkoutExercises.length > 0) {
         lastWorkoutExercises.forEach(ex => addExercise(ex));
       }
+      notifyWorkoutStarted(workoutName.trim());
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not start workout');
     }
@@ -434,6 +453,11 @@ export default function WorkoutTab() {
       }
     }
 
+    // Lock screen notification — show rest timer on lock screen
+    const exName = ex?.exerciseName ?? '';
+    const setNum = ex?.sets.length ?? 1;
+    notifySetLogged(exName, setNum, restAlertSeconds);
+
     return result;
   };
 
@@ -494,23 +518,30 @@ export default function WorkoutTab() {
       if (finishPhoto && summary?.workoutId && user) {
         try {
           setUploadingPhoto(true);
-          const ext = finishPhoto.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const ext = (finishPhoto.split('.').pop()?.split('?')[0]?.toLowerCase()) ?? 'jpg';
+          const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
           const fileName = `${user.id}/${summary.workoutId}.${ext}`;
-          const base64 = await FileSystem.readAsStringAsync(finishPhoto, { encoding: 'base64' as any });
-          const binary = atob(base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const { data: uploadData } = await supabase.storage
-            .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType: `image/${ext}` });
-          if (uploadData) {
+          // fetch → blob is the correct RN approach (avoids atob/Uint8Array issues)
+          const resp = await fetch(finishPhoto);
+          const blob = await resp.blob();
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('workout-photos').upload(fileName, blob, { upsert: true, contentType });
+          if (uploadErr) {
+            console.warn('[Photo upload] storage error:', uploadErr.message);
+          } else if (uploadData) {
             const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
-            await supabase.from('workout_photos').insert({
+            const { error: dbErr } = await supabase.from('workout_photos').insert({
               workout_id: summary.workoutId,
               user_id: user.id,
               photo_url: urlData.publicUrl,
             });
+            if (dbErr) console.warn('[Photo upload] db error:', dbErr.message);
           }
-        } catch (e) { /* silent */ } finally { setUploadingPhoto(false); }
+        } catch (e: any) {
+          console.warn('[Photo upload] failed:', e.message);
+        } finally {
+          setUploadingPhoto(false);
+        }
       }
 
       setFinishNotes('');
