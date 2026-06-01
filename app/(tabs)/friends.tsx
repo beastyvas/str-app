@@ -56,6 +56,7 @@ interface Friend {
   recentPR?: { exerciseName: string; weight: number; achieved_at: string };
   is_owner?: boolean;
   is_og?: boolean;
+  is_pro?: boolean;
 }
 
 interface PendingRequest {
@@ -136,8 +137,8 @@ export default function SocialScreen() {
         .from('friendships')
         .select(`
           id, status, requester_id, addressee_id,
-          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og),
-          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og)
+          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro),
+          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro)
         `)
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
@@ -305,6 +306,7 @@ export default function SocialScreen() {
           animeTierColor: tierResult.animeTier.color,
           is_owner: other.is_owner ?? false,
           is_og: other.is_og ?? false,
+          is_pro: other.is_pro ?? false,
           recentPR: pr ? {
             exerciseName: pr.exercises?.name ?? '',
             weight: pr.weight,
@@ -878,7 +880,7 @@ export default function SocialScreen() {
                         <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
                           {f.display_name}
                         </Text>
-                        <UserBadges isOwner={f.is_owner} isOg={f.is_og} size="sm" />
+                        <UserBadges isOwner={f.is_owner} isOg={f.is_og} isPro={f.is_pro} size="sm" />
                       </View>
                       {/* @username if exists */}
                       {(f as any).username && (
