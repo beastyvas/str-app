@@ -166,6 +166,20 @@ export default function ProfileScreen() {
     }
     setUsernameError('');
 
+    // Pre-check: is username already taken by someone else?
+    if (uname && uname !== profile?.username) {
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', uname)
+        .neq('id', user!.id)
+        .maybeSingle();
+      if (existing) {
+        setUsernameError('That username is already taken');
+        return;
+      }
+    }
+
     setSaving(true);
     const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
     const { error } = await supabase
@@ -177,8 +191,10 @@ export default function ProfileScreen() {
         username: uname || null,
       })
       .eq('id', user!.id);
-    if (error) Alert.alert('Error', error.message);
-    else { await refreshProfile(); setEditing(false); }
+    if (error) {
+      if (error.code === '23505') setUsernameError('That username is already taken');
+      else Alert.alert('Error', error.message);
+    } else { await refreshProfile(); setEditing(false); }
     setSaving(false);
   };
 

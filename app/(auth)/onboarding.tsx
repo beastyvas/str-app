@@ -84,6 +84,18 @@ export default function OnboardingScreen() {
     try {
       const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
       const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+
+      // Check for duplicate username before saving
+      if (cleanUsername) {
+        const { data: taken } = await supabase
+          .from('users').select('id').eq('username', cleanUsername).neq('id', user!.id).maybeSingle();
+        if (taken) {
+          Alert.alert('Username taken', `@${cleanUsername} is already in use. Pick a different handle.`);
+          setSaving(false);
+          return;
+        }
+      }
+
       await supabase.from('users').update({
         display_name: displayName.trim() || null,
         username: cleanUsername || null,
