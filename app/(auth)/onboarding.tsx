@@ -576,10 +576,10 @@ export default function OnboardingScreen() {
                     Step 6 of 6
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
-                    Tell Coach{'\n'}about you.
+                    Your Lifter DNA.
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Coach reads this before every response. Injuries, history, what works — the more detail, the better the advice.
+                    Injuries, history, what works for you — this lives on your profile and gives Coach full context every session.
                   </Text>
                 </View>
 
@@ -630,8 +630,7 @@ export default function OnboardingScreen() {
             {step === 'done' && (
               <View style={{ flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 40 }}>
                 <View />
-                <View style={{ alignItems: 'center', gap: 20 }}>
-                  {/* Big animated emoji */}
+                <View style={{ alignItems: 'center', gap: 20, width: '100%' }}>
                   <Text style={{ fontSize: 72 }}>🏆</Text>
 
                   <View style={{ alignItems: 'center', gap: 8 }}>
@@ -643,24 +642,26 @@ export default function OnboardingScreen() {
                     </Text>
                   </View>
 
-                  <View style={{
-                    backgroundColor: Colors.surface, borderRadius: 16, padding: 20,
-                    borderWidth: 1, borderColor: Colors.border, gap: 12, width: '100%',
-                  }}>
-                    {[
-                      { emoji: '🏋️', text: 'Log your first workout' },
-                      { emoji: '⚡', text: 'Get your weekly plan from Coach' },
-                      { emoji: '👥', text: 'Add your first friend' },
-                    ].map((item, i) => (
-                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <Text style={{ fontSize: 20 }}>{item.emoji}</Text>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: '600' }}>{item.text}</Text>
-                      </View>
-                    ))}
-                  </View>
+                  {/* Rank callout */}
+                  {revealTier && (
+                    <View style={{
+                      backgroundColor: revealTier.color + '15',
+                      borderRadius: 16, padding: 20,
+                      borderWidth: 1.5, borderColor: revealTier.color + '50',
+                      width: '100%', alignItems: 'center', gap: 6,
+                    }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Your Starting Rank</Text>
+                      <Text style={{ color: revealTier.color, fontSize: 28, fontWeight: '900', letterSpacing: 2 }}>
+                        {revealTier.label} I
+                      </Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', textAlign: 'center' }}>
+                        "{revealTier.tagline}"
+                      </Text>
+                    </View>
+                  )}
 
                   <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                    Three quick tasks wait on your home screen.{'\n'}Every PR tracked. Every rank earned.
+                    Log workouts to earn PRs.{'\n'}Every lift moves your rank. Every rank is earned.
                   </Text>
                 </View>
 

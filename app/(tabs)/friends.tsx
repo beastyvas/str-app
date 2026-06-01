@@ -180,7 +180,7 @@ export default function SocialScreen() {
         const { data: workouts, error: feedErr } = await supabase
           .from('workouts')
           .select(`
-            id, user_id, name, started_at, ended_at, notes,
+            id, user_id, name, started_at, ended_at, notes, is_imported,
             workout_sets(weight, reps, set_number, exercises(name))
           `)
           .in('user_id', feedUserIds)
