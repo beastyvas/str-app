@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, TierName } from '@/constants/colors';
+import { Colors } from '@/constants/colors';
 import { ANIME_TIERS, AnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
 interface Props {
@@ -9,21 +10,24 @@ interface Props {
   result: AnimeTierResult | null;
 }
 
-const TIER_COLORS: Record<TierName, string> = {
-  beginner: Colors.tiers.beginner,
-  bronze: Colors.tiers.bronze,
-  silver: Colors.tiers.silver,
-  gold: Colors.tiers.gold,
-  platinum: Colors.tiers.platinum,
-  diamond: Colors.tiers.diamond,
-};
-
-// SBD average score needed per anime tier (maps to tier index)
-const SCORE_LABELS = ['0.0', '0.5', '1.5', '2.5', '3.5', '4.5'];
-
 export function TierLadderModal({ visible, onClose, result }: Props) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const currentKey = result?.animeTier.key;
   const avgScore = result?.avgScore ?? 0;
+  const actualAvg = result?.actualAvgScore ?? 0;
+
+  const getSubTierRanges = (tierIndex: number) => {
+    const tier = ANIME_TIERS[tierIndex];
+    const next = ANIME_TIERS[tierIndex + 1];
+    const min = tier.minScore;
+    const max = next?.minScore ?? (min + 1.0);
+    const step = (max - min) / 4;
+    return [1, 2, 3, 4].map(sub => ({
+      sub,
+      min: min + (sub - 1) * step,
+      max: min + sub * step,
+    }));
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -39,7 +43,7 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
               Rank System
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-              Based on your SBD strength relative to bodyweight
+              Tap any rank to see sub-tier breakdown
             </Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
@@ -49,14 +53,19 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-          {[...ANIME_TIERS].reverse().map((tier, i) => {
+          {[...ANIME_TIERS].reverse().map((tier) => {
+            const tierIndex = ANIME_TIERS.indexOf(tier);
             const isCurrent = tier.key === currentKey;
             const isAchieved = avgScore >= tier.minScore;
-            const isNext = !isAchieved && ANIME_TIERS.indexOf(tier) === ANIME_TIERS.findIndex(t => t.key === currentKey) + 1;
+            const isNext = !isAchieved && tierIndex === ANIME_TIERS.findIndex(t => t.key === currentKey) + 1;
+            const isExpanded = expandedKey === tier.key;
+            const subRanges = getSubTierRanges(tierIndex);
 
             return (
-              <View
+              <TouchableOpacity
                 key={tier.key}
+                activeOpacity={0.85}
+                onPress={() => setExpandedKey(isExpanded ? null : tier.key)}
                 style={{
                   backgroundColor: isCurrent ? tier.color + '15' : Colors.surface,
                   borderRadius: 16,
@@ -82,44 +91,30 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
 
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{
-                        color: tier.color,
-                        fontSize: 16, fontWeight: '900', letterSpacing: 1,
-                      }}>
+                      <Text style={{ color: tier.color, fontSize: 16, fontWeight: '900', letterSpacing: 1 }}>
                         {tier.label}{isCurrent && result?.subTier ? ` ${ROMAN[result.subTier]}` : ''}
                       </Text>
                       {isCurrent && (
-                        <View style={{
-                          backgroundColor: tier.color + '25',
-                          borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2,
-                        }}>
-                          <Text style={{ color: tier.color, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>
-                            YOUR RANK
-                          </Text>
+                        <View style={{ backgroundColor: tier.color + '25', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
+                          <Text style={{ color: tier.color, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>YOUR RANK</Text>
                         </View>
                       )}
                       {isNext && (
-                        <View style={{
-                          backgroundColor: Colors.surface2,
-                          borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2,
-                        }}>
-                          <Text style={{ color: Colors.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>
-                            NEXT
-                          </Text>
+                        <View style={{ backgroundColor: Colors.surface2, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
+                          <Text style={{ color: Colors.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>NEXT</Text>
                         </View>
                       )}
                     </View>
                     <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                      SBD avg ≥ {tier.minScore.toFixed(1)} / 5.0
+                      SBD avg ≥ {tier.minScore.toFixed(2)} · tap to expand
                     </Text>
                   </View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 16 }}>{isExpanded ? '▲' : '▼'}</Text>
                 </View>
 
                 <Text style={{
                   color: isCurrent ? Colors.text : Colors.textSecondary,
-                  fontSize: 13,
-                  fontStyle: 'italic',
-                  lineHeight: 20,
+                  fontSize: 13, fontStyle: 'italic', lineHeight: 20,
                 }}>
                   "{tier.tagline}"
                 </Text>
@@ -130,20 +125,82 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Progress to {result.nextAnimeTier.label}</Text>
                       <Text style={{ color: tier.color, fontSize: 10, fontWeight: '700' }}>
-                        {avgScore.toFixed(1)} / {result.nextAnimeTier.minScore.toFixed(1)}
+                        {avgScore.toFixed(2)} / {result.nextAnimeTier.minScore.toFixed(2)}
                       </Text>
                     </View>
                     <View style={{ height: 4, backgroundColor: Colors.surface2, borderRadius: 2 }}>
                       <View style={{
-                        height: '100%',
-                        borderRadius: 2,
-                        backgroundColor: tier.color,
+                        height: '100%', borderRadius: 2, backgroundColor: tier.color,
                         width: `${Math.min(((avgScore - tier.minScore) / (result.nextAnimeTier.minScore - tier.minScore)) * 100, 100)}%`,
                       }} />
                     </View>
                   </View>
                 )}
-              </View>
+
+                {/* Expanded: sub-tier breakdown */}
+                {isExpanded && (
+                  <View style={{ marginTop: 14, gap: 8 }}>
+                    <View style={{ height: 1, backgroundColor: tier.color + '30', marginBottom: 2 }} />
+                    <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>
+                      Sub-Tier Breakdown
+                    </Text>
+                    {subRanges.map(({ sub, min, max }) => {
+                      const isUserHere = isCurrent && result?.subTier === sub;
+                      return (
+                        <View key={sub} style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 12,
+                          backgroundColor: isUserHere ? tier.color + '20' : Colors.surface2,
+                          borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+                          borderWidth: 1,
+                          borderColor: isUserHere ? tier.color : Colors.border,
+                        }}>
+                          <View style={{
+                            width: 32, height: 32, borderRadius: 16,
+                            backgroundColor: tier.color + (isUserHere ? '30' : '15'),
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Text style={{ color: tier.color, fontSize: 12, fontWeight: '900' }}>
+                              {ROMAN[sub]}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: isUserHere ? tier.color : Colors.text, fontSize: 13, fontWeight: '700' }}>
+                              {tier.label} {ROMAN[sub]}
+                              {isUserHere ? '  ← you are here' : ''}
+                            </Text>
+                            <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                              Weakest SBD lift: {min.toFixed(2)}–{max.toFixed(2)} avg score
+                            </Text>
+                          </View>
+                          {/* Mini sub-tier progress for current */}
+                          {isUserHere && (
+                            <View style={{
+                              backgroundColor: tier.color + '25',
+                              borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3,
+                            }}>
+                              <Text style={{ color: tier.color, fontSize: 9, fontWeight: '900' }}>ACTIVE</Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                    {isCurrent && result?.bottleneck && result.bottleneck.nextTierWeight && result.bottleneck.weight > 0 && (
+                      <View style={{
+                        backgroundColor: Colors.surface, borderRadius: 10, padding: 12,
+                        borderWidth: 1, borderColor: tier.color + '30', marginTop: 4,
+                      }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                          What's holding you back
+                        </Text>
+                        <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                          {result.bottleneck.label}: +{Math.ceil(result.bottleneck.nextTierWeight - result.bottleneck.weight)} lbs
+                          {' '}to reach the next tier
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })}
 
@@ -165,10 +222,7 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
             <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
               Every tier has four sub-ranks. <Text style={{ color: Colors.text, fontWeight: '700' }}>NINJA I → NINJA II → NINJA III → NINJA IV → DEMON I</Text>.{'\n\n'}Sub-tiers measure your <Text style={{ color: Colors.text, fontWeight: '700' }}>average</Text> across all three lifts — so even when your weakest lift is holding your rank, you can still feel progress climbing through the sub-tiers as your other lifts improve.{'\n\n'}Hit a new PR on any SBD lift and watch for the advance screen.
             </Text>
-            <View style={{
-              flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center',
-              paddingTop: 4,
-            }}>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingTop: 4 }}>
               {['I', 'II', 'III', 'IV'].map((r, i) => (
                 <View key={r} style={{
                   backgroundColor: Colors.accent + (i === 1 ? '30' : '15'),

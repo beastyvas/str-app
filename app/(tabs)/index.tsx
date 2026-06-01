@@ -95,15 +95,19 @@ export default function HomeScreen() {
       const newSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
 
       // Check AsyncStorage flags for celebrations — reliable, not state-comparison-based
-      const [workoutCelebrated, friendCelebrated, onboardingDone] = await Promise.all([
+      const [workoutCelebrated, friendCelebrated, onboardingDone, planPending] = await Promise.all([
         AsyncStorage.getItem(`celebrated_workout_${uid}`),
         AsyncStorage.getItem(`celebrated_friend_${uid}`),
         AsyncStorage.getItem(`onboarding_done_${uid}`),
+        AsyncStorage.getItem(`celebrated_plan_${uid}`),
       ]);
 
       if (onboardingDone === 'pending') {
         await AsyncStorage.setItem(`onboarding_done_${uid}`, 'shown');
         setCelebration({ emoji: '🎉', title: "You're in the system!", sub: 'Your arc officially begins. Go crush it.' });
+      } else if (planPending === 'pending') {
+        await AsyncStorage.setItem(`celebrated_plan_${uid}`, 'shown');
+        setCelebration({ emoji: '⚡', title: 'Plan is being built!', sub: 'Coach is on it. Check the Insights tab.' });
       } else if (hasWorkout && !workoutCelebrated) {
         await AsyncStorage.setItem(`celebrated_workout_${uid}`, 'true');
         setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
@@ -792,7 +796,10 @@ export default function HomeScreen() {
                 onPress={async () => {
                   setWeeklyPlanModal(false);
                   const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-                  if (user) await AsyncStorage.setItem(`weekly_plan_done_${user.id}`, 'true');
+                  if (user) {
+                    await AsyncStorage.setItem(`weekly_plan_done_${user.id}`, 'true');
+                    await AsyncStorage.setItem(`celebrated_plan_${user.id}`, 'pending');
+                  }
                   setFirstSteps(prev => prev ? { ...prev, hasCoach: true } : null);
                   const msg = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;
                   (global as any).__coachPreFill = msg;
