@@ -684,19 +684,38 @@ export default function HistoryScreen() {
           <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 }}>
             {[
               { label: 'This Month', value: String(thisMonthWorkouts), sub: 'sessions' },
-              { label: 'Volume', value: formatVolume(thisMonthVolume), sub: 'lbs total' },
+              { label: 'Volume', value: formatVolume(thisMonthVolume), sub: 'lbs' },
               { label: 'All Time', value: String(workouts.length), sub: 'workouts' },
             ].map((s, i) => (
               <View key={i} style={{
-                flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
-                padding: 12, alignItems: 'center',
-                borderWidth: 1, borderColor: Colors.border,
+                flex: 1,
+                backgroundColor: Colors.surface,
+                borderRadius: 16,
+                paddingVertical: 14,
+                paddingHorizontal: 10,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: Colors.border,
               }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>
+                <Text style={{
+                  color: Colors.textMuted,
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                  textTransform: 'uppercase',
+                  marginBottom: 6,
+                  fontWeight: '700',
+                }}>
                   {s.label}
                 </Text>
-                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5 }}>{s.value}</Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 2 }}>{s.sub}</Text>
+                <Text style={{
+                  color: Colors.text,
+                  fontSize: 22,
+                  fontWeight: '900',
+                  letterSpacing: -0.5,
+                }}>
+                  {s.value}
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 3 }}>{s.sub}</Text>
               </View>
             ))}
           </View>
@@ -706,22 +725,59 @@ export default function HistoryScreen() {
         {insights.length > 0 && (
           <View style={{ marginBottom: 16 }}>
             <Text style={{
-              color: Colors.textMuted, fontSize: 10, letterSpacing: 2,
-              textTransform: 'uppercase', paddingHorizontal: 20, marginBottom: 10,
+              color: Colors.textMuted,
+              fontSize: 10,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+              paddingHorizontal: 20,
+              marginBottom: 12,
+              fontWeight: '700',
             }}>
               Insights
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+            >
               {insights.map((ins, i) => (
                 <View key={i} style={{
-                  backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
-                  borderWidth: 1, borderColor: (ins.color ?? Colors.border) + '40',
-                  borderLeftWidth: 3, borderLeftColor: ins.color ?? Colors.border,
-                  minWidth: 130,
+                  backgroundColor: Colors.surface,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: (ins.color ?? Colors.border) + '35',
+                  borderLeftWidth: 3,
+                  borderLeftColor: ins.color ?? Colors.border,
+                  minWidth: 140,
+                  shadowColor: ins.color ?? 'transparent',
+                  shadowOpacity: ins.color ? 0.1 : 0,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 2 },
                 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, marginBottom: 4 }}>{ins.label}</Text>
-                  <Text style={{ color: ins.color ?? Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -1 }}>{ins.value}</Text>
-                  {ins.sub && <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 3 }}>{ins.sub}</Text>}
+                  <Text style={{
+                    color: Colors.textMuted,
+                    fontSize: 10,
+                    marginBottom: 6,
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                    fontWeight: '600',
+                  }}>
+                    {ins.label}
+                  </Text>
+                  <Text style={{
+                    color: ins.color ?? Colors.text,
+                    fontSize: 24,
+                    fontWeight: '900',
+                    letterSpacing: -1,
+                  }}>
+                    {ins.value}
+                  </Text>
+                  {ins.sub && (
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>
+                      {ins.sub}
+                    </Text>
+                  )}
                 </View>
               ))}
             </ScrollView>
@@ -759,27 +815,55 @@ export default function HistoryScreen() {
                   <TouchableOpacity
                     key={workout.id}
                     onPress={() => setExpandedId(isExpanded ? null : workout.id)}
-                    activeOpacity={0.8}
+                    activeOpacity={0.82}
                     style={{
-                      backgroundColor: Colors.surface, borderRadius: 16, marginBottom: 10,
-                      borderWidth: 1, borderColor: isExpanded ? Colors.accent + '40' : Colors.border,
+                      backgroundColor: Colors.surface,
+                      borderRadius: 18,
+                      marginBottom: 10,
+                      borderWidth: 1,
+                      borderColor: isExpanded ? Colors.accent + '45' : Colors.border,
                       overflow: 'hidden',
+                      shadowColor: isExpanded ? Colors.accent : 'transparent',
+                      shadowOpacity: 0.1,
+                      shadowRadius: 10,
+                      shadowOffset: { width: 0, height: 3 },
                     }}
                   >
                     {/* Workout header */}
-                    <View style={{ padding: 16 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                        <View style={{ flex: 1, marginRight: 10 }}>
-                          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>
+                    <View style={{ padding: 18 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <Text style={{
+                            color: Colors.text,
+                            fontSize: 15,
+                            fontWeight: '800',
+                            marginBottom: 3,
+                            letterSpacing: -0.3,
+                          }}>
                             {workout.name}
                           </Text>
                           <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
                             {formatDate(workout.started_at)} · {formatDuration(workout.duration_mins)}
                           </Text>
                         </View>
-                        <Text style={{ color: isExpanded ? Colors.accent : Colors.textMuted, fontSize: 16 }}>
-                          {isExpanded ? '▲' : '▼'}
-                        </Text>
+                        <View style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: isExpanded ? Colors.accent + '20' : Colors.surface2,
+                          borderWidth: 1,
+                          borderColor: isExpanded ? Colors.accent + '40' : Colors.border,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Text style={{
+                            color: isExpanded ? Colors.accent : Colors.textMuted,
+                            fontSize: 11,
+                            fontWeight: '800',
+                          }}>
+                            {isExpanded ? '▲' : '▼'}
+                          </Text>
+                        </View>
                       </View>
 
                       {/* Stats row */}

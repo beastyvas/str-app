@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
+  Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -70,6 +70,39 @@ export default function HomeScreen() {
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
+
+  // Premium animations
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const rankOpacity = useRef(new Animated.Value(0)).current;
+  const ctaPulse = useRef(new Animated.Value(1)).current;
+
+  // Fade in content after load
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(contentOpacity, { toValue: 1, duration: 380, useNativeDriver: true }).start();
+    } else {
+      contentOpacity.setValue(0);
+    }
+  }, [loading]);
+
+  // Fade in rank once ready
+  useEffect(() => {
+    if (tierReady && animeResult) {
+      Animated.spring(rankOpacity, { toValue: 1, tension: 80, friction: 9, useNativeDriver: true }).start();
+    }
+  }, [tierReady, animeResult]);
+
+  // CTA pulse glow
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ctaPulse, { toValue: 0.65, duration: 1800, useNativeDriver: true }),
+        Animated.timing(ctaPulse, { toValue: 1, duration: 1800, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   // Single source of truth — useFocusEffect handles both initial load and returns
   useFocusEffect(useCallback(() => {
@@ -292,23 +325,69 @@ export default function HomeScreen() {
     router.push('/(tabs)/insights');
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+          <ActivityIndicator color={Colors.accent} size="large" />
+          <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+            Loading
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+      <Animated.ScrollView
+        style={{ opacity: contentOpacity }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+      >
 
         {/* Greeting */}
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{
+            color: Colors.textMuted,
+            fontSize: 11,
+            letterSpacing: 2.5,
+            textTransform: 'uppercase',
+          }}>
             {getTimeOfDay()}
           </Text>
-          <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
+          <Text style={{
+            color: Colors.text,
+            fontSize: 32,
+            fontWeight: '900',
+            letterSpacing: -1.5,
+            marginTop: 4,
+            lineHeight: 36,
+          }}>
             {profile?.display_name?.split(' ')[0] ?? 'Athlete'}
           </Text>
-          {tierReady && animeResult && (
-            <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '700', marginTop: 3, letterSpacing: 1.5 }}>
-              {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
-            </Text>
-          )}
+          <Animated.View style={{ opacity: rankOpacity, marginTop: 8 }}>
+            {animeResult && (
+              <View style={{
+                alignSelf: 'flex-start',
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 8,
+                backgroundColor: animeResult.animeTier.color + '18',
+                borderWidth: 1,
+                borderColor: animeResult.animeTier.color + '40',
+              }}>
+                <Text style={{
+                  color: animeResult.animeTier.color,
+                  fontSize: 11,
+                  fontWeight: '800',
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                }}>
+                  {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
         </View>
 
         {/* ── FIRST STEPS ─────────────────────────────────────────── */}
@@ -604,42 +683,84 @@ export default function HomeScreen() {
         )}
 
         {/* ── START WORKOUT ───────────────────────────────────────── */}
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/workout')}
-          style={{
+        <View style={{ marginBottom: 14, position: 'relative' }}>
+          {/* Pulse glow layer */}
+          <Animated.View style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 18,
             backgroundColor: Colors.accent,
-            borderRadius: 16,
-            padding: 22,
-            marginBottom: 12,
-          }}
-        >
-          <Text style={{ color: Colors.text, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4, opacity: 0.8 }}>
-            Ready to train?
-          </Text>
-          <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
-            Start Workout →
-          </Text>
-        </TouchableOpacity>
+            opacity: ctaPulse.interpolate({ inputRange: [0.65, 1], outputRange: [0.18, 0] }),
+            transform: [{ scale: ctaPulse.interpolate({ inputRange: [0.65, 1], outputRange: [1, 1.04] }) }],
+          }} />
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/workout')}
+            activeOpacity={0.88}
+            style={{
+              backgroundColor: Colors.accent,
+              borderRadius: 18,
+              padding: 22,
+              shadowColor: Colors.accent,
+              shadowOpacity: 0.4,
+              shadowRadius: 20,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 10,
+            }}
+          >
+            <Text style={{
+              color: Colors.text,
+              fontSize: 11,
+              letterSpacing: 2.5,
+              textTransform: 'uppercase',
+              marginBottom: 6,
+              opacity: 0.75,
+              fontWeight: '700',
+            }}>
+              Ready to train?
+            </Text>
+            <Text style={{
+              color: Colors.text,
+              fontSize: 24,
+              fontWeight: '900',
+              letterSpacing: -0.5,
+            }}>
+              Start Workout →
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── LAST WORKOUT ────────────────────────────────────────── */}
         {lastWorkout && (
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/history')}
+            activeOpacity={0.82}
             style={{
               backgroundColor: Colors.surface,
-              borderRadius: 14,
-              padding: 16,
+              borderRadius: 18,
+              padding: 18,
               marginBottom: 14,
               borderWidth: 1,
               borderColor: Colors.border,
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 }}>
+                <Text style={{
+                  color: Colors.textMuted,
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  marginBottom: 4,
+                  fontWeight: '700',
+                }}>
                   Last Session
                 </Text>
-                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
+                <Text style={{
+                  color: Colors.text,
+                  fontSize: 15,
+                  fontWeight: '800',
+                  letterSpacing: -0.3,
+                }} numberOfLines={1}>
                   {lastWorkout.name}
                 </Text>
               </View>
@@ -647,20 +768,36 @@ export default function HomeScreen() {
                 {timeAgo(lastWorkout.started_at)}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 20, marginBottom: lastWorkout.exercises.length > 0 ? 10 : 0 }}>
+            <View style={{ flexDirection: 'row', gap: 24, marginBottom: lastWorkout.exercises.length > 0 ? 12 : 0 }}>
               {[
                 { label: 'Duration', value: formatDuration(lastWorkout.started_at, lastWorkout.ended_at) },
                 { label: 'Sets', value: String(lastWorkout.sets_count) },
                 { label: 'Volume', value: `${formatVolume(lastWorkout.total_volume)} lbs` },
               ].map((s, i) => (
                 <View key={i}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: '700', marginTop: 2 }}>{s.value}</Text>
+                  <Text style={{
+                    color: Colors.textMuted,
+                    fontSize: 9,
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase',
+                    fontWeight: '700',
+                  }}>
+                    {s.label}
+                  </Text>
+                  <Text style={{
+                    color: Colors.text,
+                    fontSize: 16,
+                    fontWeight: '800',
+                    marginTop: 3,
+                    letterSpacing: -0.3,
+                  }}>
+                    {s.value}
+                  </Text>
                 </View>
               ))}
             </View>
             {lastWorkout.exercises.length > 0 && (
-              <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
                 {lastWorkout.exercises.slice(0, 3).join(' · ')}
                 {lastWorkout.exercises.length > 3 ? ` +${lastWorkout.exercises.length - 3}` : ''}
               </Text>
@@ -671,35 +808,54 @@ export default function HomeScreen() {
         {/* ── AI COACH ────────────────────────────────────────────── */}
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/insights')}
+          activeOpacity={0.82}
           style={{
             backgroundColor: Colors.surface,
-            borderRadius: 14,
-            padding: 16,
-            marginBottom: 24,
+            borderRadius: 18,
+            padding: 18,
+            marginBottom: 16,
             borderWidth: 1,
-            borderColor: Colors.border,
+            borderColor: Colors.accent + '30',
             flexDirection: 'row',
             alignItems: 'center',
             gap: 14,
           }}
         >
           <View style={{
-            width: 40, height: 40, borderRadius: 20,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
             backgroundColor: Colors.accentDim,
-            borderWidth: 1,
-            borderColor: Colors.accent + '40',
+            borderWidth: 1.5,
+            borderColor: Colors.accent + '45',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <Text style={{ fontSize: 18 }}>⚡</Text>
+            <Text style={{ fontSize: 20 }}>⚡</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>AI Coach</Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
-              Volume trends, recovery flags, pattern analysis
+            <Text style={{
+              color: Colors.text,
+              fontSize: 14,
+              fontWeight: '800',
+              letterSpacing: -0.2,
+            }}>
+              AI Coach
+            </Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+              Volume trends · recovery · programming
             </Text>
           </View>
-          <Text style={{ color: Colors.textMuted, fontSize: 20 }}>›</Text>
+          <View style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: Colors.accentDim,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Text style={{ color: Colors.accent, fontSize: 14, fontWeight: '800' }}>›</Text>
+          </View>
         </TouchableOpacity>
 
         {/* ── CREW ACTIVITY ────────────────────────────────────────── */}
@@ -892,7 +1048,7 @@ export default function HomeScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
-      </ScrollView>
+      </Animated.ScrollView>
       <CelebrationToast
         visible={!!celebration}
         emoji={celebration?.emoji ?? '🎉'}

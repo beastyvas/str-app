@@ -14,21 +14,50 @@ interface Props {
 const { width } = Dimensions.get('window');
 
 export function CelebrationToast({ visible, emoji, title, sub, onDone }: Props) {
-  const slideAnim = useRef(new Animated.Value(-120)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const slideAnim = useRef(new Animated.Value(-140)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!visible) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    slideAnim.setValue(-120);
-    scaleAnim.setValue(0.8);
+    slideAnim.setValue(-140);
+    scaleAnim.setValue(0.85);
+    opacityAnim.setValue(0);
+
     Animated.sequence([
       Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 60, tension: 80, friction: 9, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 9, useNativeDriver: true }),
+        Animated.spring(slideAnim, {
+          toValue: 56,
+          tension: 90,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 90,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]),
-      Animated.delay(1800),
-      Animated.timing(slideAnim, { toValue: -120, duration: 300, useNativeDriver: true }),
+      Animated.delay(2800),
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -140,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start(() => onDone());
   }, [visible]);
 
@@ -36,30 +65,73 @@ export function CelebrationToast({ visible, emoji, title, sub, onDone }: Props) 
 
   return (
     <Animated.View style={{
-      position: 'absolute', top: 0, left: 16, right: 16, zIndex: 9999,
+      position: 'absolute',
+      top: 0,
+      left: 14,
+      right: 14,
+      zIndex: 9999,
       transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+      opacity: opacityAnim,
     }}>
       <View style={{
         backgroundColor: Colors.surface,
-        borderRadius: 18, padding: 16,
-        flexDirection: 'row', alignItems: 'center', gap: 14,
-        borderWidth: 1.5, borderColor: Colors.accent + '60',
-        shadowColor: Colors.accent, shadowOpacity: 0.3,
-        shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
-        elevation: 12,
+        borderRadius: 20,
+        padding: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        borderWidth: 1.5,
+        borderColor: Colors.accent + '70',
+        shadowColor: Colors.accent,
+        shadowOpacity: 0.45,
+        shadowRadius: 28,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 16,
       }}>
+        {/* Accent glow swatch */}
         <View style={{
-          width: 48, height: 48, borderRadius: 24,
-          backgroundColor: Colors.accent + '20',
-          alignItems: 'center', justifyContent: 'center',
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: Colors.accent + '25',
+          borderWidth: 1.5,
+          borderColor: Colors.accent + '50',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}>
-          <Text style={{ fontSize: 26 }}>{emoji}</Text>
+          <Text style={{ fontSize: 28 }}>{emoji}</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '900' }}>{title}</Text>
-          {sub && <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>{sub}</Text>}
+
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={{
+            color: Colors.text,
+            fontSize: 15,
+            fontWeight: '900',
+            letterSpacing: -0.3,
+          }}>
+            {title}
+          </Text>
+          {sub && (
+            <Text style={{
+              color: Colors.textSecondary,
+              fontSize: 12,
+              lineHeight: 17,
+            }}>
+              {sub}
+            </Text>
+          )}
         </View>
-        <Text style={{ color: Colors.accent, fontSize: 18 }}>✓</Text>
+
+        <View style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: Colors.accent + '20',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '900' }}>✓</Text>
+        </View>
       </View>
     </Animated.View>
   );
