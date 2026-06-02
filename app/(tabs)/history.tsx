@@ -415,7 +415,7 @@ function ExerciseProgressModal({
   const modes: ChartMode[] = ['Max Weight', 'Est. 1RM', 'Volume'];
 
   return (
-    <Modal visible animationType="slide">
+    <Modal visible animationType="slide" presentationStyle="pageSheet">
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         {/* Header */}
         <View style={{
@@ -426,11 +426,16 @@ function ExerciseProgressModal({
           <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', flex: 1, marginRight: 12 }} numberOfLines={1}>
             {exerciseName}
           </Text>
-          <TouchableOpacity onPress={onClose} style={{
-            backgroundColor: Colors.surface, borderRadius: 16, width: 32, height: 32,
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '700' }}>×</Text>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{
+              backgroundColor: Colors.surface2, borderRadius: 18, width: 36, height: 36,
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: Colors.border,
+            }}
+          >
+            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '700', lineHeight: 22 }}>×</Text>
           </TouchableOpacity>
         </View>
 
