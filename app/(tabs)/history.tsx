@@ -565,6 +565,8 @@ export default function HistoryScreen() {
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutData | null>(null);
   const [chartExercise, setChartExercise] = useState<string | null>(null);
 
+  const historyLimitTs = historyLimit?.getTime() ?? null;
+
   const load = useCallback(async () => {
     setLoading(true);
     let query = supabase
@@ -574,8 +576,8 @@ export default function HistoryScreen() {
       .order('started_at', { ascending: false })
       .limit(60);
 
-    if (historyLimit) {
-      query = query.gte('started_at', historyLimit.toISOString());
+    if (historyLimitTs) {
+      query = query.gte('started_at', new Date(historyLimitTs).toISOString());
     }
 
     const { data } = await query;
@@ -610,7 +612,7 @@ export default function HistoryScreen() {
       setInsights(computeInsights(mapped));
     }
     setLoading(false);
-  }, [historyLimit]);
+  }, [historyLimitTs]);
 
   useEffect(() => { load(); }, [load]);
 
