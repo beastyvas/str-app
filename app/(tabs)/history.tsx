@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   Modal, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
@@ -342,6 +342,7 @@ function ExerciseProgressModal({
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<ChartMode>('Max Weight');
+  const insets = useSafeAreaInsets();
 
   // Extract all sets for this exercise, grouped by date
   const byDate: { date: Date; maxWeight: number; est1rm: number; volume: number; sets: WorkoutSet[] }[] = [];
@@ -416,7 +417,7 @@ function ExerciseProgressModal({
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+      <View style={{ flex: 1, backgroundColor: Colors.bg, paddingTop: insets.top }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -551,7 +552,7 @@ function ExerciseProgressModal({
             </View>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
