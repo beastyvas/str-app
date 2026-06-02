@@ -1,19 +1,24 @@
 import { Tabs } from 'expo-router';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 
 function WorkoutTabIcon({ focused }: { focused: boolean }) {
   return (
     <View style={{
-      width: 52, height: 52, borderRadius: 26,
+      width: 56, height: 56, borderRadius: 28,
       backgroundColor: focused ? Colors.accent : Colors.surface2,
       alignItems: 'center', justifyContent: 'center',
       marginBottom: 4,
       borderWidth: focused ? 0 : 1,
-      borderColor: Colors.border,
+      borderColor: Colors.borderLight,
+      shadowColor: focused ? Colors.accent : 'transparent',
+      shadowOpacity: focused ? 0.55 : 0,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: focused ? 12 : 0,
     }}>
-      <Ionicons name="barbell" size={24} color={Colors.text} />
+      <Ionicons name="barbell" size={26} color={Colors.text} />
     </View>
   );
 }
@@ -27,9 +32,9 @@ export default function TabLayout() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: 82,
-          paddingBottom: 16,
-          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 88 : 72,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          paddingTop: 10,
         },
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.textMuted,
@@ -38,6 +43,7 @@ export default function TabLayout() {
           fontWeight: '700',
           letterSpacing: 0.5,
           textTransform: 'uppercase',
+          marginTop: 2,
         },
       }}
     >
@@ -45,14 +51,18 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'History',
-          tabBarIcon: ({ color }) => <Ionicons name="time-outline" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'time' : 'time-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -66,21 +76,27 @@ export default function TabLayout() {
         name="friends"
         options={{
           title: 'Social',
-          tabBarIcon: ({ color }) => <Ionicons name="people-outline" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: 'Coach',
-          tabBarIcon: ({ color }) => <Ionicons name="flash-outline" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'flash' : 'flash-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+          ),
         }}
       />
     </Tabs>

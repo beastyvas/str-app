@@ -237,7 +237,13 @@ export default function ProfileScreen() {
         weight: p.weight,
         reps: p.reps,
         tier: getTierForWeight(p.exercises?.name ?? '', p.weight, bw),
-      })).filter(p => p.exerciseName);
+      }))
+        .filter(p => p.exerciseName)
+        .sort((a, b) => {
+          const tierDiff = TIER_ORDER.indexOf(b.tier) - TIER_ORDER.indexOf(a.tier);
+          if (tierDiff !== 0) return tierDiff;
+          return a.exerciseName.localeCompare(b.exerciseName);
+        });
 
       const sbdPRs = allPRs
         .filter(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName))
@@ -469,18 +475,39 @@ export default function ProfileScreen() {
           </View>
 
           {/* Social stats pills */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             {[
               { label: 'Workouts', value: stats?.totalWorkouts ?? '—' },
               { label: 'Friends', value: friendCount },
-              { label: 'Streak', value: stats ? `${stats.streakDays}d` : '—' },
+              { label: 'PRs', value: stats?.prsHit ?? '—' },
             ].map((s, i) => (
               <View key={i} style={{
-                flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 10, alignItems: 'center',
-                borderWidth: 1, borderColor: Colors.border,
+                flex: 1,
+                backgroundColor: Colors.surface,
+                borderRadius: 14,
+                padding: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: Colors.border,
               }}>
-                <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>{String(s.value)}</Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 2 }}>{s.label}</Text>
+                <Text style={{
+                  color: Colors.text,
+                  fontSize: 18,
+                  fontWeight: '900',
+                  letterSpacing: -0.5,
+                }}>
+                  {String(s.value)}
+                </Text>
+                <Text style={{
+                  color: Colors.textMuted,
+                  fontSize: 10,
+                  marginTop: 3,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                  fontWeight: '600',
+                }}>
+                  {s.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -568,34 +595,85 @@ export default function ProfileScreen() {
           {animeTier && (
             <TouchableOpacity
               onPress={() => setShowTierLadder(true)}
+              activeOpacity={0.85}
               style={{
-                backgroundColor: tierColor + '12', borderRadius: 14, padding: 16,
-                borderWidth: 1.5, borderColor: tierColor + '50',
-                alignItems: 'center', gap: 8,
+                backgroundColor: tierColor + '10',
+                borderRadius: 18,
+                padding: 20,
+                borderWidth: 1.5,
+                borderColor: tierColor + '45',
+                alignItems: 'center',
+                gap: 10,
+                shadowColor: tierColor,
+                shadowOpacity: 0.15,
+                shadowRadius: 20,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 6,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ backgroundColor: tierColor + '25', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 }}>
-                  <Text style={{ color: tierColor, fontWeight: '900', fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' }}>
+              {/* Rank badge row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{
+                  backgroundColor: tierColor + '22',
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 6,
+                  borderWidth: 1,
+                  borderColor: tierColor + '50',
+                }}>
+                  <Text style={{
+                    color: tierColor,
+                    fontWeight: '900',
+                    fontSize: 14,
+                    letterSpacing: 2.5,
+                    textTransform: 'uppercase',
+                    textShadowColor: tierColor,
+                    textShadowOffset: { width: 0, height: 0 },
+                    textShadowRadius: 6,
+                  }}>
                     {animeTier.animeTier.label} {ROMAN[animeTier.subTier]}
                   </Text>
                 </View>
-                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
                   {animeTier.avgScore > 0 ? `${animeTier.avgScore.toFixed(1)} / 5.0` : 'Set SBD to rank'}
                 </Text>
               </View>
-              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', textAlign: 'center', lineHeight: 18 }}>
+
+              <Text style={{
+                color: Colors.textSecondary,
+                fontSize: 13,
+                fontStyle: 'italic',
+                textAlign: 'center',
+                lineHeight: 20,
+                paddingHorizontal: 8,
+              }}>
                 "{animeTier.animeTier.tagline}"
               </Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700', opacity: 0.7 }}>
+
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                paddingTop: 4,
+                borderTopWidth: 1,
+                borderTopColor: tierColor + '25',
+              }}>
+                <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700', opacity: 0.65, letterSpacing: 0.5 }}>
                   Tap to see all ranks →
                 </Text>
                 <TouchableOpacity
                   onPress={(e) => { e.stopPropagation?.(); setSbdModalOpen(true); }}
-                  style={{ backgroundColor: tierColor + '20', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: tierColor + '40' }}
+                  style={{
+                    backgroundColor: tierColor + '18',
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderWidth: 1,
+                    borderColor: tierColor + '40',
+                  }}
                 >
-                  <Text style={{ color: tierColor, fontSize: 10, fontWeight: '800' }}>
+                  <Text style={{ color: tierColor, fontSize: 11, fontWeight: '800' }}>
                     {animeTier.lifts.some(l => l.weight > 0) ? 'Update SBD' : 'Set SBD →'}
                   </Text>
                 </TouchableOpacity>
@@ -604,21 +682,39 @@ export default function ProfileScreen() {
           )}
 
           {/* ── STATS ───────────────────────────────────────────────────────── */}
-          {!loadingStats && stats && animeTier && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {!loadingStats && stats && (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
               {[
-                { label: 'Rank', value: `${animeTier.animeTier.label} ${ROMAN[animeTier.subTier]}`, color: animeTier.animeTier.color },
+                { label: 'Workouts', value: String(stats.totalWorkouts), color: null },
                 { label: 'Volume', value: `${formatVolume(stats.totalVolume)} lbs`, color: null },
-                { label: 'PRs', value: String(stats.prsHit), color: null },
-                { label: 'Streak', value: `${stats.streakDays}d`, color: null },
+                { label: 'Streak', value: `${stats.streakDays}d`, color: Colors.gold },
               ].map((s, i) => (
                 <View key={i} style={{
-                  flex: 1, minWidth: '40%',
-                  backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center',
-                  borderWidth: 1, borderColor: i === 0 ? (s.color + '40') : Colors.border,
+                  flex: 1,
+                  backgroundColor: Colors.surface,
+                  borderRadius: 14,
+                  padding: 14,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: s.color ? s.color + '30' : Colors.border,
                 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                  <Text style={{ color: s.color ?? Colors.text, fontSize: i === 0 ? 14 : 18, fontWeight: '900', letterSpacing: -0.5 }}>{s.value}</Text>
+                  <Text style={{
+                    color: Colors.textMuted,
+                    fontSize: 9,
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}>
+                    {s.label}
+                  </Text>
+                  <Text style={{
+                    color: s.color ?? Colors.text,
+                    fontSize: 20,
+                    fontWeight: '900',
+                    letterSpacing: -0.5,
+                  }}>
+                    {s.value}
+                  </Text>
                 </View>
               ))}
             </View>

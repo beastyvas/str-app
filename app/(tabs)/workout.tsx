@@ -660,19 +660,27 @@ export default function WorkoutTab() {
           {/* Start blank */}
           <TouchableOpacity
             onPress={handleStartPress}
+            activeOpacity={0.85}
             style={{
               backgroundColor: daySuggestion ? Colors.surface : Colors.accent,
-              borderRadius: 14,
-              paddingVertical: 16,
+              borderRadius: 16,
+              paddingVertical: daySuggestion ? 14 : 20,
               alignItems: 'center',
               marginBottom: 24,
               borderWidth: daySuggestion ? 1 : 0,
               borderColor: Colors.border,
+              shadowColor: daySuggestion ? 'transparent' : Colors.accent,
+              shadowOpacity: daySuggestion ? 0 : 0.35,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: daySuggestion ? 0 : 8,
             }}
           >
             <Text style={{
               color: daySuggestion ? Colors.textSecondary : Colors.text,
-              fontWeight: '800', fontSize: 15,
+              fontWeight: '900',
+              fontSize: daySuggestion ? 14 : 16,
+              letterSpacing: daySuggestion ? 0 : 0.5,
             }}>
               {daySuggestion ? '+ Start blank workout' : 'START WORKOUT'}
             </Text>
@@ -1027,30 +1035,44 @@ export default function WorkoutTab() {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingVertical: 13,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
         backgroundColor: Colors.bg,
         gap: 10,
       }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.3 }} numberOfLines={1}>
+          <Text style={{
+            color: Colors.text,
+            fontSize: 17,
+            fontWeight: '800',
+            letterSpacing: -0.4,
+          }} numberOfLines={1}>
             {activeWorkout.name}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 3 }}>
-            <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+          <View style={{ flexDirection: 'row', gap: 14, marginTop: 4, alignItems: 'center' }}>
+            <Text style={{
+              color: Colors.accent,
+              fontSize: 13,
+              fontWeight: '700',
+              fontVariant: ['tabular-nums'],
+              letterSpacing: 0.5,
+            }}>
               {formatElapsed(elapsedSec)}
             </Text>
+            <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
             <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
               {totalSets} set{totalSets !== 1 ? 's' : ''}
             </Text>
             {totalVolume > 0 && (
-              <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                {totalVolume >= 1000
-                  ? `${(totalVolume / 1000).toFixed(1)}k`
-                  : totalVolume
-                } lbs
-              </Text>
+              <>
+                <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
+                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+                  {totalVolume >= 1000
+                    ? `${(totalVolume / 1000).toFixed(1)}k`
+                    : totalVolume} lbs
+                </Text>
+              </>
             )}
           </View>
         </View>
@@ -1075,16 +1097,21 @@ export default function WorkoutTab() {
           onPress={handleFinishPress}
           disabled={finishing}
           style={{
-            paddingHorizontal: 16,
-            paddingVertical: 8,
+            paddingHorizontal: 18,
+            paddingVertical: 9,
             borderRadius: 10,
             backgroundColor: Colors.accent,
+            shadowColor: Colors.accent,
+            shadowOpacity: 0.35,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 5,
           }}
         >
           {finishing ? (
             <ActivityIndicator color={Colors.text} size="small" />
           ) : (
-            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '800' }}>FINISH</Text>
+            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>FINISH</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -1095,22 +1122,49 @@ export default function WorkoutTab() {
       {/* PR Flash Banner */}
       {newPRs.length > 0 && (
         <View style={{
-          backgroundColor: Colors.goldDim,
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          backgroundColor: Colors.gold + '14',
+          paddingHorizontal: 18,
+          paddingVertical: 14,
           borderBottomWidth: 1,
           borderBottomColor: Colors.gold + '30',
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 10,
+          gap: 12,
+          shadowColor: Colors.gold,
+          shadowOpacity: 0.2,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
         }}>
-          <Text style={{ fontSize: 18 }}>🏆</Text>
+          <View style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: Colors.gold + '20',
+            borderWidth: 1,
+            borderColor: Colors.gold + '50',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Text style={{ fontSize: 20 }}>🏆</Text>
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '900', letterSpacing: 0.3 }}>
-              NEW PERSONAL RECORD
+            <Text style={{
+              color: Colors.gold,
+              fontSize: 11,
+              fontWeight: '900',
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            }}>
+              Personal Record
             </Text>
-            <Text style={{ color: Colors.gold, fontSize: 11, opacity: 0.8, marginTop: 1 }}>
-              {newPRs.map(p => `${p.exerciseName} — ${p.weight} × ${p.reps}`).join('  ·  ')}
+            <Text style={{
+              color: Colors.gold,
+              fontSize: 13,
+              fontWeight: '700',
+              marginTop: 2,
+              opacity: 0.9,
+            }}>
+              {newPRs.map(p => `${p.exerciseName}  ${p.weight} × ${p.reps}`).join('  ·  ')}
             </Text>
           </View>
         </View>
