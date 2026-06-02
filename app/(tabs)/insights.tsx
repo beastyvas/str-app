@@ -11,7 +11,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
-import { useChatStore, loadChatHistory, saveChatHistory } from '@/hooks/useChatStore';
+import { useChatStore } from '@/hooks/useChatStore';
 import { getAnimeTierResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY, ROMAN } from '@/constants/animeTiers';
 
 interface Message {
@@ -69,9 +69,8 @@ export default function InsightsTab() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Chat history — pro users get persistent history, free get one-off
-  const { messages, setMessages, addMessage, clearMessages } = useChatStore();
-  const historyLoaded = useRef(false);
+  // Chat lives in memory for the current app session only (clears on restart)
+  const { messages, addMessage } = useChatStore();
 
   // Import tab state
   const [importText, setImportText] = useState('');
@@ -84,7 +83,7 @@ export default function InsightsTab() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
 
-  // Load chat history for pro users on first focus
+  // Handle pre-fill from other screens (e.g. tapping a coach prompt on the home tab)
   useFocusEffect(useCallback(() => {
     const preFill = (global as any).__coachPreFill;
     if (preFill) {
@@ -92,20 +91,7 @@ export default function InsightsTab() {
       setTab('coach');
       setTimeout(() => sendMessage(preFill), 100);
     }
-
-    // Pro: load persistent history once
-    if (isPro && user && !historyLoaded.current) {
-      historyLoaded.current = true;
-      loadChatHistory(user.id).then(history => {
-        if (history.length > 0) setMessages(history);
-      });
-    }
-
-    // Free: clear messages every time they come back (one-off)
-    if (!isPro) {
-      clearMessages();
-    }
-  }, [isPro, user]));
+  }, []));
 
   const buildContext = async () => {
     const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
@@ -225,12 +211,6 @@ ${context}`;
       const reply = fnData?.content?.[0]?.text ?? 'Something went wrong. Try again.';
       const assistantMsg: Message = { role: 'assistant', content: reply, timestamp: Date.now() };
       addMessage(assistantMsg);
-
-      // Save history for pro users
-      if (isPro && user) {
-        const updated = [...useChatStore.getState().messages];
-        await saveChatHistory(user.id, updated);
-      }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       const errMsg: Message = { role: 'assistant', content: 'Could not reach the AI. Check your connection.', timestamp: Date.now() };

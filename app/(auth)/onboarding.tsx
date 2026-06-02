@@ -75,6 +75,11 @@ export default function OnboardingScreen() {
     if (nextStep) animateNext(nextStep);
   };
 
+  const back = () => {
+    const prevStep = STEPS[stepIndex - 1];
+    if (prevStep) animateNext(prevStep);
+  };
+
   const skip = () => next();
 
   const handleFinish = async () => {
@@ -149,16 +154,25 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      {/* Progress bar */}
+      {/* Progress bar + back button */}
       {step !== 'welcome' && step !== 'done' && (
-        <View style={{ height: 3, backgroundColor: Colors.surface2, marginTop: 8 }}>
-          <View style={{
-            height: '100%',
-            width: `${progress * 100}%`,
-            backgroundColor: Colors.accent,
-            borderRadius: 2,
-          }} />
-        </View>
+        <>
+          <View style={{ height: 3, backgroundColor: Colors.surface2, marginTop: 8 }}>
+            <View style={{
+              height: '100%',
+              width: `${progress * 100}%`,
+              backgroundColor: Colors.accent,
+              borderRadius: 2,
+            }} />
+          </View>
+          <TouchableOpacity
+            onPress={back}
+            style={{ paddingHorizontal: 20, paddingVertical: 12, alignSelf: 'flex-start' }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={{ color: Colors.textMuted, fontSize: 15, fontWeight: '600' }}>← Back</Text>
+          </TouchableOpacity>
+        </>
       )}
 
       <KeyboardAvoidingView
