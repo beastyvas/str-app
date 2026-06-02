@@ -205,11 +205,25 @@ export function SetInputRow({
           disabled={!canLog() || logging}
           style={{
             backgroundColor: canLog() && !logging ? Colors.accent : Colors.surface2,
-            borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10,
+            borderRadius: 10,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            minWidth: 54,
+            alignItems: 'center',
+            shadowColor: canLog() && !logging ? Colors.accent : 'transparent',
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: canLog() && !logging ? 5 : 0,
           }}
         >
-          <Text style={{ color: canLog() && !logging ? Colors.text : Colors.textMuted, fontWeight: '800', fontSize: 13 }}>
-            {logging ? '...' : 'LOG'}
+          <Text style={{
+            color: canLog() && !logging ? Colors.text : Colors.textMuted,
+            fontWeight: '900',
+            fontSize: 12,
+            letterSpacing: 0.5,
+          }}>
+            {logging ? '···' : 'LOG'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -422,36 +436,71 @@ export function LoggedSetRow({
       <TouchableOpacity
         onLongPress={handleLongPress}
         delayLongPress={400}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: 16,
-          paddingVertical: 8,
+          paddingVertical: 10,
           gap: 8,
+          backgroundColor: isPR ? Colors.gold + '08' : 'transparent',
+          borderLeftWidth: isPR ? 3 : 0,
+          borderLeftColor: isPR ? Colors.gold : 'transparent',
         }}
       >
-        <Text style={{ color: Colors.textMuted, fontSize: 12, width: 22, textAlign: 'center' }}>
+        <Text style={{
+          color: isPR ? Colors.gold + 'CC' : Colors.textMuted,
+          fontSize: 12,
+          width: 22,
+          textAlign: 'center',
+          fontWeight: isPR ? '800' : '500',
+        }}>
           {set.setNumber}
         </Text>
-        <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '700', flex: 1 }}>
+        <Text style={{
+          color: isPR ? Colors.text : Colors.text,
+          fontSize: 16,
+          fontWeight: '700',
+          flex: 1,
+          letterSpacing: -0.3,
+        }}>
           {set.weight === 0 ? 'BW' : set.weight} × {set.reps}
         </Text>
         {set.rpe && (
-          <Text style={{ color: Colors.textMuted, fontSize: 12 }}>RPE {set.rpe}</Text>
+          <View style={{
+            backgroundColor: Colors.surface2,
+            borderRadius: 5,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+          }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '700' }}>
+              RPE {set.rpe}
+            </Text>
+          </View>
         )}
         {isPR && (
-          <View style={{ backgroundColor: Colors.goldDim, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: '800' }}>PR</Text>
+          <View style={{
+            backgroundColor: Colors.gold + '22',
+            borderRadius: 8,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderWidth: 1,
+            borderColor: Colors.gold + '50',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 3,
+          }}>
+            <Text style={{ fontSize: 9 }}>🏆</Text>
+            <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }}>PR</Text>
           </View>
         )}
         {set.note && (
-          <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', flex: 1 }} numberOfLines={1}>
+          <Text style={{ color: Colors.textSecondary, fontSize: 11, fontStyle: 'italic', flex: 1 }} numberOfLines={1}>
             "{set.note}"
           </Text>
         )}
         {(onDelete || onEdit) && (
-          <Text style={{ color: Colors.border, fontSize: 10 }}>···</Text>
+          <Text style={{ color: Colors.border, fontSize: 11, fontWeight: '700' }}>···</Text>
         )}
       </TouchableOpacity>
 
