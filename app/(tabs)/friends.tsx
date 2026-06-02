@@ -28,6 +28,9 @@ interface FeedPost {
   userId: string;
   displayName: string;
   avatarUrl?: string;
+  isOwner?: boolean;
+  isOg?: boolean;
+  isPro?: boolean;
   workoutName: string;
   startedAt: string;
   endedAt: string;
@@ -231,6 +234,9 @@ export default function SocialScreen() {
               userId: w.user_id,
               displayName: other?.display_name ?? 'Unknown',
               avatarUrl: other?.avatar_url,
+              isOwner: isOwn ? profile?.is_owner : (other?.is_owner ?? false),
+              isOg: isOwn ? profile?.is_og : (other?.is_og ?? false),
+              isPro: isOwn ? profile?.is_pro : (other?.is_pro ?? false),
               workoutName: w.name,
               startedAt: w.started_at,
               endedAt: w.ended_at,
@@ -592,10 +598,11 @@ export default function SocialScreen() {
                 >
                   <Avatar url={post.avatarUrl} name={post.displayName} color={post.animeTierColor ?? Colors.accent} size={44} />
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
                         {post.displayName}
                       </Text>
+                      <UserBadges isOwner={post.isOwner} isOg={post.isOg} isPro={post.isPro} size="sm" />
                       {post.animeTierLabel && (
                         <View style={{
                           backgroundColor: (post.animeTierColor ?? Colors.accent) + '20',
