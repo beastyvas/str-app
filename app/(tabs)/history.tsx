@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   Modal, Dimensions,
@@ -565,56 +565,58 @@ export default function HistoryScreen() {
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutData | null>(null);
   const [chartExercise, setChartExercise] = useState<string | null>(null);
 
-  const historyLimitTs = historyLimit?.getTime() ?? null;
+  const isPrоRef = useRef(isPro);
+  isPrоRef.current = isPro;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    let query = supabase
-      .from('workouts')
-      .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
-      .not('ended_at', 'is', null)
-      .order('started_at', { ascending: false })
-      .limit(60);
+  useEffect(() => {
+    let cancelled = false;
+    const doLoad = async () => {
+      setLoading(true);
+      let query = supabase
+        .from('workouts')
+        .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
+        .not('ended_at', 'is', null)
+        .order('started_at', { ascending: false })
+        .limit(60);
 
-    if (historyLimitTs) {
-      query = query.gte('started_at', new Date(historyLimitTs).toISOString());
-    }
+      if (!isPrоRef.current) {
+        query = query.gte('started_at', new Date(Date.now() - 90 * 86400000).toISOString());
+      }
 
-    const { data } = await query;
+      const { data } = await query;
+      if (cancelled) return;
 
-    if (data) {
-      const mapped: WorkoutData[] = data.map((w: any) => {
-        const sets: WorkoutSet[] = w.workout_sets ?? [];
-        const totalVolume = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
-        const exerciseNames = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
-        const muscleGroups = [...new Set(sets.map((s: any) => s.exercises?.muscle_group).filter(Boolean))] as string[];
-        const durMins = w.ended_at ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000) : 0;
-
-        const topSet = sets.reduce((best: any, s: any) => {
-          const e1rm = s.weight * (1 + s.reps / 30);
-          const bestE1rm = best ? best.weight * (1 + best.reps / 30) : 0;
-          return e1rm > bestE1rm ? s : best;
-        }, null);
-
-        return {
-          ...w,
-          _sets: sets,
-          sets_count: sets.length,
-          total_volume: totalVolume,
-          exercises: exerciseNames,
-          muscle_groups: muscleGroups,
-          top_set: topSet ? `${topSet.exercises?.name} ${topSet.weight}×${topSet.reps}` : '',
-          duration_mins: durMins,
-        };
-      });
-
-      setWorkouts(mapped);
-      setInsights(computeInsights(mapped));
-    }
-    setLoading(false);
-  }, [historyLimitTs]);
-
-  useEffect(() => { load(); }, [load]);
+      if (data) {
+        const mapped: WorkoutData[] = data.map((w: any) => {
+          const sets: WorkoutSet[] = w.workout_sets ?? [];
+          const totalVolume = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
+          const exerciseNames = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
+          const muscleGroups = [...new Set(sets.map((s: any) => s.exercises?.muscle_group).filter(Boolean))] as string[];
+          const durMins = w.ended_at ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000) : 0;
+          const topSet = sets.reduce((best: any, s: any) => {
+            const e1rm = s.weight * (1 + s.reps / 30);
+            const bestE1rm = best ? best.weight * (1 + best.reps / 30) : 0;
+            return e1rm > bestE1rm ? s : best;
+          }, null);
+          return {
+            ...w,
+            _sets: sets,
+            sets_count: sets.length,
+            total_volume: totalVolume,
+            exercises: exerciseNames,
+            muscle_groups: muscleGroups,
+            top_set: topSet ? `${topSet.exercises?.name} ${topSet.weight}×${topSet.reps}` : '',
+            duration_mins: durMins,
+          };
+        });
+        setWorkouts(mapped);
+        setInsights(computeInsights(mapped));
+      }
+      setLoading(false);
+    };
+    doLoad();
+    return () => { cancelled = true; };
+  }, []); // run once on mount — isPro read via ref inside
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
