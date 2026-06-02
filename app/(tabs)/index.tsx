@@ -46,6 +46,7 @@ export default function HomeScreen() {
   const [friendPRs, setFriendPRs] = useState<FriendPR[]>([]);
   const [lastWorkout, setLastWorkout] = useState<LastWorkout | null>(null);
   const [animeResult, setAnimeResult] = useState<AnimeTierResult | null>(null);
+  const [tierReady, setTierReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [firstSteps, setFirstSteps] = useState<{
     hasWorkout: boolean;
@@ -144,7 +145,8 @@ export default function HomeScreen() {
           .limit(8),
       ]);
 
-      // Anime tier
+      // Anime tier — only set after fresh fetch, never from stale state
+      const bw = Math.max(profile?.bodyweight_lbs ?? 185, 50); // guard against sub-50 lbs
       if (prRes.data) {
         const prs = prRes.data.map((p: any) => ({
           exerciseName: p.exercises?.name ?? '',
@@ -152,11 +154,11 @@ export default function HomeScreen() {
           reps: p.reps,
           achievedAt: p.achieved_at,
         }));
-        // useDecay=true: rank based on last 6 months only
-        setAnimeResult(getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185, true));
+        setAnimeResult(getAnimeTierResult(prs, bw, true));
       } else {
-        setAnimeResult(getAnimeTierResult([], profile?.bodyweight_lbs ?? 185));
+        setAnimeResult(getAnimeTierResult([], bw));
       }
+      setTierReady(true);
 
       // Last workout
       if (workoutRes.data) {
@@ -302,7 +304,7 @@ export default function HomeScreen() {
           <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
             {profile?.display_name?.split(' ')[0] ?? 'Athlete'}
           </Text>
-          {animeResult && (
+          {tierReady && animeResult && (
             <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '700', marginTop: 3, letterSpacing: 1.5 }}>
               {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
             </Text>
