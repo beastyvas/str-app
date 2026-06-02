@@ -516,13 +516,13 @@ export default function SocialScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
       {/* Header + tabs */}
       <View style={{
-        paddingHorizontal: 20, paddingTop: 20, paddingBottom: 0,
+        paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
         borderBottomWidth: 1, borderBottomColor: Colors.border,
       }}>
-        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginBottom: 12 }}>
+        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginBottom: 14 }}>
           Social
         </Text>
-        <View style={{ flexDirection: 'row' }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
           {([
             { key: 'feed' as SubTab, label: 'Feed' },
             { key: 'people' as SubTab, label: `Friends${friends.length > 0 ? ` (${friends.length})` : ''}` },
@@ -531,14 +531,16 @@ export default function SocialScreen() {
               key={t.key}
               onPress={() => setSubTab(t.key)}
               style={{
-                paddingHorizontal: 16, paddingVertical: 10, marginRight: 4,
-                borderBottomWidth: 2,
-                borderBottomColor: subTab === t.key ? Colors.accent : 'transparent',
+                paddingHorizontal: 16, paddingVertical: 8,
+                borderRadius: 20,
+                backgroundColor: subTab === t.key ? Colors.accentDim : 'transparent',
+                borderWidth: 1,
+                borderColor: subTab === t.key ? Colors.accent + '50' : 'transparent',
               }}
             >
               <Text style={{
-                color: subTab === t.key ? Colors.text : Colors.textMuted,
-                fontSize: 13, fontWeight: subTab === t.key ? '700' : '500',
+                color: subTab === t.key ? Colors.accent : Colors.textMuted,
+                fontSize: 13, fontWeight: subTab === t.key ? '800' : '500',
               }}>
                 {t.label}
               </Text>
@@ -584,29 +586,35 @@ export default function SocialScreen() {
                 borderRadius: 18,
                 marginBottom: 16,
                 borderWidth: 1,
-                borderColor: Colors.border,
+                borderColor: (post.animeTierColor ?? Colors.accent) + '22',
                 overflow: 'hidden',
+                shadowColor: post.animeTierColor ?? Colors.accent,
+                shadowOpacity: 0.07,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
               }}>
-                {/* Post header — tap to view profile */}
+                {/* Tier accent strip */}
+                <View style={{ height: 3, backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.65 }} />
+
+                {/* Post header */}
                 <TouchableOpacity
                   onPress={() => setSelectedFriendId(post.userId)}
                   activeOpacity={0.8}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 12,
-                    padding: 14,
-                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}
                 >
-                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.animeTierColor ?? Colors.accent} size={44} />
+                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.animeTierColor ?? Colors.accent} size={42} />
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
                         {post.displayName}
                       </Text>
                       <UserBadges isOwner={post.isOwner} isOg={post.isOg} isPro={post.isPro} size="sm" />
                       {post.animeTierLabel && (
                         <View style={{
                           backgroundColor: (post.animeTierColor ?? Colors.accent) + '20',
-                          borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+                          borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+                          borderWidth: 1, borderColor: (post.animeTierColor ?? Colors.accent) + '40',
                         }}>
                           <Text style={{ color: post.animeTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
                             {post.animeTierLabel}
@@ -620,50 +628,90 @@ export default function SocialScreen() {
                   </View>
                 </TouchableOpacity>
 
+                {/* Workout name + stat chips */}
+                <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+                  <Text style={{ color: Colors.text, fontSize: 19, fontWeight: '900', letterSpacing: -0.6, lineHeight: 23, marginBottom: 10 }}>
+                    {post.workoutName}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {[
+                      formatDuration(post.startedAt, post.endedAt),
+                      `${post.setsCount} sets`,
+                      `${formatVolume(post.totalVolume)} lbs`,
+                    ].map((chip, i) => (
+                      <View key={i} style={{
+                        backgroundColor: Colors.surface2,
+                        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+                        borderWidth: 1, borderColor: Colors.border,
+                      }}>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                          {chip}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
                 {/* Photo — full width hero */}
                 {post.photoUrl && (
                   <Image source={{ uri: post.photoUrl }} style={{ width: '100%', height: 240 }} resizeMode="cover" />
                 )}
 
-                {/* Caption / note */}
+                {/* Note */}
                 {post.notes && (
-                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
-                    <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
+                  <View style={{
+                    marginHorizontal: 14, marginBottom: 10,
+                    backgroundColor: Colors.bg,
+                    borderRadius: 10, padding: 12,
+                    borderLeftWidth: 3, borderLeftColor: Colors.accent + '55',
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 21, fontStyle: 'italic' }}>
                       {post.notes}
                     </Text>
                   </View>
                 )}
 
-                {/* Workout breakdown — what they actually did */}
+                {/* Exercise breakdown */}
                 {post.exerciseSummaries.length > 0 && (
                   <View style={{
-                    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
-                    backgroundColor: Colors.surface2,
+                    marginHorizontal: 14, marginBottom: 12,
+                    backgroundColor: Colors.bg,
                     borderRadius: 12, overflow: 'hidden',
                     borderWidth: 1, borderColor: Colors.border,
                   }}>
                     {post.exerciseSummaries.slice(0, 4).map((ex, i) => (
                       <View key={i} style={{
                         flexDirection: 'row', alignItems: 'center',
-                        paddingHorizontal: 14, paddingVertical: 9,
+                        paddingHorizontal: 12, paddingVertical: 10,
                         borderBottomWidth: i < Math.min(post.exerciseSummaries.length, 4) - 1 ? 1 : 0,
-                        borderBottomColor: Colors.border,
+                        borderBottomColor: Colors.border, gap: 10,
                       }}>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                        <View style={{
+                          width: 3, height: 20, borderRadius: 2,
+                          backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.55,
+                        }} />
+                        <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
                           {ex.name}
                         </Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11, marginRight: 10 }}>
-                          {ex.setCount} set{ex.setCount !== 1 ? 's' : ''}
+                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                          {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
                         </Text>
                         {ex.topWeight > 0 && (
-                          <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                            {ex.topWeight === 0 ? `BW×${ex.topReps}` : `${ex.topWeight}×${ex.topReps}`}
-                          </Text>
+                          <View style={{
+                            backgroundColor: Colors.surface2, borderRadius: 6,
+                            paddingHorizontal: 6, paddingVertical: 2,
+                            borderWidth: 1, borderColor: Colors.border,
+                          }}>
+                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                              {ex.topWeight}×{ex.topReps}
+                            </Text>
+                          </View>
                         )}
                       </View>
                     ))}
                     {post.exerciseSummaries.length > 4 && (
-                      <View style={{ paddingHorizontal: 14, paddingVertical: 8 }}>
+                      <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border }}>
                         <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
                           +{post.exerciseSummaries.length - 4} more exercises
                         </Text>
@@ -672,38 +720,44 @@ export default function SocialScreen() {
                   </View>
                 )}
 
-                {/* Stats + Like + Comment */}
+                {/* Actions */}
                 <View style={{
                   flexDirection: 'row', alignItems: 'center',
-                  paddingHorizontal: 16, paddingVertical: 12,
-                  marginTop: 4,
-                  borderTopWidth: 1, borderTopColor: Colors.border,
-                  gap: 16,
+                  paddingHorizontal: 14, paddingVertical: 10,
+                  borderTopWidth: 1, borderTopColor: Colors.border, gap: 4,
                 }}>
                   <TouchableOpacity
                     onPress={() => toggleLike(post.workoutId, post.isLiked)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 6,
+                      paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20,
+                      backgroundColor: post.isLiked ? Colors.accent + '15' : 'transparent',
+                      borderWidth: 1, borderColor: post.isLiked ? Colors.accent + '40' : 'transparent',
+                    }}
                   >
-                    <Text style={{ fontSize: 20 }}>{post.isLiked ? '❤️' : '🤍'}</Text>
+                    <Text style={{ fontSize: 15, color: post.isLiked ? Colors.accent : Colors.textMuted, fontWeight: '700' }}>
+                      {post.isLiked ? '♥' : '♡'}
+                    </Text>
                     {post.likeCount > 0 && (
-                      <Text style={{ color: post.isLiked ? Colors.accent : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
+                      <Text style={{ color: post.isLiked ? Colors.accent : Colors.textMuted, fontSize: 12, fontWeight: '800' }}>
                         {post.likeCount}
                       </Text>
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => openComments(post.workoutId)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 6,
+                      paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20,
+                    }}
                   >
-                    <Text style={{ fontSize: 18 }}>💬</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '700' }}>
-                      {post.commentCount > 0 ? post.commentCount : ''}
-                    </Text>
+                    <Text style={{ fontSize: 14, color: Colors.textMuted }}>💬</Text>
+                    {post.commentCount > 0 && (
+                      <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '800' }}>
+                        {post.commentCount}
+                      </Text>
+                    )}
                   </TouchableOpacity>
-                  <View style={{ flex: 1 }} />
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {formatDuration(post.startedAt, post.endedAt)} · {formatVolume(post.totalVolume)} lbs
-                  </Text>
                 </View>
               </View>
             ))

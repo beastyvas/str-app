@@ -389,7 +389,7 @@ ${context}`;
           )}
         </View>
         {/* Tab toggle */}
-        <View style={{ flexDirection: 'row', gap: 0 }}>
+        <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 2 }}>
           {([
             { key: 'coach', label: 'Chat' },
             { key: 'import', label: 'Import Workout' },
@@ -398,17 +398,17 @@ ${context}`;
               key={t.key}
               onPress={() => setTab(t.key)}
               style={{
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderBottomWidth: 2,
-                borderBottomColor: tab === t.key ? Colors.accent : 'transparent',
-                marginRight: 4,
+                paddingHorizontal: 16, paddingVertical: 8,
+                borderRadius: 20,
+                backgroundColor: tab === t.key ? coachTierColor + '18' : 'transparent',
+                borderWidth: 1,
+                borderColor: tab === t.key ? coachTierColor + '55' : 'transparent',
               }}
             >
               <Text style={{
-                color: tab === t.key ? Colors.text : Colors.textMuted,
+                color: tab === t.key ? coachTierColor : Colors.textMuted,
                 fontSize: 13,
-                fontWeight: tab === t.key ? '700' : '500',
+                fontWeight: tab === t.key ? '800' : '500',
               }}>
                 {t.label}
               </Text>
@@ -431,17 +431,25 @@ ${context}`;
             {messages.length === 0 && (
               <View style={{ gap: 12, paddingTop: 8 }}>
                 {/* Coach avatar + intro */}
-                <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+                <View style={{ alignItems: 'center', paddingVertical: 28, gap: 14 }}>
                   <View style={{
-                    width: 72, height: 72, borderRadius: 36,
-                    backgroundColor: coachTierColor + '20',
-                    borderWidth: 2, borderColor: coachTierColor + '60',
+                    width: 84, height: 84, borderRadius: 42,
+                    backgroundColor: coachTierColor + '18',
+                    borderWidth: 2, borderColor: coachTierColor + '70',
                     alignItems: 'center', justifyContent: 'center',
+                    shadowColor: coachTierColor,
+                    shadowOpacity: 0.4,
+                    shadowRadius: 20,
+                    shadowOffset: { width: 0, height: 0 },
+                    elevation: 8,
                   }}>
-                    <Text style={{ fontSize: 32 }}>⚡</Text>
+                    <Text style={{ fontSize: 38 }}>⚡</Text>
                   </View>
-                  <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Text style={{ color: coachTierColor, fontSize: 20, fontWeight: '900' }}>
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    <Text style={{
+                      color: coachTierColor, fontSize: 22, fontWeight: '900', letterSpacing: -0.5,
+                      textShadowColor: coachTierColor, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8,
+                    }}>
                       {coachName}
                     </Text>
                     <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
@@ -469,25 +477,38 @@ ${context}`;
                 </View>
 
                 {/* Prompt cards — 2 column grid */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                   {STARTER_PROMPTS.map((p, i) => (
                     <TouchableOpacity
                       key={i}
                       onPress={() => sendMessage(p)}
+                      activeOpacity={0.75}
                       style={{
                         width: '47%',
                         backgroundColor: Colors.surface,
-                        borderRadius: 14,
+                        borderRadius: 16,
                         padding: 14,
                         borderWidth: 1,
-                        borderColor: Colors.border,
-                        gap: 8,
+                        borderColor: coachTierColor + '30',
+                        gap: 10,
+                        shadowColor: coachTierColor,
+                        shadowOpacity: 0.06,
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 3 },
+                        elevation: 2,
                       }}
                     >
-                      <Text style={{ fontSize: 22 }}>
-                        {['📊', '💪', '⚖️', '🔄'][i] ?? '⚡'}
-                      </Text>
-                      <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '600', lineHeight: 17 }}>
+                      <View style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        backgroundColor: coachTierColor + '18',
+                        borderWidth: 1, borderColor: coachTierColor + '35',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Text style={{ fontSize: 18 }}>
+                          {['📊', '💪', '⚖️', '🔄'][i] ?? '⚡'}
+                        </Text>
+                      </View>
+                      <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '600', lineHeight: 18 }}>
                         {p}
                       </Text>
                     </TouchableOpacity>
@@ -592,8 +613,12 @@ ${context}`;
               style={{
                 width: 40, height: 40, borderRadius: 20,
                 backgroundColor: input.trim() && !loading ? Colors.accent : Colors.surface2,
-                alignItems: 'center',
-                justifyContent: 'center',
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: Colors.accent,
+                shadowOpacity: input.trim() && !loading ? 0.45 : 0,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: input.trim() && !loading ? 6 : 0,
               }}
             >
               <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '700' }}>↑</Text>
