@@ -911,13 +911,11 @@ export default function ProfileScreen() {
                             onPress: async () => {
                               try {
                                 if (!user) return;
-                                // Delete all user data — Supabase cascades handle most of it
-                                await supabase.from('users').delete().eq('id', user.id);
-                                // Delete auth user via edge function or RPC
-                                await supabase.rpc('delete_user');
+                                const { error } = await supabase.rpc('delete_user');
+                                if (error) throw error;
                                 await signOut();
                               } catch (e: any) {
-                                Alert.alert('Error', 'Could not delete account. Please contact support@str.app');
+                                Alert.alert('Error', e.message ?? 'Could not delete account. Please contact support@str.app');
                               }
                             },
                           },
@@ -930,7 +928,7 @@ export default function ProfileScreen() {
             }}
             style={{ paddingVertical: 12, alignItems: 'center' }}
           >
-            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Delete Account</Text>
+            <Text style={{ color: Colors.textMuted, fontWeight: '500', fontSize: 12 }}>Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
