@@ -79,6 +79,7 @@ export default function InsightsTab() {
   const [saving, setSaving] = useState(false);
   const [parsedWorkouts, setParsedWorkouts] = useState<ParsedWorkout[] | null>(null);
   const [allExercises, setAllExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
+  const [expandedWorkouts, setExpandedWorkouts] = useState<Set<number>>(new Set());
   // Exercise picker modal
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -649,7 +650,7 @@ ${context}`;
       {/* ── IMPORT TAB ── */}
       {tab === 'import' && (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: parsedWorkouts ? 8 : 40 }} keyboardShouldPersistTaps="handled">
 
             {!parsedWorkouts ? (
               <>
@@ -704,17 +705,17 @@ ${context}`;
               </>
             ) : (
               <>
-                {/* Preview */}
+                {/* Preview header */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <View>
                     <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
                       {parsedWorkouts.length} workout{parsedWorkouts.length !== 1 ? 's' : ''} found
                     </Text>
                     <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                      Review before saving
+                      Tap a workout to review · Save when ready
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => setParsedWorkouts(null)}>
+                  <TouchableOpacity onPress={() => { setParsedWorkouts(null); setExpandedWorkouts(new Set()); }}>
                     <Text style={{ color: Colors.accent, fontWeight: '700' }}>← Edit</Text>
                   </TouchableOpacity>
                 </View>
@@ -725,9 +726,10 @@ ${context}`;
                     const ids = w.exercises.filter(e => e.matchedId).map(e => e.matchedId);
                     return ids.length !== new Set(ids).size;
                   });
+                  const unmatchedCount = parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => !e.matchedId).length, 0);
                   return (
                     <>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: hasDupes ? 10 : 16 }}>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: (hasDupes || unmatchedCount > 0) ? 10 : 16 }}>
                         {[
                           { label: 'Workouts', value: parsedWorkouts.length },
                           { label: 'Matched', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
@@ -742,23 +744,27 @@ ${context}`;
                           </View>
                         ))}
                       </View>
+                      {unmatchedCount > 0 && (
+                        <View style={{
+                          backgroundColor: Colors.gold + '12', borderRadius: 10, padding: 12, marginBottom: 10,
+                          borderWidth: 1, borderColor: Colors.gold + '35', flexDirection: 'row', alignItems: 'center', gap: 8,
+                        }}>
+                          <Text style={{ fontSize: 14 }}>⚠️</Text>
+                          <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '600', flex: 1 }}>
+                            {unmatchedCount} exercise{unmatchedCount !== 1 ? 's' : ''} need matching — tap to fix
+                          </Text>
+                        </View>
+                      )}
                       {hasDupes && (
                         <TouchableOpacity
                           onPress={handleMergeAll}
                           style={{
-                            backgroundColor: Colors.accentDim,
-                            borderRadius: 10,
-                            padding: 12,
-                            marginBottom: 16,
-                            borderWidth: 1,
-                            borderColor: Colors.accent + '40',
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 10,
+                            backgroundColor: Colors.accentDim, borderRadius: 10, padding: 12, marginBottom: 10,
+                            borderWidth: 1, borderColor: Colors.accent + '40', flexDirection: 'row', alignItems: 'center', gap: 10,
                           }}
                         >
                           <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
-                            Duplicate exercises detected — tap to merge sets
+                            Duplicates detected — tap to merge
                           </Text>
                           <Text style={{ color: Colors.accent, fontWeight: '800' }}>Merge →</Text>
                         </TouchableOpacity>
@@ -767,172 +773,163 @@ ${context}`;
                   );
                 })()}
 
+                {/* Collapsible workout cards */}
                 {parsedWorkouts.map((w, wi) => {
-                  // Find duplicate matchedIds in this workout
+                  const isExpanded = expandedWorkouts.has(wi);
                   const idCounts = new Map<string, number>();
                   w.exercises.forEach(e => { if (e.matchedId) idCounts.set(e.matchedId, (idCounts.get(e.matchedId) ?? 0) + 1); });
+                  const unmatchedInCard = w.exercises.filter(e => !e.matchedId).length;
+                  const totalSets = w.exercises.reduce((n, e) => n + e.sets.length, 0);
+
                   return (
-                  <View key={wi} style={{
-                    backgroundColor: Colors.surface,
-                    borderRadius: 14,
-                    marginBottom: 10,
-                    borderWidth: 1,
-                    borderColor: Colors.border,
-                    overflow: 'hidden',
-                  }}>
-                    {/* Workout header */}
-                    <View style={{
-                      padding: 14,
-                      borderBottomWidth: 1,
-                      borderBottomColor: Colors.border,
+                    <View key={wi} style={{
+                      backgroundColor: Colors.surface, borderRadius: 14, marginBottom: 8,
+                      borderWidth: 1, borderColor: unmatchedInCard > 0 ? Colors.gold + '40' : Colors.border,
+                      overflow: 'hidden',
                     }}>
-                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
-                        {w.name}
-                      </Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                        {w.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                      </Text>
-                    </View>
-
-                    {/* All exercises — matched and unmatched */}
-                    {w.exercises.map((ex, ei) => {
-                      const isMatched = !!ex.matchedId;
-                      const isDuplicate = isMatched && (idCounts.get(ex.matchedId!) ?? 0) > 1;
-                      const topWeight = ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0);
-                      return (
-                        <TouchableOpacity
-                          key={ei}
-                          onPress={() => {
-                            setPickingTarget({ wi, ei });
-                            setPickerSearch(isMatched ? '' : ex.rawName.replace(/^[∙•\s\t]+/, '').split('—')[0].trim());
-                            setPickerOpen(true);
-                          }}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
-                            borderBottomWidth: ei < w.exercises.length - 1 ? 1 : 0,
-                            borderBottomColor: Colors.border,
-                            gap: 10,
-                          }}
-                        >
-                          <View style={{
-                            width: 8, height: 8, borderRadius: 4,
-                            backgroundColor: isMatched ? Colors.success : Colors.gold,
-                          }} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={{
-                              color: isMatched ? Colors.text : Colors.gold,
-                              fontSize: 13, fontWeight: '600',
-                            }}>
-                              {ex.matchedName}
-                            </Text>
-                            {!isMatched && ex.rawName !== ex.matchedName && (
-                              <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 1 }} numberOfLines={1}>
-                                "{ex.rawName.replace(/^[∙•\s\t]+/, '').slice(0, 50)}"
-                              </Text>
+                      {/* Tappable header — toggles expand */}
+                      <TouchableOpacity
+                        onPress={() => setExpandedWorkouts(prev => {
+                          const next = new Set(prev);
+                          next.has(wi) ? next.delete(wi) : next.add(wi);
+                          return next;
+                        })}
+                        activeOpacity={0.75}
+                        style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                            {w.name}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                            {w.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {' · '}{w.exercises.length} exercises · {totalSets} sets
+                            {unmatchedInCard > 0 && (
+                              <Text style={{ color: Colors.gold }}>{` · ${unmatchedInCard} unmatched`}</Text>
                             )}
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                              {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
-                              {topWeight > 0 ? ` · ${topWeight} lbs` : ''}
-                            </Text>
-                            <Text style={{
-                              color: isDuplicate ? Colors.accent : isMatched ? Colors.textMuted : Colors.gold,
-                              fontSize: 10, marginTop: 2,
-                            }}>
-                              {isDuplicate ? 'duplicate — will merge' : isMatched ? 'tap to change' : 'tap to match →'}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                  );
-                })}
-
-                {/* Exercise picker modal */}
-                {pickerOpen && (
-                  <View style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: Colors.bg, zIndex: 100,
-                  }}>
-                    <View style={{
-                      flexDirection: 'row', alignItems: 'center',
-                      padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12,
-                    }}>
-                      <TextInput
-                        value={pickerSearch}
-                        onChangeText={setPickerSearch}
-                        placeholder="Search exercises..."
-                        placeholderTextColor={Colors.textMuted}
-                        autoFocus
-                        style={{
-                          flex: 1,
-                          backgroundColor: Colors.surface2,
-                          borderRadius: 10,
-                          paddingHorizontal: 14,
-                          paddingVertical: 10,
-                          color: Colors.text,
-                          fontSize: 15,
-                          borderWidth: 1,
-                          borderColor: Colors.border,
-                        }}
-                      />
-                      <TouchableOpacity onPress={() => { setPickerOpen(false); setPickerSearch(''); }}>
-                        <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 14 }}>Cancel</Text>
+                          </Text>
+                        </View>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '800' }}>
+                          {isExpanded ? '▲' : '▼'}
+                        </Text>
                       </TouchableOpacity>
-                    </View>
-                    <ScrollView keyboardShouldPersistTaps="handled">
-                      {allExercises
-                        .filter(e => !pickerSearch.trim() || e.name.toLowerCase().includes(pickerSearch.toLowerCase()))
-                        .map(ex => (
+
+                      {/* Exercises — only when expanded */}
+                      {isExpanded && w.exercises.map((ex, ei) => {
+                        const isMatched = !!ex.matchedId;
+                        const isDuplicate = isMatched && (idCounts.get(ex.matchedId!) ?? 0) > 1;
+                        const topWeight = ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0);
+                        return (
                           <TouchableOpacity
-                            key={ex.id}
-                            onPress={() => handlePickExercise(ex)}
+                            key={ei}
+                            onPress={() => {
+                              setPickingTarget({ wi, ei });
+                              setPickerSearch(isMatched ? '' : ex.rawName.replace(/^[∙•\s\t]+/, '').split('—')[0].trim());
+                              setPickerOpen(true);
+                            }}
                             style={{
-                              paddingHorizontal: 20,
-                              paddingVertical: 14,
-                              borderBottomWidth: 1,
-                              borderBottomColor: Colors.border,
+                              flexDirection: 'row', alignItems: 'center',
+                              paddingHorizontal: 14, paddingVertical: 10,
+                              borderTopWidth: 1, borderTopColor: Colors.border, gap: 10,
                             }}
                           >
-                            <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>
-                              {ex.name}
-                            </Text>
-                            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                              {ex.muscle_group}
-                            </Text>
+                            <View style={{
+                              width: 8, height: 8, borderRadius: 4,
+                              backgroundColor: isMatched ? Colors.success : Colors.gold,
+                            }} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: isMatched ? Colors.text : Colors.gold, fontSize: 13, fontWeight: '600' }}>
+                                {ex.matchedName}
+                              </Text>
+                              {!isMatched && ex.rawName !== ex.matchedName && (
+                                <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 1 }} numberOfLines={1}>
+                                  "{ex.rawName.replace(/^[∙•\s\t]+/, '').slice(0, 50)}"
+                                </Text>
+                              )}
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                                {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
+                                {topWeight > 0 ? ` · ${topWeight} lbs` : ''}
+                              </Text>
+                              <Text style={{ color: isDuplicate ? Colors.accent : isMatched ? Colors.textMuted : Colors.gold, fontSize: 10, marginTop: 2 }}>
+                                {isDuplicate ? 'duplicate — will merge' : isMatched ? 'tap to change' : 'tap to match →'}
+                              </Text>
+                            </View>
                           </TouchableOpacity>
-                        ))
-                      }
-                    </ScrollView>
-                  </View>
-                )}
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </ScrollView>
 
+          {/* Sticky Save button — always visible when reviewing */}
+          {parsedWorkouts && !pickerOpen && (
+            <SafeAreaView edges={['bottom']} style={{ backgroundColor: Colors.bg }}>
+              <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: Colors.border }}>
                 <TouchableOpacity
                   onPress={handleSaveImport}
                   disabled={saving}
                   style={{
                     backgroundColor: saving ? Colors.surface2 : Colors.accent,
-                    borderRadius: 12,
-                    paddingVertical: 16,
-                    alignItems: 'center',
-                    marginTop: 4,
+                    borderRadius: 14, paddingVertical: 17, alignItems: 'center',
+                    shadowColor: Colors.accent, shadowOpacity: saving ? 0 : 0.4,
+                    shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: saving ? 0 : 6,
                   }}
                 >
                   {saving
                     ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
-                        Save to STR
+                    : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>
+                        Save {parsedWorkouts.length} Workout{parsedWorkouts.length !== 1 ? 's' : ''} to STR
                       </Text>
                   }
                 </TouchableOpacity>
-              </>
-            )}
-          </ScrollView>
+              </View>
+            </SafeAreaView>
+          )}
+
+          {/* Exercise picker overlay — covers full screen including footer */}
+          {pickerOpen && (
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: Colors.bg, zIndex: 100 }}>
+              <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.bg }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12 }}>
+                  <TextInput
+                    value={pickerSearch}
+                    onChangeText={setPickerSearch}
+                    placeholder="Search exercises..."
+                    placeholderTextColor={Colors.textMuted}
+                    autoFocus
+                    style={{
+                      flex: 1, backgroundColor: Colors.surface2, borderRadius: 10,
+                      paddingHorizontal: 14, paddingVertical: 10,
+                      color: Colors.text, fontSize: 15, borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  />
+                  <TouchableOpacity onPress={() => { setPickerOpen(false); setPickerSearch(''); }}>
+                    <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 14 }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                {allExercises
+                  .filter(e => !pickerSearch.trim() || e.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+                  .map(ex => (
+                    <TouchableOpacity
+                      key={ex.id}
+                      onPress={() => handlePickExercise(ex)}
+                      style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border }}
+                    >
+                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>{ex.name}</Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>{ex.muscle_group}</Text>
+                    </TouchableOpacity>
+                  ))
+                }
+              </ScrollView>
+            </View>
+          )}
         </KeyboardAvoidingView>
       )}
       <PaywallModal
