@@ -853,6 +853,48 @@ export default function ProfileScreen() {
           >
             <Text style={{ color: Colors.danger, fontWeight: '700', fontSize: 14 }}>Sign Out</Text>
           </TouchableOpacity>
+
+          {/* ── DELETE ACCOUNT ───────────────────────────────────────────────── */}
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                'Delete Account',
+                'This will permanently delete your account, all your workouts, PRs, and data. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete My Account',
+                    style: 'destructive',
+                    onPress: () => {
+                      Alert.alert(
+                        'Are you sure?',
+                        'Last chance — your entire STR history will be gone forever.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Yes, Delete Everything',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                const { error } = await supabase.rpc('delete_user');
+                                if (error) throw error;
+                                await signOut();
+                              } catch (e: any) {
+                                Alert.alert('Error', e.message ?? 'Could not delete account. Please contact support.');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    },
+                  },
+                ]
+              );
+            }}
+            style={{ paddingVertical: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: Colors.textMuted, fontWeight: '500', fontSize: 12 }}>Delete Account</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

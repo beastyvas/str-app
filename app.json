@@ -38,7 +38,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Used to set your profile photo."
+          "photosPermission": "STR uses your photo library to let you choose a profile photo. For example, you can select a photo of yourself to display on your profile and to friends in the social feed."
         }
       ],
       [
