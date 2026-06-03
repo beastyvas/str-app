@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Image,
-  Dimensions,
+  Dimensions, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
@@ -160,6 +160,8 @@ export default function ProfileScreen() {
   const [bioEditing, setBioEditing] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showTierLadder, setShowTierLadder] = useState(false);
+  const [showProPerks, setShowProPerks] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
@@ -423,7 +425,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 60 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }}
+            tintColor={Colors.accent}
+          />
+        }
+      >
 
         {/* ── SOCIAL HEADER ──────────────────────────────────────────────────── */}
         <View style={{
@@ -470,7 +481,7 @@ export default function ProfileScreen() {
                   @{profile.username}
                 </Text>
               )}
-              <UserBadges isPro={false} isOwner={false} isOg={false} size="sm" />
+              <UserBadges isPro={profile?.is_pro} isOwner={profile?.is_owner} isOg={profile?.is_og} size="sm" onPressPro={() => setShowProPerks(true)} />
             </View>
           </View>
 
@@ -1032,6 +1043,94 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── PRO PERKS MODAL ──────────────────────────────────────────────────── */}
+      <Modal visible={showProPerks} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+            {/* Close */}
+            <TouchableOpacity
+              onPress={() => setShowProPerks(false)}
+              style={{ alignSelf: 'flex-end', marginBottom: 8 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <View style={{
+                width: 32, height: 32, borderRadius: 16,
+                backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 16, fontWeight: '700', lineHeight: 20 }}>×</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Hero */}
+            <View style={{ alignItems: 'center', marginBottom: 32 }}>
+              <View style={{
+                width: 72, height: 72, borderRadius: 36,
+                backgroundColor: '#818CF820', borderWidth: 1.5, borderColor: '#818CF860',
+                alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                shadowColor: '#818CF8', shadowOpacity: 0.4, shadowRadius: 20,
+                shadowOffset: { width: 0, height: 0 }, elevation: 8,
+              }}>
+                <Text style={{ fontSize: 32 }}>⚡</Text>
+              </View>
+              <Text style={{ color: '#818CF8', fontSize: 13, fontWeight: '800', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>
+                Pro Member
+              </Text>
+              <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1, textAlign: 'center' }}>
+                You're unlocked.
+              </Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 14, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
+                Everything STR has to offer — it's all yours.
+              </Text>
+            </View>
+
+            {/* Features */}
+            <View style={{ gap: 10 }}>
+              {[
+                { icon: '🤖', label: 'Unlimited AI Coach', sub: 'Ask anything, anytime — no cap' },
+                { icon: '📚', label: 'Full workout history', sub: 'Every session stored forever' },
+                { icon: '🧬', label: 'Lifter DNA', sub: 'Coach learns exactly who you are' },
+                { icon: '📥', label: 'Unlimited log imports', sub: 'Migrate all your old data in' },
+                { icon: '📤', label: 'Workout export', sub: 'CSV + PDF, whenever you want' },
+                { icon: '🚀', label: 'Priority AI responses', sub: 'Longer, deeper analysis' },
+              ].map((feat, i) => (
+                <View key={i} style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 14,
+                  backgroundColor: '#818CF810', borderRadius: 14, padding: 16,
+                  borderWidth: 1, borderColor: '#818CF825',
+                }}>
+                  <Text style={{ fontSize: 22, width: 32, textAlign: 'center' }}>{feat.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>{feat.label}</Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>{feat.sub}</Text>
+                  </View>
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    backgroundColor: '#818CF830', borderWidth: 1, borderColor: '#818CF860',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Text style={{ color: '#818CF8', fontSize: 12, fontWeight: '900' }}>✓</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* CTA */}
+            <TouchableOpacity
+              onPress={() => setShowProPerks(false)}
+              style={{
+                marginTop: 28, backgroundColor: '#818CF8', borderRadius: 14,
+                paddingVertical: 16, alignItems: 'center',
+                shadowColor: '#818CF8', shadowOpacity: 0.45, shadowRadius: 16,
+                shadowOffset: { width: 0, height: 4 }, elevation: 8,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 }}>Keep crushing it ⚡</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

@@ -212,7 +212,11 @@ export default function OnboardingScreen() {
                 <View style={{ gap: 12 }}>
                   <TouchableOpacity
                     onPress={next}
-                    style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
+                    style={{
+                      backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center',
+                      shadowColor: Colors.accent, shadowOpacity: 0.45, shadowRadius: 18,
+                      shadowOffset: { width: 0, height: 6 }, elevation: 10,
+                    }}
                   >
                     <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>
                       Let's go →
@@ -282,6 +286,8 @@ export default function OnboardingScreen() {
                     backgroundColor: displayName.trim() ? Colors.accent : Colors.surface,
                     borderRadius: 14, paddingVertical: 18, alignItems: 'center',
                     borderWidth: !displayName.trim() ? 1 : 0, borderColor: Colors.border,
+                    shadowColor: Colors.accent, shadowOpacity: displayName.trim() ? 0.4 : 0,
+                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: displayName.trim() ? 7 : 0,
                   }}
                 >
                   <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
@@ -337,6 +343,8 @@ export default function OnboardingScreen() {
                     backgroundColor: gender ? Colors.accent : Colors.surface,
                     borderRadius: 14, paddingVertical: 18, alignItems: 'center',
                     borderWidth: !gender ? 1 : 0, borderColor: Colors.border,
+                    shadowColor: Colors.accent, shadowOpacity: gender ? 0.4 : 0,
+                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: gender ? 7 : 0,
                   }}
                 >
                   <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
@@ -400,6 +408,8 @@ export default function OnboardingScreen() {
                     backgroundColor: bodyweight ? Colors.accent : Colors.surface,
                     borderRadius: 14, paddingVertical: 18, alignItems: 'center',
                     borderWidth: !bodyweight ? 1 : 0, borderColor: Colors.border,
+                    shadowColor: Colors.accent, shadowOpacity: bodyweight ? 0.4 : 0,
+                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: bodyweight ? 7 : 0,
                   }}
                 >
                   <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
@@ -493,7 +503,11 @@ export default function OnboardingScreen() {
 
                 <TouchableOpacity
                   onPress={next}
-                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                  style={{
+                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 14,
+                    shadowOffset: { width: 0, height: 5 }, elevation: 7,
+                  }}
                 >
                   <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
                 </TouchableOpacity>
@@ -572,7 +586,11 @@ export default function OnboardingScreen() {
 
                 <TouchableOpacity
                   onPress={next}
-                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                  style={{
+                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 14,
+                    shadowOffset: { width: 0, height: 5 }, elevation: 7,
+                  }}
                 >
                   <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
                 </TouchableOpacity>
@@ -627,7 +645,11 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   onPress={handleFinish}
                   disabled={saving}
-                  style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center' }}
+                  style={{
+                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    shadowColor: Colors.accent, shadowOpacity: saving ? 0 : 0.4, shadowRadius: 14,
+                    shadowOffset: { width: 0, height: 5 }, elevation: saving ? 0 : 7,
+                  }}
                 >
                   {saving
                     ? <ActivityIndicator color={Colors.text} />
@@ -663,9 +685,15 @@ export default function OnboardingScreen() {
                       borderRadius: 16, padding: 20,
                       borderWidth: 1.5, borderColor: revealTier.color + '50',
                       width: '100%', alignItems: 'center', gap: 6,
+                      shadowColor: revealTier.color,
+                      shadowOpacity: 0.25, shadowRadius: 20,
+                      shadowOffset: { width: 0, height: 4 }, elevation: 8,
                     }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Your Starting Rank</Text>
-                      <Text style={{ color: revealTier.color, fontSize: 28, fontWeight: '900', letterSpacing: 2 }}>
+                      <Text style={{
+                        color: revealTier.color, fontSize: 28, fontWeight: '900', letterSpacing: 2,
+                        textShadowColor: revealTier.color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10,
+                      }}>
                         {revealTier.label} I
                       </Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', textAlign: 'center' }}>
@@ -716,7 +744,11 @@ export default function OnboardingScreen() {
 
                   <TouchableOpacity
                     onPress={async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; if (user?.id) await AS.setItem('onboarding_done_' + user.id, 'pending'); } catch {} refreshProfile(); }}
-                    style={{ backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center' }}
+                    style={{
+                      backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center',
+                      shadowColor: Colors.accent, shadowOpacity: 0.5, shadowRadius: 20,
+                      shadowOffset: { width: 0, height: 7 }, elevation: 12,
+                    }}
                   >
                     <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.3 }}>
                       Let's get it →

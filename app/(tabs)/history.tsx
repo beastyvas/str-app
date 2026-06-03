@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  Modal, Dimensions,
+  Modal, Dimensions, RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
@@ -342,6 +342,7 @@ function ExerciseProgressModal({
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<ChartMode>('Max Weight');
+  const insets = useSafeAreaInsets();
 
   // Extract all sets for this exercise, grouped by date
   const byDate: { date: Date; maxWeight: number; est1rm: number; volume: number; sets: WorkoutSet[] }[] = [];
@@ -415,8 +416,8 @@ function ExerciseProgressModal({
   const modes: ChartMode[] = ['Max Weight', 'Est. 1RM', 'Volume'];
 
   return (
-    <Modal visible animationType="slide">
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+    <Modal visible animationType="slide" presentationStyle="pageSheet">
+      <View style={{ flex: 1, backgroundColor: Colors.bg, paddingTop: insets.top }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -426,11 +427,16 @@ function ExerciseProgressModal({
           <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', flex: 1, marginRight: 12 }} numberOfLines={1}>
             {exerciseName}
           </Text>
-          <TouchableOpacity onPress={onClose} style={{
-            backgroundColor: Colors.surface, borderRadius: 16, width: 32, height: 32,
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '700' }}>×</Text>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{
+              backgroundColor: Colors.surface2, borderRadius: 18, width: 36, height: 36,
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: Colors.border,
+            }}
+          >
+            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '700', lineHeight: 22 }}>×</Text>
           </TouchableOpacity>
         </View>
 
@@ -546,7 +552,7 @@ function ExerciseProgressModal({
             </View>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -565,13 +571,16 @@ export default function HistoryScreen() {
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutData | null>(null);
   const [chartExercise, setChartExercise] = useState<string | null>(null);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
+
   const isPrоRef = useRef(isPro);
   isPrоRef.current = isPro;
 
   useEffect(() => {
     let cancelled = false;
     const doLoad = async () => {
-      setLoading(true);
+      if (loadKey === 0) setLoading(true);
       let query = supabase
         .from('workouts')
         .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
@@ -613,10 +622,11 @@ export default function HistoryScreen() {
         setInsights(computeInsights(mapped));
       }
       setLoading(false);
+      setRefreshing(false);
     };
     doLoad();
     return () => { cancelled = true; };
-  }, []); // run once on mount — isPro read via ref inside
+  }, [loadKey]); // loadKey increments on pull-to-refresh
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -649,7 +659,16 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 48 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); setLoadKey(k => k + 1); }}
+            tintColor={Colors.accent}
+          />
+        }
+      >
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1 }}>
