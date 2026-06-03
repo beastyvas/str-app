@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
@@ -8,11 +9,31 @@ import { Colors } from '@/constants/colors';
 const IS_DEV = __DEV__;
 
 export default function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithApple } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [showDev, setShowDev] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+    }
+  }, []);
+
+  const handleApple = async () => {
+    try {
+      setLoading(true);
+      await signInWithApple();
+    } catch (e: any) {
+      if (e?.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Sign in failed', e?.message ?? 'Something went wrong.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
     try {
@@ -74,6 +95,16 @@ export default function LoginScreen() {
 
         {/* Auth */}
         <View className="gap-4">
+          {appleAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={14}
+              style={{ width: '100%', height: 54 }}
+              onPress={handleApple}
+            />
+          )}
+
           <TouchableOpacity
             onPress={handleGoogle}
             disabled={loading}
