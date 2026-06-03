@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  Modal, Dimensions,
+  Modal, Dimensions, RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
@@ -571,13 +571,16 @@ export default function HistoryScreen() {
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutData | null>(null);
   const [chartExercise, setChartExercise] = useState<string | null>(null);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
+
   const isPrоRef = useRef(isPro);
   isPrоRef.current = isPro;
 
   useEffect(() => {
     let cancelled = false;
     const doLoad = async () => {
-      setLoading(true);
+      if (loadKey === 0) setLoading(true);
       let query = supabase
         .from('workouts')
         .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
@@ -619,10 +622,11 @@ export default function HistoryScreen() {
         setInsights(computeInsights(mapped));
       }
       setLoading(false);
+      setRefreshing(false);
     };
     doLoad();
     return () => { cancelled = true; };
-  }, []); // run once on mount — isPro read via ref inside
+  }, [loadKey]); // loadKey increments on pull-to-refresh
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -655,7 +659,16 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 48 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); setLoadKey(k => k + 1); }}
+            tintColor={Colors.accent}
+          />
+        }
+      >
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1 }}>

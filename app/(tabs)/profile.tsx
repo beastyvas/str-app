@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Image,
-  Dimensions,
+  Dimensions, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
@@ -161,6 +161,7 @@ export default function ProfileScreen() {
   const [showQR, setShowQR] = useState(false);
   const [showTierLadder, setShowTierLadder] = useState(false);
   const [showProPerks, setShowProPerks] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
@@ -424,7 +425,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 60 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }}
+            tintColor={Colors.accent}
+          />
+        }
+      >
 
         {/* ── SOCIAL HEADER ──────────────────────────────────────────────────── */}
         <View style={{
