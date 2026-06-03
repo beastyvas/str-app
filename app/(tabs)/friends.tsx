@@ -191,6 +191,7 @@ export default function SocialScreen() {
           `)
           .in('user_id', feedUserIds)
           .not('ended_at', 'is', null)
+          .or('is_imported.is.null,is_imported.eq.false')
           .order('ended_at', { ascending: false })
           .limit(30);
 

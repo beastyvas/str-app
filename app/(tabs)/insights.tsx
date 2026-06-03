@@ -119,15 +119,34 @@ export default function InsightsTab() {
         .select('name, started_at, ended_at, workout_sets(weight, reps, rpe, note, exercises(name))')
         .eq('user_id', user!.id)
         .order('started_at', { ascending: false })
-        .limit(10),
+        .limit(20),
     ]);
 
     const workoutSummary = (recentWorkouts ?? []).map((w: any) => {
       const sets = w.workout_sets ?? [];
       const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
-      const notes = sets.filter((s: any) => s.note).map((s: any) => s.note).join(', ');
-      return `${w.name} (${new Date(w.started_at).toLocaleDateString()}): ${sets.length} sets, ${vol} lbs volume${notes ? `, notes: ${notes}` : ''}`;
-    }).join('\n');
+
+      // Group by exercise, preserve set order
+      const byExercise: Record<string, any[]> = {};
+      sets.forEach((s: any) => {
+        const name = s.exercises?.name ?? 'Unknown';
+        if (!byExercise[name]) byExercise[name] = [];
+        byExercise[name].push(s);
+      });
+
+      const exerciseLines = Object.entries(byExercise).map(([name, exSets]) => {
+        const setStr = (exSets as any[]).map((s: any) => {
+          let str = `${s.weight === 0 ? 'BW' : s.weight}×${s.reps}`;
+          if (s.rpe) str += ` @${s.rpe}`;
+          if (s.note) str += ` (${s.note})`;
+          return str;
+        }).join(', ');
+        return `  ${name}: ${setStr}`;
+      }).join('\n');
+
+      const date = new Date(w.started_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' });
+      return `${w.name} (${date}) — ${sets.length} sets, ${vol} lbs total\n${exerciseLines}`;
+    }).join('\n\n');
 
     const GOAL_LABELS: Record<string, string> = {
       strength: 'get stronger (SBD focus)',
