@@ -4,12 +4,15 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Redirect expo-apple-authentication to a mock in dev builds where the
-// native module isn't compiled in. EAS production builds get the real module.
-const appleMock = path.resolve(__dirname, 'src/mocks/apple-auth-mock.js');
-config.resolver.extraNodeModules = {
-  ...config.resolver.extraNodeModules,
-  'expo-apple-authentication': appleMock,
-};
+// In dev builds the expo-apple-authentication native module isn't compiled in,
+// so Metro can't resolve its native stub. Use a mock to keep the bundle working.
+// Production EAS builds (NODE_ENV=production) compile the real native module — no mock needed.
+if (process.env.NODE_ENV !== 'production') {
+  const appleMock = path.resolve(__dirname, 'src/mocks/apple-auth-mock.js');
+  config.resolver.extraNodeModules = {
+    ...config.resolver.extraNodeModules,
+    'expo-apple-authentication': appleMock,
+  };
+}
 
 module.exports = withNativeWind(config, { input: './global.css' });
