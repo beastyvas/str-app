@@ -14,6 +14,8 @@ import { Colors, TierName } from '@/constants/colors';
 import { QRModal } from '@/components/QRModal';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { UserBadges } from '@/components/UserBadges';
+import { PaywallModal } from '@/components/PaywallModal';
+import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
@@ -138,6 +140,8 @@ function WeeklyChart({
 
 export default function ProfileScreen() {
   const { profile, user, signOut, refreshProfile } = useAuth();
+  const { isPro } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
@@ -835,6 +839,47 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* ── SUBSCRIPTION ─────────────────────────────────────────────────── */}
+          <TouchableOpacity
+            onPress={() => !isPro && setShowPaywall(true)}
+            activeOpacity={isPro ? 1 : 0.8}
+            style={{
+              backgroundColor: isPro ? Colors.accent + '12' : Colors.surface,
+              borderRadius: 16, padding: 18,
+              borderWidth: 1.5,
+              borderColor: isPro ? Colors.accent + '50' : Colors.border,
+              flexDirection: 'row', alignItems: 'center', gap: 14,
+            }}
+          >
+            <View style={{
+              width: 44, height: 44, borderRadius: 22,
+              backgroundColor: isPro ? Colors.accent + '20' : Colors.surface2,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 20 }}>{isPro ? '⚡' : '🔓'}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '900' }}>
+                {isPro ? 'STR Pro' : 'Free Plan'}
+              </Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                {isPro
+                  ? 'Unlimited Coach · Full history · Priority responses'
+                  : 'Upgrade for unlimited AI Coach, full history & more'}
+              </Text>
+            </View>
+            {isPro ? (
+              <View style={{
+                backgroundColor: Colors.accent + '25', borderRadius: 8,
+                paddingHorizontal: 10, paddingVertical: 4,
+              }}>
+                <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>ACTIVE</Text>
+              </View>
+            ) : (
+              <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '800' }}>Upgrade →</Text>
+            )}
+          </TouchableOpacity>
+
           {/* ── SIGN OUT ─────────────────────────────────────────────────────── */}
           <TouchableOpacity
             onPress={signOut}
@@ -892,6 +937,9 @@ export default function ProfileScreen() {
 
       {/* Tier Ladder Modal */}
       <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeTier} />
+
+      {/* Paywall */}
+      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} reason="Unlock unlimited AI Coach, full workout history, and more." />
 
       {/* QR Modal */}
       {user && (
