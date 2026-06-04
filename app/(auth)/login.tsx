@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as AppleAuthentication from 'expo-apple-authentication';
+let AppleAuthentication: any = null; try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';

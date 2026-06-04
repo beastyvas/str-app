@@ -2,7 +2,9 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import * as AppleAuthentication from 'expo-apple-authentication';
+// Lazy — native module only available in real iOS builds
+let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
+try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 import { supabase } from '@/lib/supabase';
 import { UserRow } from '@/lib/database.types';
 
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithApple = async () => {
+    if (!AppleAuthentication) throw new Error('Apple Authentication not available on this platform');
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
