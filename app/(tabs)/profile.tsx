@@ -470,7 +470,7 @@ export default function ProfileScreen() {
                   @{profile.username}
                 </Text>
               )}
-              <UserBadges isPro={false} isOwner={false} isOg={false} size="sm" />
+              <UserBadges isPro={profile?.is_pro} isOwner={profile?.is_owner} isOg={profile?.is_og} size="sm" />
             </View>
           </View>
 

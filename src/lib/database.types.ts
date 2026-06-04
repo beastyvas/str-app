@@ -16,6 +16,16 @@ export interface Database {
           username: string | null;
           gender: 'male' | 'female' | 'other' | null;
           created_at: string;
+          is_pro: boolean;
+          is_owner: boolean;
+          is_og: boolean;
+          user_number: number | null;
+          experience_level: string | null;
+          primary_goal: string | null;
+          training_style: string | null;
+          rc_customer_id: string | null;
+          ai_asks_count: number;
+          ai_asks_week_start: string | null;
         };
         Insert: {
           id: string;
@@ -27,6 +37,9 @@ export interface Database {
           training_notes?: string | null;
           bio?: string | null;
           created_at?: string;
+          is_pro?: boolean;
+          is_owner?: boolean;
+          is_og?: boolean;
         };
         Update: {
           id?: string;
@@ -38,6 +51,9 @@ export interface Database {
           training_notes?: string | null;
           bio?: string | null;
           created_at?: string;
+          is_pro?: boolean;
+          is_owner?: boolean;
+          is_og?: boolean;
         };
       };
       exercises: {
