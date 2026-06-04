@@ -16,7 +16,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.nickbuilds.str",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "STR uses your photo library so you can add a progress photo to your workout session and set your profile picture. For example, after a big PR you can attach a gym photo to that workout entry.",
+        "NSCameraUsageDescription": "STR uses your camera so you can take a progress photo directly during a workout session or update your profile picture in real time."
       }
     },
     "android": {
@@ -60,7 +62,8 @@
       "expo-asset",
       "expo-font",
       "expo-web-browser",
-      "expo-camera"
+      "expo-camera",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true
