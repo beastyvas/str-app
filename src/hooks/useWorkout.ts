@@ -196,6 +196,10 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   updateSet: (exerciseId, localId, updates) => {
+    const existing = get().activeWorkout?.exercises
+      .find(e => e.exerciseId === exerciseId)?.sets
+      .find(s => s.localId === localId);
+
     set(state => ({
       activeWorkout: state.activeWorkout
         ? {
@@ -208,9 +212,23 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
           }
         : null,
     }));
+
+    if (existing?.id) {
+      const merged = { ...existing, ...updates };
+      supabase.from('workout_sets').update({
+        weight: merged.weight,
+        reps: merged.reps,
+        rpe: merged.rpe ?? null,
+        note: merged.note ?? null,
+      }).eq('id', existing.id);
+    }
   },
 
   deleteSet: (exerciseId, localId) => {
+    const existing = get().activeWorkout?.exercises
+      .find(e => e.exerciseId === exerciseId)?.sets
+      .find(s => s.localId === localId);
+
     set(state => ({
       activeWorkout: state.activeWorkout
         ? {
@@ -223,6 +241,10 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
           }
         : null,
     }));
+
+    if (existing?.id) {
+      supabase.from('workout_sets').delete().eq('id', existing.id);
+    }
   },
 
   finishWorkout: async (notes) => {
