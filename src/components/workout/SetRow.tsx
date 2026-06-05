@@ -42,6 +42,7 @@ export function SetInputRow({
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
   const [showExtras, setShowExtras] = useState(false);
+  const savedNumericWeight = useRef(weight);
 
   const cfg = PLATE_CONFIGS[plateSystem];
   const plateWeight = parseFloat(weight) || cfg.barWeight;
@@ -54,12 +55,17 @@ export function SetInputRow({
   };
 
   const cycleMode = () => {
-    setMode(prev => {
-      if (prev === 'number') return 'bw';
-      if (prev === 'bw') return 'plates';
-      return 'number';
-    });
-    setWeight(mode === 'bw' ? '' : mode === 'plates' ? String(cfg.barWeight) : '');
+    if (mode === 'number') {
+      if (weight) savedNumericWeight.current = weight; // preserve before leaving
+      setMode('bw');
+      setWeight('');
+    } else if (mode === 'bw') {
+      setMode('plates');
+      setWeight(String(cfg.barWeight));
+    } else {
+      setMode('number');
+      setWeight(savedNumericWeight.current); // restore saved weight
+    }
   };
 
   const getWeight = () => {
@@ -405,20 +411,19 @@ export function LoggedSetRow({
   const [rpe, setRpe] = useState<number | undefined>(set.rpe);
   const [note, setNote] = useState(set.note ?? '');
 
-  const handleLongPress = () => {
-    if (!onDelete && !onEdit) return;
+  const handlePress = () => {
+    if (onEdit) setEditOpen(true);
+  };
+
+  const handleDelete = () => {
+    setEditOpen(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
-      `Set ${set.setNumber}`,
-      `${set.weight} × ${set.reps}`,
+      `Delete Set ${set.setNumber}?`,
+      `${set.weight === 0 ? 'BW' : set.weight} × ${set.reps}`,
       [
-        { text: 'Edit', onPress: () => setEditOpen(true) },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete?.(set.localId),
-        },
         { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDelete?.(set.localId) },
       ]
     );
   };
@@ -434,9 +439,8 @@ export function LoggedSetRow({
   return (
     <>
       <TouchableOpacity
-        onLongPress={handleLongPress}
-        delayLongPress={400}
-        activeOpacity={0.75}
+        onPress={handlePress}
+        activeOpacity={onEdit ? 0.65 : 1}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -499,8 +503,8 @@ export function LoggedSetRow({
             "{set.note}"
           </Text>
         )}
-        {(onDelete || onEdit) && (
-          <Text style={{ color: Colors.border, fontSize: 11, fontWeight: '700' }}>···</Text>
+        {onEdit && (
+          <Text style={{ color: Colors.textMuted, fontSize: 12 }}>✏️</Text>
         )}
       </TouchableOpacity>
 
@@ -592,6 +596,11 @@ export function LoggedSetRow({
                 <Text style={{ color: Colors.text, fontWeight: '800' }}>Save</Text>
               </TouchableOpacity>
             </View>
+            {onDelete && (
+              <TouchableOpacity onPress={handleDelete} style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ color: Colors.danger, fontSize: 13, fontWeight: '600' }}>Delete Set</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
