@@ -187,6 +187,7 @@ export default function SocialScreen() {
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes, is_imported,
+            users(display_name, avatar_url, is_owner, is_og, is_pro, bodyweight_lbs),
             workout_sets(weight, reps, set_number, exercises(name))
           `)
           .in('user_id', feedUserIds)
@@ -203,16 +204,8 @@ export default function SocialScreen() {
         const posts: FeedPost[] = (workouts ?? [])
           .filter((w: any) => !w.is_imported)
           .map((w: any) => {
-            // If it's your own workout, use your profile
             const isOwn = w.user_id === user.id;
-            const friendship = !isOwn ? accepted.find(f =>
-              f.requester_id === w.user_id || f.addressee_id === w.user_id
-            ) : null;
-            const other = isOwn
-              ? { display_name: profile?.display_name, avatar_url: profile?.avatar_url, bodyweight_lbs: profile?.bodyweight_lbs }
-              : friendship
-                ? (friendship.requester_id === w.user_id ? friendship.requester : friendship.addressee) as any
-                : null;
+            const other = w.users as any ?? null;
             const sets = w.workout_sets ?? [];
             const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
             const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
