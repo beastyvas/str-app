@@ -46,7 +46,20 @@ export default function WorkoutTab() {
     finishWorkout,
     discardWorkout,
     clearPRs,
+    restoreWorkout,
   } = useWorkoutStore();
+
+  // Restore any in-progress workout from Supabase when the app reopens
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    if (!user) { setRestoring(false); return; }
+    restoreWorkout(user.id).then(restored => {
+      if (restored) {
+        const name = useWorkoutStore.getState().activeWorkout?.name ?? 'Workout';
+        notifyWorkoutStarted(name);
+      }
+    }).finally(() => setRestoring(false));
+  }, [user]);
 
   // Rest alert target (seconds) — 0 = no alert
   const [restAlertSeconds, setRestAlertSeconds] = useState(120); // default 2 min
@@ -603,6 +616,14 @@ export default function WorkoutTab() {
     'Quads': '#E67E22', 'Hamstrings': '#D35400', 'Glutes': '#E74C3C',
     'Core': '#F39C12', 'Overall': Colors.textSecondary,
   };
+
+  if (restoring) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={Colors.accent} />
+      </SafeAreaView>
+    );
+  }
 
   if (!activeWorkout) {
     return (

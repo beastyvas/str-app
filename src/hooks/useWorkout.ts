@@ -47,6 +47,7 @@ interface WorkoutStore {
   finishWorkout: (notes?: string) => Promise<any>;
   discardWorkout: () => Promise<void>;
   clearPRs: () => void;
+  restoreWorkout: (userId: string) => Promise<boolean>;
 }
 
 let localIdCounter = 0;
@@ -328,4 +329,63 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   clearPRs: () => set({ newPRs: [] }),
+
+  restoreWorkout: async (userId) => {
+    const { data: workout } = await supabase
+      .from('workouts')
+      .select('id, name, started_at')
+      .eq('user_id', userId)
+      .is('ended_at', null)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!workout) return false;
+
+    const { data: sets } = await supabase
+      .from('workout_sets')
+      .select('id, exercise_id, set_number, weight, reps, rpe, note, logged_at, exercises(id, name, muscle_group, equipment_type)')
+      .eq('workout_id', workout.id)
+      .order('logged_at', { ascending: true });
+
+    const exerciseMap = new Map<string, WorkoutExercise>();
+    for (const s of sets ?? []) {
+      const ex = (s as any).exercises;
+      if (!ex) continue;
+      if (!exerciseMap.has(ex.id)) {
+        exerciseMap.set(ex.id, {
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          muscleGroup: ex.muscle_group,
+          equipmentType: ex.equipment_type,
+          sets: [],
+        });
+      }
+      exerciseMap.get(ex.id)!.sets.push({
+        id: s.id,
+        localId: newLocalId(),
+        exerciseId: ex.id,
+        setNumber: s.set_number,
+        weight: s.weight,
+        reps: s.reps,
+        rpe: s.rpe ?? undefined,
+        note: s.note ?? undefined,
+        loggedAt: s.logged_at,
+      });
+    }
+
+    const lastSet = sets?.[sets.length - 1] as any;
+    set({
+      activeWorkout: {
+        id: workout.id,
+        name: workout.name,
+        startedAt: new Date(workout.started_at),
+        exercises: Array.from(exerciseMap.values()),
+      },
+      lastSetLoggedAt: lastSet ? new Date(lastSet.logged_at) : null,
+      newPRs: [],
+    });
+
+    return true;
+  },
 }));
