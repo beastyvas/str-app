@@ -22,6 +22,44 @@ const TIER_COLORS: Record<TierName, string> = {
   diamond: Colors.tiers.diamond,
 };
 
+const SESSION_COLORS: Record<string, string> = {
+  Push: '#D4197A',
+  Pull: '#3B82F6',
+  Legs: '#F97316',
+  Upper: '#A855F7',
+  Lower: '#22C55E',
+  'Full Body': '#EAB308',
+  Core: '#14B8A6',
+  Training: '#888888',
+};
+
+const SESSION_EMOJI: Record<string, string> = {
+  Push: '💪',
+  Pull: '🎯',
+  Legs: '🦵',
+  Upper: '⬆️',
+  Lower: '🔽',
+  'Full Body': '🔥',
+  Core: '🧘',
+  Training: '🏋️',
+};
+
+function classifySession(exercises: string[]): string | null {
+  const s = exercises.join(' ').toLowerCase();
+  const push = /bench|chest|fly|press|tricep|shoulder|dip/.test(s);
+  const pull = /row|pull-?up|chin|lat|curl|bicep|shrug/.test(s);
+  const legs = /squat|leg press|lunge|hamstring|glute|calf|hip thrust|rdl/.test(s);
+  const core = /crunch|plank|\bab\b|core|oblique/.test(s);
+  if (push && pull && legs) return 'Full Body';
+  if ((push || pull) && legs) return 'Upper';
+  if (push && pull) return 'Upper';
+  if (push) return 'Push';
+  if (pull) return 'Pull';
+  if (legs) return 'Legs';
+  if (core) return 'Core';
+  return null;
+}
+
 interface FriendPR {
   display_name: string;
   exercise_name: string;
@@ -65,6 +103,7 @@ export default function HomeScreen() {
     exercises: string[];
     endedAt: string;
   } | null>(null);
+  const [workoutDays, setWorkoutDays] = useState<Record<number, string>>({});
 
   // SBD manual entry
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
@@ -251,6 +290,24 @@ export default function HomeScreen() {
           setRecentFriendPost(null);
         }
       }
+
+      // Last 7 days of own workouts for weekly strip
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const { data: weekData } = await supabase
+        .from('workouts')
+        .select('started_at, workout_sets(exercises(name))')
+        .eq('user_id', uid)
+        .not('ended_at', 'is', null)
+        .gte('started_at', sevenDaysAgo);
+      if (weekData) {
+        const days: Record<number, string> = {};
+        (weekData as any[]).forEach(w => {
+          const dow = new Date(w.started_at).getDay();
+          const exs = (w.workout_sets ?? []).map((s: any) => s.exercises?.name).filter(Boolean);
+          days[dow] = classifySession(exs) ?? 'Training';
+        });
+        setWorkoutDays(days);
+      }
     } catch (e) {
       // silence
     } finally {
@@ -325,6 +382,13 @@ export default function HomeScreen() {
     router.push('/(tabs)/insights');
   };
 
+  // Derived — today's planned session from configured split
+  const todaySession: string | null = (() => {
+    const schedule = (profile as any)?.split_schedule as Record<string, string> | null;
+    if (!schedule) return null;
+    return schedule[String(new Date().getDay())] ?? null;
+  })();
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -345,15 +409,15 @@ export default function HomeScreen() {
         contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       >
 
-        {/* Greeting */}
-        <View style={{ marginBottom: 24 }}>
+        {/* ── GREETING + RANK BADGE ────────────────────────────────── */}
+        <View style={{ marginBottom: 20 }}>
           <Text style={{
             color: Colors.textMuted,
             fontSize: 11,
             letterSpacing: 2.5,
             textTransform: 'uppercase',
           }}>
-            {getTimeOfDay()}
+            {getSmartGreetingLine(lastWorkout, todaySession)}
           </Text>
           <Text style={{
             color: Colors.text,
@@ -365,30 +429,183 @@ export default function HomeScreen() {
           }}>
             {profile?.display_name?.split(' ')[0] ?? 'Athlete'}
           </Text>
-          <Animated.View style={{ opacity: rankOpacity, marginTop: 8 }}>
+
+          {/* Prominent rank badge with tagline */}
+          <Animated.View style={{ opacity: rankOpacity, marginTop: 12 }}>
             {animeResult && (
-              <View style={{
-                alignSelf: 'flex-start',
-                paddingHorizontal: 10,
-                paddingVertical: 4,
-                borderRadius: 8,
-                backgroundColor: animeResult.animeTier.color + '18',
-                borderWidth: 1,
-                borderColor: animeResult.animeTier.color + '40',
-              }}>
-                <Text style={{
-                  color: animeResult.animeTier.color,
-                  fontSize: 11,
-                  fontWeight: '800',
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                }}>
-                  {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
-                </Text>
-              </View>
+              <TouchableOpacity
+                onPress={() => setSbdModalOpen(true)}
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: animeResult.animeTier.color + '12',
+                  borderRadius: 14,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: animeResult.animeTier.color + '35',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    color: animeResult.animeTier.color,
+                    fontSize: 13,
+                    fontWeight: '900',
+                    letterSpacing: 2.5,
+                    textTransform: 'uppercase',
+                  }}>
+                    {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
+                  </Text>
+                  <Text style={{
+                    color: Colors.textSecondary,
+                    fontSize: 12,
+                    marginTop: 3,
+                    fontStyle: 'italic',
+                    lineHeight: 17,
+                  }} numberOfLines={1}>
+                    "{animeResult.animeTier.tagline}"
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                  <Text style={{ color: animeResult.animeTier.color, fontSize: 18, fontWeight: '900' }}>
+                    {animeResult.avgScore.toFixed(1)}
+                  </Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1 }}>/ 5.0</Text>
+                </View>
+              </TouchableOpacity>
             )}
           </Animated.View>
         </View>
+
+        {/* ── TODAY'S MISSION + WEEKLY STRIP ──────────────────────── */}
+        {(todaySession || Object.keys(workoutDays).length > 0) && (
+          <View style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 18,
+            padding: 16,
+            marginBottom: 14,
+            borderWidth: 1,
+            borderColor: todaySession
+              ? (SESSION_COLORS[todaySession] ?? Colors.accent) + '40'
+              : Colors.border,
+          }}>
+            {/* Today's planned session header */}
+            {todaySession && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 14,
+                paddingBottom: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.border,
+              }}>
+                <View>
+                  <Text style={{
+                    color: Colors.textMuted,
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    textTransform: 'uppercase',
+                    fontWeight: '700',
+                    marginBottom: 4,
+                  }}>
+                    Today's Mission
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 20 }}>{SESSION_EMOJI[todaySession] ?? '🏋️'}</Text>
+                    <Text style={{
+                      color: SESSION_COLORS[todaySession] ?? Colors.accent,
+                      fontSize: 22,
+                      fontWeight: '900',
+                      letterSpacing: -0.5,
+                    }}>
+                      {todaySession}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/workout')}
+                  style={{
+                    backgroundColor: (SESSION_COLORS[todaySession] ?? Colors.accent) + '20',
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderWidth: 1,
+                    borderColor: (SESSION_COLORS[todaySession] ?? Colors.accent) + '45',
+                  }}
+                >
+                  <Text style={{
+                    color: SESSION_COLORS[todaySession] ?? Colors.accent,
+                    fontSize: 13,
+                    fontWeight: '800',
+                  }}>
+                    Let's go →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 7-day weekly strip */}
+            {!todaySession && (
+              <Text style={{
+                color: Colors.textMuted,
+                fontSize: 10,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                fontWeight: '700',
+                marginBottom: 10,
+              }}>
+                This Week
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 5 }}>
+              {[1, 2, 3, 4, 5, 6, 0].map((dayIdx) => {
+                const label = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][dayIdx];
+                const sessionType = workoutDays[dayIdx];
+                const isToday = new Date().getDay() === dayIdx;
+                const color = sessionType ? (SESSION_COLORS[sessionType] ?? '#888') : null;
+                const isPlanned = isToday && todaySession && !sessionType;
+                const plannedColor = isPlanned ? (SESSION_COLORS[todaySession!] ?? Colors.accent) : null;
+
+                return (
+                  <View key={dayIdx} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+                    <View style={{
+                      width: '100%',
+                      height: 36,
+                      borderRadius: 9,
+                      backgroundColor: color
+                        ? color + '22'
+                        : isPlanned && plannedColor
+                          ? plannedColor + '10'
+                          : Colors.surface2,
+                      borderWidth: isToday ? 1.5 : 1,
+                      borderColor: isToday
+                        ? (color ?? plannedColor ?? Colors.accent)
+                        : (color ? color + '55' : Colors.border),
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      {color ? (
+                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color }} />
+                      ) : isPlanned && plannedColor ? (
+                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: plannedColor, opacity: 0.4 }} />
+                      ) : null}
+                    </View>
+                    <Text style={{
+                      color: isToday ? Colors.text : Colors.textMuted,
+                      fontSize: 9,
+                      fontWeight: isToday ? '800' : '500',
+                      letterSpacing: 0.3,
+                    }}>
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* ── FIRST STEPS ─────────────────────────────────────────── */}
         {firstSteps && (
@@ -872,16 +1089,23 @@ export default function HomeScreen() {
         >
           {recentFriendPost ? (
             <>
-              {/* Post preview */}
+              {/* Header row with initials avatar */}
               <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 15 }}>👥</Text>
+                <View style={{
+                  width: 36, height: 36, borderRadius: 18,
+                  backgroundColor: Colors.accent + '22',
+                  borderWidth: 1, borderColor: Colors.accent + '40',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '900' }}>
+                    {recentFriendPost.displayName.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800' }}>{recentFriendPost.displayName}</Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{recentFriendPost.workoutName} · {timeAgo(recentFriendPost.endedAt)}</Text>
                 </View>
-                <Text style={{ color: Colors.accent, fontSize: 14, fontWeight: '700' }}>Feed →</Text>
+                <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>Feed →</Text>
               </View>
               {recentFriendPost.notes && (
                 <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
@@ -891,7 +1115,7 @@ export default function HomeScreen() {
                 </View>
               )}
               {recentFriendPost.exercises.length > 0 && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingHorizontal: 14, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingHorizontal: 14, paddingBottom: 12, paddingTop: recentFriendPost.notes ? 4 : 10 }}>
                   {recentFriendPost.exercises.slice(0, 4).map((ex, i) => (
                     <View key={i} style={{ backgroundColor: Colors.surface2, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{ex}</Text>
@@ -904,18 +1128,27 @@ export default function HomeScreen() {
               )}
             </>
           ) : (
-            <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 20 }}>👥</Text>
+            <View style={{ padding: 20, alignItems: 'center', gap: 6 }}>
+              <View style={{
+                width: 52, height: 52, borderRadius: 26,
+                backgroundColor: Colors.surface2,
+                borderWidth: 1, borderColor: Colors.border,
+                alignItems: 'center', justifyContent: 'center',
+                marginBottom: 6,
+              }}>
+                <Text style={{ fontSize: 26 }}>👥</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Crew Activity</Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>Add friends to see their workouts here</Text>
-              </View>
-              <Text style={{ color: Colors.accent, fontSize: 16 }}>›</Text>
+              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>No crew yet</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
+                Add friends to see their sessions, PRs, and progress here
+              </Text>
+              <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700', marginTop: 6 }}>
+                Find friends →
+              </Text>
             </View>
           )}
         </TouchableOpacity>
+
         {/* Weekly Plan Prompt Modal */}
         <Modal visible={weeklyPlanModal} transparent animationType="slide">
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1060,9 +1293,23 @@ export default function HomeScreen() {
   );
 }
 
-function getTimeOfDay() {
+function getSmartGreetingLine(lastWorkout: LastWorkout | null, todaySession: string | null): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  const timeStr = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+
+  if (todaySession) {
+    return `${todaySession} day · good ${timeStr}`;
+  }
+
+  if (lastWorkout) {
+    const hoursAgo = (Date.now() - new Date(lastWorkout.started_at).getTime()) / 3600000;
+    if (hoursAgo < 18) return 'recovery mode — rest up';
+    if (hoursAgo < 30) return 'ready for round two?';
+    if (hoursAgo < 54) return 'one day out — time to load up';
+    if (hoursAgo < 80) return `two days since last session`;
+  }
+
+  if (h < 12) return 'good morning';
+  if (h < 17) return 'good afternoon';
+  return 'good evening';
 }
