@@ -56,6 +56,24 @@ interface ProfileStats {
 
 type WeeklyMetric = 'Volume' | 'Duration' | 'Sets';
 
+const SESSION_COLORS: Record<string, string> = {
+  Push: '#D4197A', Pull: '#3B82F6', Legs: '#F97316',
+  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
+};
+const SESSION_TYPES = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Core'];
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function splitLabelFromSchedule(schedule: Record<number, string>): string {
+  const types = [...new Set(Object.values(schedule))];
+  if (types.includes('Push') && types.includes('Pull') && types.includes('Legs')) return 'Push / Pull / Legs';
+  if ((types.includes('Upper') || (types.includes('Push') && types.includes('Pull'))) && types.includes('Legs')) return 'Upper / Lower';
+  if (types.includes('Upper') && types.includes('Legs')) return 'Upper / Lower';
+  if (types.every(t => t === 'Full Body')) return 'Full Body';
+  if (types.length === 1 && types[0]) return types[0];
+  return 'Custom';
+}
+
 // ─── Weekly Activity Bar Chart ─────────────────────────────────────────────
 function WeeklyChart({
   weeklyData,
@@ -165,6 +183,9 @@ export default function ProfileScreen() {
   const [showQR, setShowQR] = useState(false);
   const [showTierLadder, setShowTierLadder] = useState(false);
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
+  const [showSplitEditor, setShowSplitEditor] = useState(false);
+  const [editSplitSchedule, setEditSplitSchedule] = useState<Record<number, string>>({});
+  const [splitSaving, setSplitSaving] = useState(false);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
 
@@ -410,6 +431,51 @@ export default function ProfileScreen() {
     } finally {
       setSbdSaving(false);
     }
+  };
+
+  const saveSplit = async () => {
+    if (!user) return;
+    setSplitSaving(true);
+    const label = splitLabelFromSchedule(editSplitSchedule);
+    const { error } = await supabase.from('users').update({
+      split_type: label,
+      split_schedule: Object.keys(editSplitSchedule).length > 0 ? editSplitSchedule : null,
+    }).eq('id', user.id);
+    if (error) {
+      if (error.message?.includes('column') && error.message?.includes('does not exist')) {
+        Alert.alert('Setup needed', 'Run this SQL in Supabase:\n\nALTER TABLE public.users\nADD COLUMN IF NOT EXISTS split_type TEXT,\nADD COLUMN IF NOT EXISTS split_schedule JSONB;');
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    } else {
+      await refreshProfile();
+      setShowSplitEditor(false);
+    }
+    setSplitSaving(false);
+  };
+
+  const openSplitEditor = () => {
+    const existing = (profile?.split_schedule ?? {}) as Record<string, string>;
+    const converted: Record<number, string> = {};
+    Object.entries(existing).forEach(([k, v]) => { converted[Number(k)] = v; });
+    setEditSplitSchedule(converted);
+    setShowSplitEditor(true);
+  };
+
+  const pickDaySession = (dayIdx: number) => {
+    const current = editSplitSchedule[dayIdx];
+    Alert.alert(
+      DAY_FULL[dayIdx],
+      'What do you train?',
+      [
+        ...SESSION_TYPES.map(type => ({
+          text: type === current ? `${type} ✓` : type,
+          onPress: () => setEditSplitSchedule(prev => ({ ...prev, [dayIdx]: type })),
+        })),
+        { text: 'Rest (clear)', style: 'destructive' as const, onPress: () => setEditSplitSchedule(prev => { const n = { ...prev }; delete n[dayIdx]; return n; }) },
+        { text: 'Cancel', style: 'cancel' as const },
+      ]
+    );
   };
 
   const formatVolume = (v: number) => {
@@ -792,31 +858,85 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* ── ALL EXERCISE PRs ─────────────────────────────────────────────── */}
-          {stats && stats.allPRs.length > 0 && (
-            <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
-                All Lift PRs
-              </Text>
-              {stats.allPRs.map((pr, i) => (
-                <View key={i} style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  paddingVertical: 8,
-                  borderBottomWidth: i < stats.allPRs.length - 1 ? 1 : 0,
-                  borderBottomColor: Colors.border, gap: 10,
-                }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: TIER_COLORS[pr.tier], flexShrink: 0 }} />
-                  <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>{pr.exerciseName}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>
-                    {pr.weight === 0 ? `BW×${pr.reps}` : `${pr.weight}×${pr.reps}`}
+          {/* ── MY SPLIT ──────────────────────────────────────────────────────── */}
+          {(() => {
+            const storedSchedule = (profile?.split_schedule ?? {}) as Record<string, string>;
+            const hasSplit = profile?.split_type || Object.keys(storedSchedule).length > 0;
+            const splitLabel = profile?.split_type ?? splitLabelFromSchedule(
+              Object.fromEntries(Object.entries(storedSchedule).map(([k, v]) => [Number(k), v]))
+            );
+            const weekGrid: Array<{ type: string; color: string } | null> = Array(7).fill(null);
+            Object.entries(storedSchedule).forEach(([day, type]) => {
+              weekGrid[Number(day)] = { type, color: SESSION_COLORS[type] ?? Colors.textMuted };
+            });
+
+            return (
+              <TouchableOpacity
+                onPress={openSplitEditor}
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
+                  borderWidth: 1, borderColor: hasSplit ? Colors.accent + '40' : Colors.border,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasSplit ? 12 : 0 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>My Split</Text>
+                  <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+                    {hasSplit ? 'Edit ✏️' : 'Set up →'}
                   </Text>
-                  <View style={{ backgroundColor: TIER_COLORS[pr.tier] + '18', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ color: TIER_COLORS[pr.tier], fontSize: 9, fontWeight: '800' }}>{TIER_LABELS[pr.tier].toUpperCase()}</Text>
-                  </View>
                 </View>
-              ))}
-            </View>
-          )}
+
+                {hasSplit ? (
+                  <>
+                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 14 }}>
+                      {splitLabel}
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 5 }}>
+                      {[1, 2, 3, 4, 5, 6, 0].map((dayIdx, col) => {
+                        const session = weekGrid[dayIdx];
+                        return (
+                          <View key={col} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+                            <View style={{
+                              width: '100%', aspectRatio: 1, borderRadius: 8,
+                              backgroundColor: session ? session.color + '22' : Colors.surface2,
+                              borderWidth: 1, borderColor: session ? session.color + '55' : Colors.border,
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {session && (
+                                <Text style={{ color: session.color, fontSize: 7, fontWeight: '900', letterSpacing: 0.3, textAlign: 'center' }}>
+                                  {session.type === 'Full Body' ? 'FB' : session.type === 'Upper' ? 'UP' : session.type === 'Lower' ? 'LO' : session.type.slice(0, 2).toUpperCase()}
+                                </Text>
+                              )}
+                            </View>
+                            <Text style={{ color: session ? Colors.textSecondary : Colors.textMuted, fontSize: 8, fontWeight: session ? '700' : '400' }}>
+                              {DAY_LABELS[dayIdx]}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    {(() => {
+                      const seenTypes = [...new Set(Object.values(storedSchedule))];
+                      return seenTypes.length > 0 ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                          {seenTypes.map((type, i) => (
+                            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: SESSION_COLORS[type] ?? Colors.textMuted }} />
+                              <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '600' }}>{type}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null;
+                    })()}
+                  </>
+                ) : (
+                  <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 6, lineHeight: 20 }}>
+                    Tell your crew what split you're running. Coach uses this too.
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })()}
 
           {loadingStats && <ActivityIndicator color={Colors.textMuted} />}
 
@@ -1076,6 +1196,89 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── SPLIT EDITOR MODAL ───────────────────────────────────────────────── */}
+      <Modal visible={showSplitEditor} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <View style={{
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            paddingHorizontal: 20, paddingVertical: 16,
+            borderBottomWidth: 1, borderBottomColor: Colors.border,
+          }}>
+            <TouchableOpacity onPress={() => setShowSplitEditor(false)}>
+              <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>My Split</Text>
+            <TouchableOpacity onPress={saveSplit} disabled={splitSaving}>
+              {splitSaving
+                ? <ActivityIndicator color={Colors.accent} size="small" />
+                : <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 15 }}>Save</Text>}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+            <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
+              Tap each day to set your session type. Coach references this every time you ask a training question.
+            </Text>
+
+            {/* Detected split label */}
+            {Object.keys(editSplitSchedule).length > 0 && (
+              <View style={{
+                backgroundColor: Colors.accentDim, borderRadius: 12, padding: 14,
+                borderWidth: 1, borderColor: Colors.accent + '40', alignItems: 'center',
+              }}>
+                <Text style={{ color: Colors.accent, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 }}>
+                  {splitLabelFromSchedule(editSplitSchedule)}
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>
+                  {Object.keys(editSplitSchedule).length}x / week
+                </Text>
+              </View>
+            )}
+
+            {/* Day rows — Mon first */}
+            {[1, 2, 3, 4, 5, 6, 0].map(dayIdx => {
+              const type = editSplitSchedule[dayIdx];
+              const color = type ? (SESSION_COLORS[type] ?? Colors.textMuted) : Colors.textMuted;
+              return (
+                <TouchableOpacity
+                  key={dayIdx}
+                  onPress={() => pickDaySession(dayIdx)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 14,
+                    backgroundColor: type ? color + '12' : Colors.surface,
+                    borderRadius: 14, padding: 16,
+                    borderWidth: 1, borderColor: type ? color + '40' : Colors.border,
+                  }}
+                >
+                  <View style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    backgroundColor: type ? color + '20' : Colors.surface2,
+                    borderWidth: 1, borderColor: type ? color + '50' : Colors.border,
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {type ? (
+                      <Text style={{ color, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' }}>
+                        {type === 'Full Body' ? 'FB' : type === 'Upper' ? 'UP' : type === 'Lower' ? 'LO' : type.slice(0, 2).toUpperCase()}
+                      </Text>
+                    ) : (
+                      <Text style={{ color: Colors.textMuted, fontSize: 16 }}>—</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>{DAY_FULL[dayIdx]}</Text>
+                    <Text style={{ color: type ? color : Colors.textMuted, fontSize: 12, marginTop: 2, fontWeight: type ? '700' : '400' }}>
+                      {type ?? 'Rest — tap to assign'}
+                    </Text>
+                  </View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 18 }}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
