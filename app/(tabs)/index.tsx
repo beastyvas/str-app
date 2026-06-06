@@ -12,6 +12,7 @@ import { Colors, TierName } from '@/constants/colors';
 import { TIER_ORDER } from '@/constants/strengthStandards';
 import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES, ROMAN } from '@/constants/animeTiers';
 import { CelebrationToast } from '@/components/CelebrationToast';
+import { TierLadderModal } from '@/components/TierLadderModal';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -104,6 +105,8 @@ export default function HomeScreen() {
     endedAt: string;
   } | null>(null);
   const [workoutDays, setWorkoutDays] = useState<Record<number, string>>({});
+
+  const [showTierLadder, setShowTierLadder] = useState(false);
 
   // SBD manual entry
   const [sbdModalOpen, setSbdModalOpen] = useState(false);
@@ -434,7 +437,7 @@ export default function HomeScreen() {
           <Animated.View style={{ opacity: rankOpacity, marginTop: 12 }}>
             {animeResult && (
               <TouchableOpacity
-                onPress={() => setSbdModalOpen(true)}
+                onPress={() => setShowTierLadder(true)}
                 activeOpacity={0.85}
                 style={{
                   backgroundColor: animeResult.animeTier.color + '12',
@@ -1203,6 +1206,9 @@ export default function HomeScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* Tier Ladder */}
+        <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeResult} />
 
         {/* SBD Entry Modal */}
         <Modal visible={sbdModalOpen} transparent animationType="slide">
