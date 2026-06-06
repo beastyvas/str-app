@@ -996,6 +996,31 @@ export default function HistoryScreen() {
                             </Text>
                           </View>
                         )}
+
+                        {/* Delete workout */}
+                        <TouchableOpacity
+                          onPress={() => {
+                            Alert.alert(
+                              'Delete Workout',
+                              `Delete "${workout.name}"? This cannot be undone.`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Delete',
+                                  style: 'destructive',
+                                  onPress: async () => {
+                                    await supabase.from('workouts').delete().eq('id', workout.id);
+                                    setWorkouts(prev => prev.filter(w => w.id !== workout.id));
+                                    setExpandedId(null);
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          style={{ alignItems: 'center', paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border }}
+                        >
+                          <Text style={{ color: Colors.danger, fontSize: 13, fontWeight: '700' }}>Delete Workout</Text>
+                        </TouchableOpacity>
                       </View>
                     )}
                   </TouchableOpacity>
