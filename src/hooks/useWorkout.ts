@@ -49,6 +49,7 @@ interface WorkoutStore {
   finishWorkout: (notes?: string) => Promise<any>;
   discardWorkout: () => Promise<void>;
   clearPRs: () => void;
+  restoreWorkout: (userId: string) => Promise<boolean>;
 }
 
 let localIdCounter = 0;
@@ -310,6 +311,53 @@ export const useWorkoutStore = create<WorkoutStore>()(
   },
 
   clearPRs: () => set({ newPRs: [] }),
+
+  restoreWorkout: async (userId) => {
+    // If persist already restored an active workout, nothing to do
+    if (get().activeWorkout) return true;
+
+    // Check Supabase for an incomplete workout (ended_at is null)
+    const { data: workout } = await supabase
+      .from('workouts')
+      .select('id, name, started_at, workout_sets(id, exercise_id, set_number, weight, reps, rpe, note, logged_at, exercises(id, name, muscle_group, equipment_type))')
+      .eq('user_id', userId)
+      .is('ended_at', null)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!workout) return false;
+
+    // Rebuild exercises + sets from DB
+    const exerciseMap: Record<string, WorkoutExercise> = {};
+    for (const s of (workout.workout_sets ?? []) as any[]) {
+      const ex = s.exercises;
+      if (!ex) continue;
+      if (!exerciseMap[ex.id]) {
+        exerciseMap[ex.id] = { exerciseId: ex.id, exerciseName: ex.name, muscleGroup: ex.muscle_group, equipmentType: ex.equipment_type, sets: [] };
+      }
+      exerciseMap[ex.id].sets.push({
+        id: s.id, localId: `restored_${s.id}`,
+        exerciseId: ex.id, setNumber: s.set_number,
+        weight: s.weight, reps: s.reps,
+        rpe: s.rpe, note: s.note, loggedAt: s.logged_at,
+      });
+    }
+
+    // Sort sets within each exercise
+    Object.values(exerciseMap).forEach(e => e.sets.sort((a, b) => a.setNumber - b.setNumber));
+
+    set({
+      activeWorkout: {
+        id: workout.id,
+        name: workout.name,
+        startedAt: new Date(workout.started_at),
+        exercises: Object.values(exerciseMap),
+      },
+      lastSetLoggedAt: null,
+    });
+    return true;
+  },
     }),
     {
       name: 'str-active-workout',
