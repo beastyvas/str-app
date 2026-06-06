@@ -591,15 +591,13 @@ export default function SocialScreen() {
                 {/* Tier accent strip */}
                 <View style={{ height: 3, backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.65 }} />
 
-                {/* Photo — full bleed at top, full aspect ratio, no crop */}
+                {/* Photo — square crop, full bleed, no black bars */}
                 {post.photoUrl && (
-                  <View style={{ backgroundColor: '#000', width: '100%' }}>
-                    <Image
-                      source={{ uri: post.photoUrl }}
-                      style={{ width: '100%', aspectRatio: 4 / 5 }}
-                      resizeMode="contain"
-                    />
-                  </View>
+                  <Image
+                    source={{ uri: post.photoUrl }}
+                    style={{ width: '100%', aspectRatio: 1 }}
+                    resizeMode="cover"
+                  />
                 )}
 
                 {/* Post header */}
