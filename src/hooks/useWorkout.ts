@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
 export interface LoggedSet {
@@ -47,13 +49,14 @@ interface WorkoutStore {
   finishWorkout: (notes?: string) => Promise<any>;
   discardWorkout: () => Promise<void>;
   clearPRs: () => void;
-  restoreWorkout: (userId: string) => Promise<boolean>;
 }
 
 let localIdCounter = 0;
 const newLocalId = () => `local_${Date.now()}_${localIdCounter++}`;
 
-export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
+export const useWorkoutStore = create<WorkoutStore>()(
+  persist(
+    (set, get) => ({
   activeWorkout: null,
   lastSetLoggedAt: null,
   newPRs: [],
@@ -197,10 +200,6 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   updateSet: (exerciseId, localId, updates) => {
-    const existing = get().activeWorkout?.exercises
-      .find(e => e.exerciseId === exerciseId)?.sets
-      .find(s => s.localId === localId);
-
     set(state => ({
       activeWorkout: state.activeWorkout
         ? {
@@ -213,23 +212,9 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
           }
         : null,
     }));
-
-    if (existing?.id) {
-      const merged = { ...existing, ...updates };
-      supabase.from('workout_sets').update({
-        weight: merged.weight,
-        reps: merged.reps,
-        rpe: merged.rpe ?? null,
-        note: merged.note ?? null,
-      }).eq('id', existing.id);
-    }
   },
 
   deleteSet: (exerciseId, localId) => {
-    const existing = get().activeWorkout?.exercises
-      .find(e => e.exerciseId === exerciseId)?.sets
-      .find(s => s.localId === localId);
-
     set(state => ({
       activeWorkout: state.activeWorkout
         ? {
@@ -242,10 +227,6 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
           }
         : null,
     }));
-
-    if (existing?.id) {
-      supabase.from('workout_sets').delete().eq('id', existing.id);
-    }
   },
 
   finishWorkout: async (notes) => {
@@ -329,63 +310,24 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   },
 
   clearPRs: () => set({ newPRs: [] }),
-
-  restoreWorkout: async (userId) => {
-    const { data: workout } = await supabase
-      .from('workouts')
-      .select('id, name, started_at')
-      .eq('user_id', userId)
-      .is('ended_at', null)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!workout) return false;
-
-    const { data: sets } = await supabase
-      .from('workout_sets')
-      .select('id, exercise_id, set_number, weight, reps, rpe, note, logged_at, exercises(id, name, muscle_group, equipment_type)')
-      .eq('workout_id', workout.id)
-      .order('logged_at', { ascending: true });
-
-    const exerciseMap = new Map<string, WorkoutExercise>();
-    for (const s of sets ?? []) {
-      const ex = (s as any).exercises;
-      if (!ex) continue;
-      if (!exerciseMap.has(ex.id)) {
-        exerciseMap.set(ex.id, {
-          exerciseId: ex.id,
-          exerciseName: ex.name,
-          muscleGroup: ex.muscle_group,
-          equipmentType: ex.equipment_type,
-          sets: [],
-        });
-      }
-      exerciseMap.get(ex.id)!.sets.push({
-        id: s.id,
-        localId: newLocalId(),
-        exerciseId: ex.id,
-        setNumber: s.set_number,
-        weight: s.weight,
-        reps: s.reps,
-        rpe: s.rpe ?? undefined,
-        note: s.note ?? undefined,
-        loggedAt: s.logged_at,
-      });
-    }
-
-    const lastSet = sets?.[sets.length - 1] as any;
-    set({
-      activeWorkout: {
-        id: workout.id,
-        name: workout.name,
-        startedAt: new Date(workout.started_at),
-        exercises: Array.from(exerciseMap.values()),
+    }),
+    {
+      name: 'str-active-workout',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist the active workout and last set time — not transient PR banners
+      partialize: (state) => ({
+        activeWorkout: state.activeWorkout,
+        lastSetLoggedAt: state.lastSetLoggedAt,
+      }),
+      // Dates come back from JSON as strings — convert them back
+      onRehydrateStorage: () => (state) => {
+        if (state?.activeWorkout?.startedAt) {
+          state.activeWorkout.startedAt = new Date(state.activeWorkout.startedAt);
+        }
+        if (state?.lastSetLoggedAt) {
+          state.lastSetLoggedAt = new Date(state.lastSetLoggedAt);
+        }
       },
-      lastSetLoggedAt: lastSet ? new Date(lastSet.logged_at) : null,
-      newPRs: [],
-    });
-
-    return true;
-  },
-}));
+    }
+  )
+);
