@@ -74,9 +74,12 @@ export const ANIME_TIERS: AnimeTier[] = [
 ];
 
 export const SBD_EXERCISES = [
-  { name: 'Barbell Back Squats', key: 'barbell back squats', label: 'SQ' },
-  { name: 'Barbell Bench Press', key: 'barbell bench press', label: 'BP' },
-  { name: 'Deadlifts',           key: 'deadlifts',           label: 'DL' },
+  { name: 'Barbell Back Squats', key: 'barbell back squats', label: 'SQ',
+    aliases: ['squat', 'back squat', 'barbell squat', 'low bar', 'high bar', 'bb squat'] },
+  { name: 'Barbell Bench Press', key: 'barbell bench press', label: 'BP',
+    aliases: ['bench', 'bench press', 'flat bench', 'barbell bench', 'bb bench', 'chest press'] },
+  { name: 'Deadlifts', key: 'deadlifts', label: 'DL',
+    aliases: ['deadlift', 'dead lift', 'conventional deadlift', 'sumo deadlift', 'sumo', 'conv deadlift'] },
 ];
 
 export interface SBDResult {
@@ -111,8 +114,15 @@ export function getAnimeTierResult(
   const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
 
   const lifts: SBDResult[] = SBD_EXERCISES.map(ex => {
-    // For ranking: use recent PR if decay enabled, else use best overall
-    const allMatching = prs.filter(p => p.exerciseName.toLowerCase() === ex.key);
+    // For ranking: match exact name OR any alias (handles "Bench" → "Barbell Bench Press" etc.)
+    const exKey = ex.key;
+    const exAliases = (ex as any).aliases ?? [];
+    const allMatching = prs.filter(p => {
+      const n = p.exerciseName.toLowerCase();
+      return n === exKey || exAliases.some((a: string) => n.includes(a));
+    })
+    // Take the heaviest matching PR, not just the first
+    .sort((a, b) => b.weight - a.weight);
     const recentMatching = useDecay
       ? allMatching.filter(p => !p.achievedAt || new Date(p.achievedAt) >= sixMonthsAgo)
       : allMatching;
