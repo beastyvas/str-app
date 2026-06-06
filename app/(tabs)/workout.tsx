@@ -161,78 +161,80 @@ export default function WorkoutTab() {
     setLoadingTemplates(true);
     const todayDow = new Date().getDay();
 
-    supabase
-      .from('workouts')
-      .select('id, name, started_at, workout_sets(exercises(id, name, muscle_group, equipment_type))')
-      .eq('user_id', user.id)
-      .not('ended_at', 'is', null)
-      .order('started_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (!data) { setLoadingTemplates(false); return; }
+    const load = async () => {
+      const { data } = await supabase
+        .from('workouts')
+        .select('id, name, started_at, workout_sets(exercises(id, name, muscle_group, equipment_type))')
+        .eq('user_id', user.id)
+        .not('ended_at', 'is', null)
+        .order('started_at', { ascending: false })
+        .limit(20);
 
-        const parseExercises = (w: any) => {
-          const seen = new Set<string>();
-          const exs: { id: string; name: string; muscle_group: string; equipment_type?: string }[] = [];
-          for (const s of w.workout_sets ?? []) {
-            const ex = s.exercises;
-            if (ex && !seen.has(ex.id)) {
-              seen.add(ex.id);
-              exs.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
-            }
-          }
-          return exs;
-        };
+      if (!data) { setLoadingTemplates(false); return; }
 
-        // Day suggestion — prefer pinned template for today, else fall back to history
-        const { data: pinnedTmpl } = await supabase
-          .from('workout_templates')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('day_of_week', todayDow)
-          .limit(1)
-          .maybeSingle();
-
-        if (pinnedTmpl && pinnedTmpl.exercises?.length > 0) {
-          const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][todayDow];
-          setDaySuggestion({
-            name: pinnedTmpl.name,
-            dayLabel: `📌 Your ${dayName} plan`,
-            exercises: pinnedTmpl.exercises,
-            isPinned: true,
-            pinnedTemplateId: pinnedTmpl.id,
-          });
-        } else {
-          const sameDayWorkout = data.find(w => new Date(w.started_at).getDay() === todayDow);
-          if (sameDayWorkout) {
-            const exs = parseExercises(sameDayWorkout);
-            if (exs.length > 0) {
-              const daysAgo = Math.floor((Date.now() - new Date(sameDayWorkout.started_at).getTime()) / 86400000);
-              const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
-              setDaySuggestion({ name: sameDayWorkout.name, dayLabel: label, exercises: exs });
-            }
+      const parseExercises = (w: any) => {
+        const seen = new Set<string>();
+        const exs: { id: string; name: string; muscle_group: string; equipment_type?: string }[] = [];
+        for (const s of w.workout_sets ?? []) {
+          const ex = s.exercises;
+          if (ex && !seen.has(ex.id)) {
+            seen.add(ex.id);
+            exs.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
           }
         }
+        return exs;
+      };
 
-        // Templates — deduplicate by name, take most recent per name
-        const seen = new Map<string, any>();
-        for (const w of data) {
-          if (!seen.has(w.name)) seen.set(w.name, w);
-        }
-        const tmpl = Array.from(seen.values()).slice(0, 6).map(w => {
-          const exs = parseExercises(w);
-          const mgs = [...new Set(exs.map(e => e.muscle_group))];
-          return { id: w.id, name: w.name, exercises: exs, muscleGroups: mgs, lastUsed: w.started_at };
+      // Day suggestion — prefer pinned template for today, else fall back to history
+      const { data: pinnedTmpl } = await supabase
+        .from('workout_templates')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('day_of_week', todayDow)
+        .limit(1)
+        .maybeSingle();
+
+      if (pinnedTmpl && (pinnedTmpl as any).exercises?.length > 0) {
+        const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][todayDow];
+        setDaySuggestion({
+          name: (pinnedTmpl as any).name,
+          dayLabel: `📌 Your ${dayName} plan`,
+          exercises: (pinnedTmpl as any).exercises,
+          isPinned: true,
+          pinnedTemplateId: (pinnedTmpl as any).id,
         });
-        setTemplates(tmpl);
-
-        // Also set last workout exercises for the old repeat feature
-        if (data[0]) {
-          setLastWorkoutExercises(parseExercises(data[0]));
+      } else {
+        const sameDayWorkout = data.find((w: any) => new Date(w.started_at).getDay() === todayDow);
+        if (sameDayWorkout) {
+          const exs = parseExercises(sameDayWorkout);
+          if (exs.length > 0) {
+            const daysAgo = Math.floor((Date.now() - new Date((sameDayWorkout as any).started_at).getTime()) / 86400000);
+            const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
+            setDaySuggestion({ name: (sameDayWorkout as any).name, dayLabel: label, exercises: exs });
+          }
         }
+      }
 
-        setLoadingTemplates(false);
+      // Templates — deduplicate by name, take most recent per name
+      const seen = new Map<string, any>();
+      for (const w of data) {
+        if (!seen.has((w as any).name)) seen.set((w as any).name, w);
+      }
+      const tmpl = Array.from(seen.values()).slice(0, 6).map((w: any) => {
+        const exs = parseExercises(w);
+        const mgs = [...new Set(exs.map((e: any) => e.muscle_group))];
+        return { id: w.id, name: w.name, exercises: exs, muscleGroups: mgs, lastUsed: w.started_at };
       });
+      setTemplates(tmpl);
+
+      if (data[0]) {
+        setLastWorkoutExercises(parseExercises(data[0]));
+      }
+
+      setLoadingTemplates(false);
+    };
+
+    load();
   }, [user, activeWorkout]);
 
   // ─── START WORKOUT ────────────────────────────────────────────────────────
