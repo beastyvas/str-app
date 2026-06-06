@@ -514,44 +514,43 @@ export default function WorkoutTab() {
     ]);
   };
 
-  const handleFinishConfirm = async () => {
+  const handleFinishConfirm = async (quick = false) => {
     setFinishing(true);
     setShowFinishModal(false);
     try {
-      // Save as template if requested
       if (saveAsTemplate && activeWorkout && templateName.trim()) {
         await saveTemplate(templateName.trim(), activeWorkout.exercises);
       }
       setSaveAsTemplate(false);
       setTemplateName('');
 
-      const summary = await finishWorkout(finishNotes.trim() || undefined);
+      const summary = await finishWorkout(quick ? undefined : (finishNotes.trim() || undefined));
 
-      // Upload photo if selected
-      if (finishPhoto && summary?.workoutId && user) {
+      // Upload photo — uses FileSystem base64 (same pattern as working profile photo upload)
+      if (!quick && finishPhoto && summary?.workoutId && user) {
         try {
           setUploadingPhoto(true);
-          const ext = (finishPhoto.split('.').pop()?.split('?')[0]?.toLowerCase()) ?? 'jpg';
+          const ext = (finishPhoto.split('.').pop()?.split('?')[0]?.toLowerCase().replace('jpeg', 'jpg')) ?? 'jpg';
           const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
           const fileName = `${user.id}/${summary.workoutId}.${ext}`;
-          // fetch → blob is the correct RN approach (avoids atob/Uint8Array issues)
-          const resp = await fetch(finishPhoto);
-          const blob = await resp.blob();
+          const base64 = await FileSystem.readAsStringAsync(finishPhoto, { encoding: 'base64' as any });
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
           const { data: uploadData, error: uploadErr } = await supabase.storage
-            .from('workout-photos').upload(fileName, blob, { upsert: true, contentType });
+            .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType });
           if (uploadErr) {
-            console.warn('[Photo upload] storage error:', uploadErr.message);
+            Alert.alert('Photo upload failed', uploadErr.message);
           } else if (uploadData) {
             const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
-            const { error: dbErr } = await supabase.from('workout_photos').insert({
+            await supabase.from('workout_photos').insert({
               workout_id: summary.workoutId,
               user_id: user.id,
               photo_url: urlData.publicUrl,
             });
-            if (dbErr) console.warn('[Photo upload] db error:', dbErr.message);
           }
         } catch (e: any) {
-          console.warn('[Photo upload] failed:', e.message);
+          Alert.alert('Photo upload failed', e.message ?? 'Could not upload photo');
         } finally {
           setUploadingPhoto(false);
         }
@@ -563,16 +562,6 @@ export default function WorkoutTab() {
       setPrevSetsCache({});
       setIsFirstWorkout(false);
       setTutorialStep('done');
-      // Pre-flag for celebration toast on home screen (cleared after shown)
-      if (user) {
-        try {
-          const AS = (await import('@react-native-async-storage/async-storage')).default;
-          const alreadyCelebrated = await AS.getItem(`celebrated_workout_${user.id}`);
-          if (!alreadyCelebrated) {
-            // Leave it for home screen to pick up — it will show AND mark as shown
-          }
-        } catch {}
-      }
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
@@ -1300,163 +1289,174 @@ export default function WorkoutTab() {
         onClose={() => setShowPicker(false)}
       />
 
-      {/* Finish Modal */}
-      <Modal visible={showFinishModal} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}
-            activeOpacity={1}
-            onPress={() => setShowFinishModal(false)}
-          />
-          <View style={{
-            backgroundColor: Colors.surface,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            padding: 24,
-            borderTopWidth: 1,
-            borderTopColor: Colors.border,
-            gap: 16,
-          }}>
-            <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>
-              Finish Workout
-            </Text>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              {[
-                { label: 'Duration', value: formatElapsed(elapsedSec) },
-                { label: 'Sets', value: String(totalSets) },
-                { label: 'Volume', value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : String(totalVolume) },
-              ].map((s, i) => (
-                <View key={i} style={{
-                  flex: 1,
-                  backgroundColor: Colors.surface2,
-                  borderRadius: 12,
-                  padding: 12,
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: Colors.border,
-                }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</Text>
-                  <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', marginTop: 4 }}>{s.value}</Text>
-                </View>
-              ))}
+      {/* Finish Modal — social post style */}
+      <Modal visible={showFinishModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            {/* Header */}
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              paddingHorizontal: 20, paddingVertical: 16,
+              borderBottomWidth: 1, borderBottomColor: Colors.border,
+            }}>
+              <TouchableOpacity onPress={() => setShowFinishModal(false)}>
+                <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Finish Workout</Text>
+              <TouchableOpacity onPress={() => handleFinishConfirm(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 13 }}>Quick Save</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Photo picker */}
-            <TouchableOpacity
-              onPress={pickFinishPhoto}
-              style={{
-                borderRadius: 12, overflow: 'hidden',
-                borderWidth: 1, borderColor: finishPhoto ? Colors.accent + '40' : Colors.border,
-                borderStyle: finishPhoto ? 'solid' : 'dashed',
-                height: finishPhoto ? 160 : 52,
-                alignItems: 'center', justifyContent: 'center',
-                backgroundColor: Colors.surface2,
-              }}
-            >
-              {finishPhoto ? (
-                <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} />
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ fontSize: 18 }}>📷</Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '600' }}>
-                    Add a photo to your post
-                  </Text>
+            <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
+              {/* Workout name */}
+              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 }}>
+                {activeWorkout?.name}
+              </Text>
+
+              {/* Stats row */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {[
+                  { label: 'Duration', value: formatElapsed(elapsedSec) },
+                  { label: 'Sets', value: String(totalSets) },
+                  { label: 'Volume', value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k lbs` : `${totalVolume} lbs` },
+                ].map((s, i) => (
+                  <View key={i} style={{
+                    flex: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
+                    alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+                  }}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
+                    <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900' }}>{s.value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* PR callout */}
+              {newPRs.length > 0 && (
+                <View style={{
+                  backgroundColor: Colors.gold + '15', borderRadius: 14, padding: 16,
+                  borderWidth: 1, borderColor: Colors.gold + '40',
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                }}>
+                  <Text style={{ fontSize: 26 }}>🏆</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.gold, fontWeight: '900', fontSize: 14 }}>
+                      {newPRs.length === 1 ? 'New Personal Record!' : `${newPRs.length} New PRs!`}
+                    </Text>
+                    <Text style={{ color: Colors.gold, fontSize: 12, opacity: 0.8, marginTop: 2 }}>
+                      {newPRs.map(p => p.exerciseName).join(', ')}
+                    </Text>
+                  </View>
                 </View>
               )}
-            </TouchableOpacity>
-            {finishPhoto && (
-              <TouchableOpacity onPress={() => setFinishPhoto(null)} style={{ alignSelf: 'flex-end' }}>
-                <Text style={{ color: Colors.danger, fontSize: 12 }}>Remove photo</Text>
-              </TouchableOpacity>
-            )}
 
-            <TextInput
-              value={finishNotes}
-              onChangeText={setFinishNotes}
-              placeholder="Session notes (optional)..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              style={{
-                backgroundColor: Colors.surface2,
-                borderRadius: 12,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                color: Colors.text,
-                fontSize: 14,
-                minHeight: 60,
-                maxHeight: 120,
-                textAlignVertical: 'top',
-                borderWidth: 1,
-                borderColor: Colors.border,
-                lineHeight: 20,
-              }}
-            />
-
-            {/* Save as template toggle */}
-            <TouchableOpacity
-              onPress={() => {
-                setSaveAsTemplate(!saveAsTemplate);
-                if (!saveAsTemplate) setTemplateName(activeWorkout?.name ?? '');
-              }}
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 10,
-                backgroundColor: saveAsTemplate ? Colors.accentDim : Colors.surface2,
-                borderRadius: 12, padding: 14,
-                borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent + '40' : Colors.border,
-              }}
-            >
-              <View style={{
-                width: 22, height: 22, borderRadius: 6,
-                backgroundColor: saveAsTemplate ? Colors.accent : Colors.surface,
-                borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent : Colors.border,
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
-              </View>
-              <Text style={{ color: saveAsTemplate ? Colors.text : Colors.textMuted, fontWeight: '600', flex: 1 }}>
-                Save as template
-              </Text>
-            </TouchableOpacity>
-
-            {saveAsTemplate && (
-              <TextInput
-                value={templateName}
-                onChangeText={setTemplateName}
-                placeholder="Template name (e.g. Push Day)"
-                placeholderTextColor={Colors.textMuted}
+              {/* Photo — large and prominent */}
+              <TouchableOpacity
+                onPress={pickFinishPhoto}
+                activeOpacity={0.85}
                 style={{
-                  backgroundColor: Colors.surface2, borderRadius: 12,
-                  paddingHorizontal: 14, paddingVertical: 12,
-                  color: Colors.text, fontSize: 15,
+                  borderRadius: 16, overflow: 'hidden',
+                  borderWidth: 1.5,
+                  borderColor: finishPhoto ? Colors.accent + '50' : Colors.border,
+                  borderStyle: finishPhoto ? 'solid' : 'dashed',
+                  height: finishPhoto ? 260 : 110,
+                  alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: Colors.surface2,
+                }}
+              >
+                {finishPhoto ? (
+                  <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : (
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 28 }}>📸</Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 14, fontWeight: '700' }}>Add a photo</Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Show your crew what you're working with</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {finishPhoto && (
+                <TouchableOpacity onPress={() => setFinishPhoto(null)} style={{ alignSelf: 'flex-end', marginTop: -6 }}>
+                  <Text style={{ color: Colors.danger, fontSize: 12 }}>Remove photo</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Caption */}
+              <TextInput
+                value={finishNotes}
+                onChangeText={setFinishNotes}
+                placeholder="Add a caption... (optional)"
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                style={{
+                  backgroundColor: Colors.surface, borderRadius: 14,
+                  paddingHorizontal: 16, paddingVertical: 14,
+                  color: Colors.text, fontSize: 15, lineHeight: 22,
+                  minHeight: 80, maxHeight: 140, textAlignVertical: 'top',
                   borderWidth: 1, borderColor: Colors.border,
                 }}
               />
-            )}
 
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {/* Save as template */}
               <TouchableOpacity
-                onPress={() => setShowFinishModal(false)}
+                onPress={() => {
+                  setSaveAsTemplate(!saveAsTemplate);
+                  if (!saveAsTemplate) setTemplateName(activeWorkout?.name ?? '');
+                }}
                 style={{
-                  flex: 1, paddingVertical: 16, borderRadius: 14,
-                  backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
-                  alignItems: 'center',
+                  flexDirection: 'row', alignItems: 'center', gap: 10,
+                  backgroundColor: saveAsTemplate ? Colors.accentDim : Colors.surface2,
+                  borderRadius: 12, padding: 14,
+                  borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent + '40' : Colors.border,
                 }}
               >
-                <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
+                <View style={{
+                  width: 22, height: 22, borderRadius: 6,
+                  backgroundColor: saveAsTemplate ? Colors.accent : Colors.surface,
+                  borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent : Colors.border,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
+                </View>
+                <Text style={{ color: saveAsTemplate ? Colors.text : Colors.textMuted, fontWeight: '600', flex: 1 }}>
+                  Save as template
+                </Text>
               </TouchableOpacity>
+              {saveAsTemplate && (
+                <TextInput
+                  value={templateName}
+                  onChangeText={setTemplateName}
+                  placeholder="Template name (e.g. Push Day)"
+                  placeholderTextColor={Colors.textMuted}
+                  style={{
+                    backgroundColor: Colors.surface2, borderRadius: 12,
+                    paddingHorizontal: 14, paddingVertical: 12,
+                    color: Colors.text, fontSize: 15,
+                    borderWidth: 1, borderColor: Colors.border,
+                  }}
+                />
+              )}
+
+              {/* Post button */}
               <TouchableOpacity
-                onPress={handleFinishConfirm}
-                style={{ flex: 2, paddingVertical: 16, borderRadius: 14, backgroundColor: Colors.accent, alignItems: 'center' }}
+                onPress={() => handleFinishConfirm(false)}
+                disabled={finishing}
+                style={{
+                  backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 18,
+                  alignItems: 'center', marginTop: 4,
+                  shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 6 }, elevation: 8,
+                }}
               >
-                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE WORKOUT</Text>
+                {finishing
+                  ? <ActivityIndicator color={Colors.text} />
+                  : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 17, letterSpacing: 0.3 }}>
+                      Post Workout →
+                    </Text>
+                }
               </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
