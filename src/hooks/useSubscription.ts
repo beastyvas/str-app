@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/lib/supabase';
 
 // Weekly AI ask limit for free users
-const FREE_AI_ASKS_PER_WEEK = 3;
+const FREE_AI_ASKS_PER_WEEK = 5;
 
 export function useSubscription() {
   const { profile, user, refreshProfile } = useAuth();
