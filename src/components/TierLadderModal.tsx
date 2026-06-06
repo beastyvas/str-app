@@ -141,8 +141,8 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Pro
                   "{tier.tagline}"
                 </Text>
 
-                {/* Lb requirements at user's bodyweight */}
-                {(() => {
+                {/* Lb requirements — only show for tiers not yet reached */}
+                {!isAchieved && (() => {
                   const targets = SBD_KEYS.map(ex => ({
                     label: ex.label,
                     lbs: lbsForScore(ex.key, tier.minScore, bw),
@@ -156,7 +156,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Pro
                       borderWidth: 1, borderColor: tier.color + '25',
                     }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 10, alignSelf: 'center' }}>
-                        At {bw} lbs:
+                        Need at {bw} lbs:
                       </Text>
                       {targets.map(t => (
                         <View key={t.label} style={{ alignItems: 'center', flex: 1 }}>
