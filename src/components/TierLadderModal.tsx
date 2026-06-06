@@ -12,18 +12,17 @@ interface Props {
   bodyweightLbs?: number;
 }
 
-// Given a minScore (e.g. 1.75), calculate the interpolated lb requirement
-// for a given exercise at a given bodyweight
+// Each anime tier requires ALL lifts to be at a minimum strength tier.
+// minScore 0.75 → need score ≥ 1 (bronze) on every lift
+// minScore 1.75 → need score ≥ 2 (silver) on every lift, etc.
+// We ceil() because the weakest link must meet or exceed the threshold.
 function lbsForScore(exerciseKey: string, minScore: number, bw: number): number | null {
   const std = STRENGTH_STANDARDS[exerciseKey];
   if (!std || std.type !== 'bodyweight_multiplier') return null;
   const tiers = ['beginner', 'bronze', 'silver', 'gold', 'platinum', 'diamond'] as const;
-  const lower = Math.floor(minScore);
-  const frac = minScore - lower;
-  const lowerMultiplier = std.thresholds[tiers[Math.min(lower, 5)]];
-  const upperMultiplier = std.thresholds[tiers[Math.min(lower + 1, 5)]];
-  const multiplier = lowerMultiplier + frac * (upperMultiplier - lowerMultiplier);
-  return Math.round(multiplier * bw / 5) * 5; // round to nearest 5 lbs
+  const tierIndex = Math.min(Math.ceil(minScore), 5);
+  const multiplier = std.thresholds[tiers[tierIndex]];
+  return Math.round(multiplier * bw / 5) * 5; // nearest 5 lbs
 }
 
 const SBD_KEYS = [
