@@ -1000,6 +1000,23 @@ export default function ProfileScreen() {
             )}
           </TouchableOpacity>
 
+          {/* Redeem code — shown for free users */}
+          {!isPro && (
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  const Purchases = require('react-native-purchases').default;
+                  await Purchases.presentCodeRedemptionSheet();
+                } catch {}
+              }}
+              style={{ alignItems: 'center', paddingVertical: 4 }}
+            >
+              <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700' }}>
+                Have a code? Redeem it →
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── SIGN OUT ─────────────────────────────────────────────────────── */}
           <TouchableOpacity
             onPress={signOut}

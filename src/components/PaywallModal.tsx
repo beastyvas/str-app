@@ -279,10 +279,20 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             }
           </TouchableOpacity>
 
-          {/* Restore + legal */}
-          <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', marginBottom: 16 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Restore purchases</Text>
-          </TouchableOpacity>
+          {/* Restore + Redeem + legal */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
+            <TouchableOpacity onPress={handleRestore}>
+              <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Restore purchases</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={async () => {
+              try {
+                const Purchases = require('react-native-purchases').default;
+                await Purchases.presentCodeRedemptionSheet();
+              } catch {}
+            }}>
+              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>Redeem Code</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', lineHeight: 15 }}>
             Subscription auto-renews. Cancel anytime in App Store settings.
             Payment charged to your Apple ID.
