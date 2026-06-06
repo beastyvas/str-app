@@ -13,6 +13,57 @@ const TIER_COLORS: Record<TierName, string> = {
   platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
 };
 
+const SESSION_COLORS: Record<string, string> = {
+  Push: '#D4197A', Pull: '#3B82F6', Legs: '#F97316',
+  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
+};
+
+function classifySession(sets: any[]): string {
+  const groups = [...new Set(sets.map((s: any) => (s.exercises?.muscle_group ?? '').toLowerCase()).filter(Boolean))];
+  const hasPush = groups.some(g => ['chest', 'shoulder', 'tricep'].some(m => g.includes(m)));
+  const hasPull = groups.some(g => ['back', 'bicep', 'lat'].some(m => g.includes(m)));
+  const hasLegs = groups.some(g => ['quad', 'hamstring', 'glute', 'calf'].some(m => g.includes(m)));
+  if (hasPush && hasPull && hasLegs) return 'Full Body';
+  if (hasLegs && (hasPush || hasPull)) return 'Full Body';
+  if (hasPush && hasPull) return 'Upper';
+  if (hasPush) return 'Push';
+  if (hasPull) return 'Pull';
+  if (hasLegs) return 'Legs';
+  return 'Other';
+}
+
+function computeSplit(workouts: any[]) {
+  if (!workouts || workouts.length === 0) return null;
+  const classified = workouts.map(w => ({
+    dayOfWeek: new Date(w.started_at).getDay(),
+    type: classifySession(w.workout_sets ?? []),
+    ts: new Date(w.started_at).getTime(),
+  }));
+  const recentCount = classified.filter(c => c.ts > Date.now() - 28 * 86400000).length;
+  const sessionsPerWeek = Math.round((recentCount / 4) * 10) / 10;
+
+  const dayMap: Record<number, Record<string, number>> = {};
+  for (const c of classified) {
+    if (!dayMap[c.dayOfWeek]) dayMap[c.dayOfWeek] = {};
+    dayMap[c.dayOfWeek][c.type] = (dayMap[c.dayOfWeek][c.type] ?? 0) + 1;
+  }
+  const typicalWeek: Array<{ type: string; color: string } | null> = Array(7).fill(null);
+  for (const [day, counts] of Object.entries(dayMap)) {
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (top && top !== 'Other') typicalWeek[Number(day)] = { type: top, color: SESSION_COLORS[top] ?? Colors.textMuted };
+  }
+
+  const types = [...new Set(classified.map(c => c.type).filter(t => t !== 'Other'))];
+  let splitLabel = 'Custom';
+  if (types.includes('Push') && types.includes('Pull') && types.includes('Legs')) splitLabel = 'Push / Pull / Legs';
+  else if ((types.includes('Upper') || (types.includes('Push') && types.includes('Pull'))) && types.includes('Legs')) splitLabel = 'Upper / Lower';
+  else if (types.includes('Upper') && types.includes('Legs')) splitLabel = 'Upper / Lower';
+  else if (types.every(t => t === 'Full Body')) splitLabel = 'Full Body';
+  else if (types.length === 1 && types[0]) splitLabel = types[0];
+
+  return { splitLabel, sessionsPerWeek, typicalWeek };
+}
+
 interface Props {
   visible: boolean;
   userId: string | null;
@@ -25,6 +76,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [prs, setPrs] = useState<any[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<any[]>([]);
   const [workoutCount, setWorkoutCount] = useState(0);
+  const [splitData, setSplitData] = useState<ReturnType<typeof computeSplit>>(null);
   const [animeTier, setAnimeTier] = useState<ReturnType<typeof getAnimeTierResult> | null>(null);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
@@ -46,7 +98,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         .not('ended_at', 'is', null)
         .or('is_imported.is.null,is_imported.eq.false')
         .order('started_at', { ascending: false })
-        .limit(6),
+        .limit(20),
       supabase
         .from('workouts')
         .select('id', { count: 'exact', head: true })
@@ -57,6 +109,21 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
       setPrs(prData ?? []);
       setRecentWorkouts(workouts ?? []);
       setWorkoutCount(count ?? 0);
+
+      // Prefer manually configured split; fall back to auto-detection
+      if (prof?.split_type || prof?.split_schedule) {
+        const storedWeek: Array<{ type: string; color: string } | null> = Array(7).fill(null);
+        Object.entries((prof.split_schedule ?? {}) as Record<string, string>).forEach(([day, type]) => {
+          storedWeek[Number(day)] = { type, color: SESSION_COLORS[type] ?? Colors.textMuted };
+        });
+        setSplitData({
+          splitLabel: prof.split_type ?? 'Custom',
+          sessionsPerWeek: Object.keys(prof.split_schedule ?? {}).length,
+          typicalWeek: storedWeek,
+        });
+      } else {
+        setSplitData(computeSplit(workouts ?? []));
+      }
 
       const sbdPrs = (prData ?? [])
         .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
@@ -324,32 +391,58 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
               </View>
             )}
 
-            {/* ── ALL PRs ───────────────────────────────────────────────── */}
-            {prs.length > 0 && (
+            {/* ── TRAINING SPLIT ────────────────────────────────────────── */}
+            {splitData && (
               <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Personal Records</Text>
-                {prs.map((pr: any, i: number) => {
-                  const tier = getTierForWeight(pr.exercises?.name ?? '', pr.weight, profile.bodyweight_lbs ?? 185);
-                  return (
-                    <View key={i} style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 10,
-                      paddingVertical: 8,
-                      borderBottomWidth: i < prs.length - 1 ? 1 : 0,
-                      borderBottomColor: Colors.border,
-                    }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: TIER_COLORS[tier], flexShrink: 0 }} />
-                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                        {pr.exercises?.name}
-                      </Text>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>
-                        {pr.weight === 0 ? `BW×${pr.reps}` : `${pr.weight}×${pr.reps}`}
-                      </Text>
-                      <View style={{ backgroundColor: TIER_COLORS[tier] + '18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ color: TIER_COLORS[tier], fontSize: 9, fontWeight: '800' }}>{TIER_LABELS[tier].toUpperCase()}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Training Split</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+                    {splitData.sessionsPerWeek}x / week
+                  </Text>
+                </View>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 14 }}>
+                  {splitData.splitLabel}
+                </Text>
+                {/* Typical week grid — Sun=0 … Sat=6, display Mon–Sun */}
+                <View style={{ flexDirection: 'row', gap: 5 }}>
+                  {[1, 2, 3, 4, 5, 6, 0].map((dayIdx, col) => {
+                    const session = splitData.typicalWeek[dayIdx];
+                    const dayLabel = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][dayIdx];
+                    return (
+                      <View key={col} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+                        <View style={{
+                          width: '100%', aspectRatio: 1, borderRadius: 8,
+                          backgroundColor: session ? session.color + '22' : Colors.surface2,
+                          borderWidth: 1, borderColor: session ? session.color + '55' : Colors.border,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {session && (
+                            <Text style={{ color: session.color, fontSize: 7, fontWeight: '900', letterSpacing: 0.3, textAlign: 'center' }}>
+                              {session.type === 'Full Body' ? 'FB' : session.type === 'Upper' ? 'UP' : session.type === 'Lower' ? 'LO' : session.type.slice(0, 2).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={{ color: session ? Colors.textSecondary : Colors.textMuted, fontSize: 8, fontWeight: session ? '700' : '400' }}>
+                          {dayLabel}
+                        </Text>
                       </View>
+                    );
+                  })}
+                </View>
+                {/* Legend */}
+                {(() => {
+                  const seen = [...new Set(splitData.typicalWeek.filter(Boolean).map(s => s!.type))];
+                  return seen.length > 0 ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+                      {seen.map((type, i) => (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: SESSION_COLORS[type] ?? Colors.textMuted }} />
+                          <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '600' }}>{type}</Text>
+                        </View>
+                      ))}
                     </View>
-                  );
-                })}
+                  ) : null;
+                })()}
               </View>
             )}
 

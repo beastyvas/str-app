@@ -169,6 +169,16 @@ export default function InsightsTab() {
       `Recent workouts:\n${workoutSummary}`,
     ];
 
+    if (profile?.split_type || profile?.split_schedule) {
+      const schedule = (profile.split_schedule ?? {}) as Record<string, string>;
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const scheduleStr = Object.entries(schedule)
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([d, t]) => `${days[Number(d)]}: ${t}`)
+        .join(', ');
+      sections.unshift(`TRAINING SPLIT: ${profile.split_type ?? 'Custom'}${scheduleStr ? `\nSchedule: ${scheduleStr}` : ''}`);
+    }
+
     if (profile?.training_notes) {
       sections.unshift(`ABOUT THIS ATHLETE (their own words, gym context — read charitably, not literally):\n${profile.training_notes}`);
     }
