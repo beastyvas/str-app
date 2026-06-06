@@ -591,6 +591,17 @@ export default function SocialScreen() {
                 {/* Tier accent strip */}
                 <View style={{ height: 3, backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.65 }} />
 
+                {/* Photo — full bleed at top, full aspect ratio, no crop */}
+                {post.photoUrl && (
+                  <View style={{ backgroundColor: '#000', width: '100%' }}>
+                    <Image
+                      source={{ uri: post.photoUrl }}
+                      style={{ width: '100%', aspectRatio: 4 / 5 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+
                 {/* Post header */}
                 <TouchableOpacity
                   onPress={() => setSelectedFriendId(post.userId)}
@@ -645,11 +656,6 @@ export default function SocialScreen() {
                     ))}
                   </View>
                 </View>
-
-                {/* Photo — full width hero */}
-                {post.photoUrl && (
-                  <Image source={{ uri: post.photoUrl }} style={{ width: '100%', height: 240 }} resizeMode="cover" />
-                )}
 
                 {/* Note */}
                 {post.notes && (
