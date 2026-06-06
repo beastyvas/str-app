@@ -3,18 +3,41 @@ import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { ANIME_TIERS, AnimeTierResult, ROMAN } from '@/constants/animeTiers';
+import { STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   result: AnimeTierResult | null;
+  bodyweightLbs?: number;
 }
 
-export function TierLadderModal({ visible, onClose, result }: Props) {
+// Given a minScore (e.g. 1.75), calculate the interpolated lb requirement
+// for a given exercise at a given bodyweight
+function lbsForScore(exerciseKey: string, minScore: number, bw: number): number | null {
+  const std = STRENGTH_STANDARDS[exerciseKey];
+  if (!std || std.type !== 'bodyweight_multiplier') return null;
+  const tiers = ['beginner', 'bronze', 'silver', 'gold', 'platinum', 'diamond'] as const;
+  const lower = Math.floor(minScore);
+  const frac = minScore - lower;
+  const lowerMultiplier = std.thresholds[tiers[Math.min(lower, 5)]];
+  const upperMultiplier = std.thresholds[tiers[Math.min(lower + 1, 5)]];
+  const multiplier = lowerMultiplier + frac * (upperMultiplier - lowerMultiplier);
+  return Math.round(multiplier * bw / 5) * 5; // round to nearest 5 lbs
+}
+
+const SBD_KEYS = [
+  { key: 'barbell back squats', label: 'SQ' },
+  { key: 'barbell bench press', label: 'BP' },
+  { key: 'deadlifts', label: 'DL' },
+];
+
+export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Props) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const currentKey = result?.animeTier.key;
   const avgScore = result?.avgScore ?? 0;
   const actualAvg = result?.actualAvgScore ?? 0;
+  const bw = bodyweightLbs ?? 185;
 
   const getSubTierRanges = (tierIndex: number) => {
     const tier = ANIME_TIERS[tierIndex];
@@ -118,6 +141,33 @@ export function TierLadderModal({ visible, onClose, result }: Props) {
                 }}>
                   "{tier.tagline}"
                 </Text>
+
+                {/* Lb requirements at user's bodyweight */}
+                {(() => {
+                  const targets = SBD_KEYS.map(ex => ({
+                    label: ex.label,
+                    lbs: lbsForScore(ex.key, tier.minScore, bw),
+                  })).filter(t => t.lbs !== null && t.lbs > 0);
+                  if (targets.length === 0) return null;
+                  return (
+                    <View style={{
+                      marginTop: 10, flexDirection: 'row', gap: 8,
+                      backgroundColor: tier.color + '10',
+                      borderRadius: 8, padding: 10,
+                      borderWidth: 1, borderColor: tier.color + '25',
+                    }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 10, alignSelf: 'center' }}>
+                        At {bw} lbs:
+                      </Text>
+                      {targets.map(t => (
+                        <View key={t.label} style={{ alignItems: 'center', flex: 1 }}>
+                          <Text style={{ color: tier.color, fontSize: 14, fontWeight: '900' }}>{t.lbs}</Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 1 }}>{t.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
 
                 {/* Progress bar for current tier */}
                 {isCurrent && result?.nextAnimeTier && (

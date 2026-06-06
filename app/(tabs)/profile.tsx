@@ -1071,7 +1071,7 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Tier Ladder Modal */}
-      <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeTier} />
+      <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeTier} bodyweightLbs={profile?.bodyweight_lbs ?? 185} />
 
       {/* Paywall */}
       <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} reason="Unlock unlimited AI Coach, full workout history, and more." />

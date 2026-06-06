@@ -109,6 +109,8 @@ export default function WorkoutTab() {
     name: string;
     dayLabel: string;
     exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[];
+    isPinned?: boolean;
+    pinnedTemplateId?: string;
   } | null>(null);
   const [templates, setTemplates] = useState<{
     id: string;
@@ -182,14 +184,33 @@ export default function WorkoutTab() {
           return exs;
         };
 
-        // Day suggestion — most recent workout on same day of week
-        const sameDayWorkout = data.find(w => new Date(w.started_at).getDay() === todayDow);
-        if (sameDayWorkout) {
-          const exs = parseExercises(sameDayWorkout);
-          if (exs.length > 0) {
-            const daysAgo = Math.floor((Date.now() - new Date(sameDayWorkout.started_at).getTime()) / 86400000);
-            const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
-            setDaySuggestion({ name: sameDayWorkout.name, dayLabel: label, exercises: exs });
+        // Day suggestion — prefer pinned template for today, else fall back to history
+        const { data: pinnedTmpl } = await supabase
+          .from('workout_templates')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('day_of_week', todayDow)
+          .limit(1)
+          .maybeSingle();
+
+        if (pinnedTmpl && pinnedTmpl.exercises?.length > 0) {
+          const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][todayDow];
+          setDaySuggestion({
+            name: pinnedTmpl.name,
+            dayLabel: `📌 Your ${dayName} plan`,
+            exercises: pinnedTmpl.exercises,
+            isPinned: true,
+            pinnedTemplateId: pinnedTmpl.id,
+          });
+        } else {
+          const sameDayWorkout = data.find(w => new Date(w.started_at).getDay() === todayDow);
+          if (sameDayWorkout) {
+            const exs = parseExercises(sameDayWorkout);
+            if (exs.length > 0) {
+              const daysAgo = Math.floor((Date.now() - new Date(sameDayWorkout.started_at).getTime()) / 86400000);
+              const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
+              setDaySuggestion({ name: sameDayWorkout.name, dayLabel: label, exercises: exs });
+            }
           }
         }
 
@@ -631,14 +652,58 @@ export default function WorkoutTab() {
           {/* Day suggestion */}
           {daySuggestion && (
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                {daySuggestion.dayLabel} you trained
-              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  {daySuggestion.isPinned ? daySuggestion.dayLabel : `${daySuggestion.dayLabel} you trained`}
+                </Text>
+                {!daySuggestion.isPinned && (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+                      Alert.alert(
+                        `Pin as ${dayName} template?`,
+                        `Every ${dayName}, this workout will be your default suggestion.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: `Pin for ${dayName}`,
+                            onPress: async () => {
+                              if (!user) return;
+                              await supabase.from('workout_templates').insert({
+                                user_id: user.id,
+                                name: daySuggestion.name,
+                                exercises: daySuggestion.exercises,
+                                day_of_week: new Date().getDay(),
+                              });
+                              setDaySuggestion(prev => prev ? { ...prev, isPinned: true, dayLabel: `📌 Your ${dayName} plan` } : null);
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>📌 Pin for today</Text>
+                  </TouchableOpacity>
+                )}
+                {daySuggestion.isPinned && daySuggestion.pinnedTemplateId && (
+                  <TouchableOpacity
+                    onPress={() => Alert.alert('Unpin?', 'Remove this as your pinned template for this day?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Unpin', style: 'destructive', onPress: async () => {
+                        await supabase.from('workout_templates').update({ day_of_week: null }).eq('id', daySuggestion.pinnedTemplateId!);
+                        setDaySuggestion(null);
+                      }},
+                    ])}
+                  >
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Unpin</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <View style={{
                 backgroundColor: Colors.surface,
                 borderRadius: 18,
                 borderWidth: 1.5,
-                borderColor: Colors.accent + '50',
+                borderColor: daySuggestion.isPinned ? Colors.accent + '70' : Colors.accent + '50',
                 overflow: 'hidden',
               }}>
                 <View style={{ padding: 18 }}>
@@ -651,15 +716,10 @@ export default function WorkoutTab() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => startFromTemplate(daySuggestion.name, daySuggestion.exercises)}
-                    style={{
-                      backgroundColor: Colors.accent,
-                      borderRadius: 12,
-                      paddingVertical: 14,
-                      alignItems: 'center',
-                    }}
+                    style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                   >
                     <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15, letterSpacing: 0.3 }}>
-                      Repeat this session →
+                      {daySuggestion.isPinned ? 'Start my plan →' : 'Repeat this session →'}
                     </Text>
                   </TouchableOpacity>
                 </View>
