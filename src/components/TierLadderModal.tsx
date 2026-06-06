@@ -3,40 +3,35 @@ import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { ANIME_TIERS, AnimeTierResult, ROMAN } from '@/constants/animeTiers';
-import { STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+import { getScaledThresholds } from '@/constants/strengthStandards';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   result: AnimeTierResult | null;
   bodyweightLbs?: number;
-}
-
-// Each anime tier requires ALL lifts to be at a minimum strength tier.
-// minScore 0.75 → need score ≥ 1 (bronze) on every lift
-// minScore 1.75 → need score ≥ 2 (silver) on every lift, etc.
-// We ceil() because the weakest link must meet or exceed the threshold.
-function lbsForScore(exerciseKey: string, minScore: number, bw: number): number | null {
-  const std = STRENGTH_STANDARDS[exerciseKey];
-  if (!std || std.type !== 'bodyweight_multiplier') return null;
-  const tiers = ['beginner', 'bronze', 'silver', 'gold', 'platinum', 'diamond'] as const;
-  const tierIndex = Math.min(Math.ceil(minScore), 5);
-  const multiplier = std.thresholds[tiers[tierIndex]];
-  return Math.round(multiplier * bw / 5) * 5; // nearest 5 lbs
+  gender?: 'male' | 'female' | 'other' | null;
 }
 
 const SBD_KEYS = [
-  { key: 'barbell back squats', label: 'SQ' },
-  { key: 'barbell bench press', label: 'BP' },
-  { key: 'deadlifts', label: 'DL' },
+  { lift: 'squat' as const, label: 'SQ' },
+  { lift: 'bench' as const, label: 'BP' },
+  { lift: 'deadlift' as const, label: 'DL' },
 ];
 
-export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Props) {
+// Returns the entry threshold for a given rank (0-5) from the 24-step table
+function lbsForRankEntry(lift: 'squat'|'bench'|'deadlift', rankIndex: number, bw: number, gender: 'male'|'female'): number {
+  const thresholds = getScaledThresholds(lift, bw, gender);
+  return thresholds[rankIndex * 4] ?? 0;
+}
+
+export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gender }: Props) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const currentKey = result?.animeTier.key;
   const avgScore = result?.avgScore ?? 0;
   const actualAvg = result?.actualAvgScore ?? 0;
   const bw = bodyweightLbs ?? 185;
+  const g: 'male'|'female' = gender === 'female' ? 'female' : 'male';
 
   const getSubTierRanges = (tierIndex: number) => {
     const tier = ANIME_TIERS[tierIndex];
@@ -78,8 +73,8 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Pro
           {[...ANIME_TIERS].reverse().map((tier) => {
             const tierIndex = ANIME_TIERS.indexOf(tier);
             const isCurrent = tier.key === currentKey;
-            const isAchieved = avgScore >= tier.minScore;
-            const isNext = !isAchieved && tierIndex === ANIME_TIERS.findIndex(t => t.key === currentKey) + 1;
+            const isAchieved = avgScore >= tierIndex; // avgScore is now rank index 0-5
+            const isNext = !isAchieved && tierIndex === (result ? result.animeTier && ANIME_TIERS.indexOf(result.animeTier) + 1 : 0);
             const isExpanded = expandedKey === tier.key;
             const subRanges = getSubTierRanges(tierIndex);
 
@@ -143,10 +138,10 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs }: Pro
 
                 {/* Lb requirements — only show for tiers not yet reached */}
                 {!isAchieved && (() => {
-                  const targets = SBD_KEYS.map(ex => ({
-                    label: ex.label,
-                    lbs: lbsForScore(ex.key, tier.minScore, bw),
-                  })).filter(t => t.lbs !== null && t.lbs > 0);
+                  const targets = SBD_KEYS.map(s => ({
+                    label: s.label,
+                    lbs: lbsForRankEntry(s.lift, tierIndex, bw, g),
+                  })).filter(t => t.lbs > 0);
                   if (targets.length === 0) return null;
                   return (
                     <View style={{

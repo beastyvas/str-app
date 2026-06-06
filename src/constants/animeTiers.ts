@@ -1,5 +1,5 @@
 import { TierName } from './colors';
-import { getTierForWeight, TIER_ORDER, STRENGTH_STANDARDS } from './strengthStandards';
+import { getTierForWeight, TIER_ORDER, getLiftTierResult, getScaledThresholds, type Lift, type Gender } from './strengthStandards';
 
 export interface AnimeTier {
   key: 'civilian' | 'training_arc' | 'tournament_arc' | 'rival_level' | 'final_boss' | 'god_tier';
@@ -110,76 +110,67 @@ export function getAnimeTierResult(
   useDecay = false,
   gender: 'male' | 'female' | 'other' | null = 'male'
 ): AnimeTierResult {
-  const bw = bodyweightLbs || 185;
+  const bw = Math.max(bodyweightLbs || 185, 50);
+  const g: Gender = gender === 'female' ? 'female' : 'male';
   const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
 
+  // Map SBD exercise to Lift key
+  const LIFT_KEYS: Record<string, Lift> = { SQ: 'squat', BP: 'bench', DL: 'deadlift' };
+
   const lifts: SBDResult[] = SBD_EXERCISES.map(ex => {
-    // For ranking: match exact name OR any alias (handles "Bench" → "Barbell Bench Press" etc.)
     const exKey = ex.key;
     const exAliases = (ex as any).aliases ?? [];
     const allMatching = prs.filter(p => {
       const n = p.exerciseName.toLowerCase();
       return n === exKey || exAliases.some((a: string) => n.includes(a));
-    })
-    // Take the heaviest matching PR, not just the first
-    .sort((a, b) => b.weight - a.weight);
+    }).sort((a, b) => b.weight - a.weight);
+
     const recentMatching = useDecay
       ? allMatching.filter(p => !p.achievedAt || new Date(p.achievedAt) >= sixMonthsAgo)
       : allMatching;
 
     const pr = recentMatching.length > 0 ? recentMatching[0] : null;
     const weight = pr ? pr.weight : 0;
-    const tier = getTierForWeight(ex.name, weight, bw, gender);
-    const tierScore = TIER_ORDER.indexOf(tier);
 
-    const standard = STRENGTH_STANDARDS[ex.key];
-    let nextTierWeight: number | null = null;
-    if (standard && tierScore < 5) {
-      const nextTierName = TIER_ORDER[tierScore + 1];
-      const nextThreshold = standard.thresholds[nextTierName];
-      nextTierWeight = standard.type === 'bodyweight_multiplier'
-        ? Math.ceil(nextThreshold * bw)
-        : nextThreshold;
-    }
+    // Use the new competition-data lookup system
+    const liftResult = getLiftTierResult(LIFT_KEYS[ex.label], weight, bw, g);
 
-    return { exercise: ex.name, label: ex.label, weight, tier, tierScore, nextTierWeight };
+    // Map rank (0-5) → TierName for backward compat
+    const tierName = TIER_ORDER[Math.min(Math.max(liftResult.rank, 0), 5)];
+
+    return {
+      exercise: ex.name,
+      label: ex.label,
+      weight,
+      tier: tierName,
+      tierScore: liftResult.score >= 0 ? liftResult.rank : 0, // 0-5 rank
+      nextTierWeight: liftResult.nextThreshold,
+      // Extended: 24-point combined score for precise weakest-link
+      _score24: liftResult.score,   // 0-23, -1 = no lift logged
+      _subTier: liftResult.tier,    // 1-4 within rank
+    } as any;
   });
 
   const loggedLifts = lifts.filter(l => l.weight > 0);
 
-  // ── WEAKEST LINK RULE ─────────────────────────────────────────────────────
-  // Rank = your lowest SBD tier. Can't hide a weak lift.
-  const rankScore = loggedLifts.length > 0
-    ? Math.min(...loggedLifts.map(l => l.tierScore))
-    : 0;
-
-  // True average — used for sub-tier display (not gated by weakest link)
-  const actualAvgScore = loggedLifts.length > 0
-    ? loggedLifts.reduce((s, l) => s + l.tierScore, 0) / loggedLifts.length
-    : 0;
-
-  let animeTier = ANIME_TIERS[0];
-  for (const at of ANIME_TIERS) {
-    if (rankScore >= at.minScore) animeTier = at;
-  }
-
-  const nextAnimeTier = ANIME_TIERS.find(at => at.minScore > rankScore) ?? null;
-
-  // ── SUB-TIER (1-4) within current anime tier ──────────────────────────────
-  // Measures progress through the tier using the actual average score,
-  // so logging a new lift at a lower level doesn't collapse your sub-tier.
-  const currentMinScore = animeTier.minScore;
-  const nextMinScore = nextAnimeTier?.minScore ?? (currentMinScore + 1.0);
-  const rangeSize = nextMinScore - currentMinScore;
-  const posInRange = rangeSize > 0
-    ? Math.max(0, (actualAvgScore - currentMinScore) / rangeSize)
-    : 1;
-  const subTier = Math.min(4, Math.max(1, Math.floor(posInRange * 4) + 1));
-
-  // Bottleneck = the weakest lift (what's holding rank back)
-  const bottleneck = loggedLifts.length > 0
-    ? [...lifts].sort((a, b) => a.tierScore - b.tierScore)[0]
+  // ── WEAKEST LINK using 24-point score ─────────────────────────────────────
+  const weakestLift = loggedLifts.length > 0
+    ? loggedLifts.reduce((min, l) => (l as any)._score24 < (min as any)._score24 ? l : min)
     : null;
+
+  const weakestScore24 = weakestLift ? (weakestLift as any)._score24 : -1;
+  const rankScore = weakestScore24 >= 0 ? Math.floor(weakestScore24 / 4) : 0; // 0-5
+  const subTier = weakestScore24 >= 0 ? (weakestScore24 % 4) + 1 : 1;        // 1-4
+
+  const animeTier = ANIME_TIERS[Math.min(rankScore, 5)];
+  const nextAnimeTier = rankScore < 5 ? ANIME_TIERS[rankScore + 1] : null;
+
+  // avgScore: progress within rank as 0.0–1.0 fraction for progress bar
+  const posInRank = weakestScore24 >= 0 ? (weakestScore24 % 4) / 4 : 0;
+  const actualAvgScore = rankScore + posInRank;
+
+  // Bottleneck = weakest lift by 24-point score
+  const bottleneck = weakestLift ?? null;
 
   return { animeTier, nextAnimeTier, avgScore: rankScore, actualAvgScore, subTier, lifts, bottleneck };
 }

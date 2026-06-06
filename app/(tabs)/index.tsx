@@ -1208,7 +1208,7 @@ export default function HomeScreen() {
         </Modal>
 
         {/* Tier Ladder */}
-        <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeResult} bodyweightLbs={profile?.bodyweight_lbs ?? 185} />
+        <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeResult} bodyweightLbs={profile?.bodyweight_lbs ?? 185} gender={profile?.gender} />
 
         {/* SBD Entry Modal */}
         <Modal visible={sbdModalOpen} transparent animationType="slide">
