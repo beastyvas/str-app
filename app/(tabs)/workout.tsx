@@ -15,7 +15,7 @@ import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
 import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
 import { useSubscription } from '@/hooks/useSubscription';
-import { WorkoutLiveActivity } from '@/modules/WorkoutLiveActivity';
+import { WorkoutLiveActivity } from '../../modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
