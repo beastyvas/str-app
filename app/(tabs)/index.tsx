@@ -466,9 +466,9 @@ export default function HomeScreen() {
                   </Text>
                   {/* Next gap + Ask Coach — right on the badge */}
                   {getNextTierGap(animeResult) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                        {getNextTierGap(animeResult)}
+                        {getNextTierGap(animeResult)?.replace('+', '').replace(' lbs on ', ' lbs needed on ').replace(/(\w+)$/, '$1 to rank up')}
                       </Text>
                       <TouchableOpacity
                         onPress={(e) => {

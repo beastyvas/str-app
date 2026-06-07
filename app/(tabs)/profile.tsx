@@ -473,18 +473,25 @@ export default function ProfileScreen() {
     }
 
     // Save exercises per day as pinned workout templates
+    // Use delete + insert (not upsert) — avoids needing a unique constraint
     for (const [dayStr, exercises] of Object.entries(dayExercises)) {
       const dayIdx = Number(dayStr);
-      if (exercises.length === 0) continue;
-      const sessionType = editSplitSchedule[dayIdx] ?? 'Workout';
-      // Clear any existing pin, then upsert
-      await supabase.from('workout_templates').update({ day_of_week: null }).eq('user_id', user.id).eq('day_of_week', dayIdx);
-      await supabase.from('workout_templates').upsert({
+      const sessionType = editSplitSchedule[dayIdx];
+      if (!sessionType) continue; // skip days with no session type
+      // Unpin anything already on this day
+      await supabase.from('workout_templates')
+        .update({ day_of_week: null })
+        .eq('user_id', user.id)
+        .eq('day_of_week', dayIdx);
+      if (exercises.length === 0) continue; // nothing to save
+      // Insert fresh template
+      const { error: tmplErr } = await supabase.from('workout_templates').insert({
         user_id: user.id,
         name: `${sessionType} Day`,
         exercises: exercises.map(e => ({ id: e.id, name: e.name, muscle_group: e.muscle_group })),
         day_of_week: dayIdx,
-      }, { onConflict: 'user_id,name' });
+      });
+      if (tmplErr) console.warn('[Split] template save error:', tmplErr.message);
     }
 
     await refreshProfile();
@@ -1415,14 +1422,15 @@ export default function ProfileScreen() {
                               borderWidth: 1, borderColor: Colors.border,
                             }}
                           />
-                          <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                          {/* Plain View — no nested scroll, avoids iOS blocking outer scroll */}
+                          <View>
                             {allExercises
                               .filter(e =>
                                 e.name.toLowerCase().includes(splitExSearch.toLowerCase()) &&
                                 !exs.some(x => x.id === e.id)
                               )
-                              .slice(0, 20)
-                              .map((ex: any) => (
+                              .slice(0, 8)
+                              .map((ex) => (
                                 <TouchableOpacity
                                   key={ex.id}
                                   onPress={() => {
@@ -1438,16 +1446,13 @@ export default function ProfileScreen() {
                                     flexDirection: 'row', alignItems: 'center', gap: 8,
                                   }}
                                 >
-                                  <View style={{
-                                    width: 6, height: 6, borderRadius: 3,
-                                    backgroundColor: color,
-                                  }} />
-                                  <Text style={{ color: Colors.text, fontSize: 13 }}>{ex.name}</Text>
-                                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginLeft: 'auto' as any }}>{ex.muscle_group}</Text>
+                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+                                  <Text style={{ color: Colors.text, fontSize: 13, flex: 1 }}>{ex.name}</Text>
+                                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{ex.muscle_group}</Text>
                                 </TouchableOpacity>
                               ))
                             }
-                          </ScrollView>
+                          </View>
                           <TouchableOpacity onPress={() => { setExpandedDayEx(null); setSplitExSearch(''); }}>
                             <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center' }}>Done adding</Text>
                           </TouchableOpacity>
