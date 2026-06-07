@@ -455,22 +455,46 @@ export default function HomeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={{
                     color: animeResult.animeTier.color,
-                    fontSize: 13,
-                    fontWeight: '900',
-                    letterSpacing: 2.5,
-                    textTransform: 'uppercase',
+                    fontSize: 13, fontWeight: '900', letterSpacing: 2.5, textTransform: 'uppercase',
                   }}>
                     {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
                   </Text>
                   <Text style={{
-                    color: Colors.textSecondary,
-                    fontSize: 12,
-                    marginTop: 3,
-                    fontStyle: 'italic',
-                    lineHeight: 17,
+                    color: Colors.textSecondary, fontSize: 12, marginTop: 3, fontStyle: 'italic', lineHeight: 17,
                   }} numberOfLines={1}>
                     "{animeResult.animeTier.tagline}"
                   </Text>
+                  {/* Next gap + Ask Coach — right on the badge */}
+                  {getNextTierGap(animeResult) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                        {getNextTierGap(animeResult)}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
+                          if (isPro) {
+                            (global as any).__coachPreFill = question;
+                            router.push('/(tabs)/insights');
+                          } else {
+                            Alert.alert('Ask Coach', `Uses 1 of your ${aiAsksRemaining} weekly asks.`, [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Ask', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
+                            ]);
+                          }
+                        }}
+                        style={{
+                          backgroundColor: animeResult.animeTier.color + '25',
+                          borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
+                        }}
+                      >
+                        <Text style={{ color: animeResult.animeTier.color, fontSize: 10, fontWeight: '900' }}>
+                          Ask Coach ⚡
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
                   <Text style={{ color: animeResult.animeTier.color, fontSize: 18, fontWeight: '900' }}>

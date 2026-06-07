@@ -1390,14 +1390,18 @@ export default function ProfileScreen() {
                         </View>
                       )}
                       <TouchableOpacity
-                        onPress={() => setExercisePickerDay(dayIdx)}
+                        onPress={() => {
+                          // Dismiss split editor first — iOS can't stack two Modals
+                          setShowSplitEditor(false);
+                          setTimeout(() => setExercisePickerDay(dayIdx), 350);
+                        }}
                         style={{
                           flexDirection: 'row', alignItems: 'center', gap: 6,
                           paddingVertical: 6,
                         }}
                       >
                         <Text style={{ color, fontSize: 12, fontWeight: '700' }}>+ Add exercises</Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>(optional — pre-loads your workout)</Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>(optional)</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -1408,7 +1412,7 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Exercise picker for split day templates */}
+      {/* Exercise picker — rendered outside split editor to avoid iOS modal stacking */}
       <ExercisePickerModal
         visible={exercisePickerDay !== null}
         alreadyAdded={(dayExercises[exercisePickerDay ?? -1] ?? []).map(e => e.id)}
@@ -1418,8 +1422,13 @@ export default function ProfileScreen() {
             ...prev,
             [exercisePickerDay]: [...(prev[exercisePickerDay] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
           }));
+          // Keep picker open so they can add multiple exercises
         }}
-        onClose={() => setExercisePickerDay(null)}
+        onClose={() => {
+          setExercisePickerDay(null);
+          // Re-show split editor after picker closes
+          setTimeout(() => setShowSplitEditor(true), 50);
+        }}
       />
 
       {/* ── LIFTER DNA MODAL ─────────────────────────────────────────────────── */}
