@@ -67,7 +67,6 @@
       "expo-web-browser",
       "expo-camera",
       "expo-apple-authentication",
-      "./modules/WorkoutLiveActivity",
       [
         "@bacons/apple-targets",
         {

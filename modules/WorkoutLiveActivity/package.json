@@ -1,0 +1,7 @@
+{
+  "name": "workout-live-activity",
+  "version": "1.0.0",
+  "description": "Live Activity / Dynamic Island for STR workout sessions",
+  "main": "index.ts",
+  "private": true
+}
