@@ -85,7 +85,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
     if (!visible || !userId) return;
     setLoading(true);
     Promise.all([
-      supabase.from('users').select('*').eq('id', userId!).single(),
+      supabase.from('public_profiles').select('*').eq('id', userId!).single(),
       supabase
         .from('personal_records')
         .select('weight, reps, achieved_at, exercises(name, muscle_group)')

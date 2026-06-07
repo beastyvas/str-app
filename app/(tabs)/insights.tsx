@@ -30,7 +30,7 @@ const STARTER_PROMPTS = [
 type Tab = 'coach' | 'import';
 
 export default function InsightsTab() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
 
   // Derive coach identity from user's tier
@@ -241,6 +241,7 @@ ${context}`;
       const reply = fnData?.content?.[0]?.text ?? 'Something went wrong. Try again.';
       const assistantMsg: Message = { role: 'assistant', content: reply, timestamp: Date.now() };
       addMessage(assistantMsg);
+      if (!isPro) refreshProfile();
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       const errMsg: Message = { role: 'assistant', content: 'Could not reach the AI. Check your connection.', timestamp: Date.now() };

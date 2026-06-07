@@ -93,7 +93,7 @@ export default function OnboardingScreen() {
       // Check for duplicate username before saving
       if (cleanUsername) {
         const { data: taken } = await supabase
-          .from('users').select('id').eq('username', cleanUsername).neq('id', user!.id).maybeSingle();
+          .from('public_profiles').select('id').eq('username', cleanUsername).neq('id', user!.id).maybeSingle();
         if (taken) {
           Alert.alert('Username taken', `@${cleanUsername} is already in use. Pick a different handle.`);
           setSaving(false);

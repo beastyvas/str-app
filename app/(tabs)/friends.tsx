@@ -343,7 +343,7 @@ export default function SocialScreen() {
     try {
       const q = search.trim().replace(/^@/, '');
       const { data: users, error: searchError } = await supabase
-        .from('users')
+        .from('public_profiles')
         .select('id, display_name, avatar_url, bio, username')
         .or(`display_name.ilike.%${q}%,username.ilike.%${q}%`)
         .neq('id', user.id)
@@ -467,7 +467,7 @@ export default function SocialScreen() {
 
     // Get their profile
     const { data: profile } = await supabase
-      .from('users')
+      .from('public_profiles')
       .select('display_name, username')
       .eq('id', scannedUserId)
       .single();
@@ -487,7 +487,7 @@ export default function SocialScreen() {
     if (!user || friends.length === 0) return;
     // Suggest users with similar SBD tier who aren't already friends
     const { data } = await supabase
-      .from('users')
+      .from('public_profiles')
       .select('id, display_name, username, avatar_url, bodyweight_lbs')
       .neq('id', user.id)
       .not('id', 'in', `(${friends.map(f => f.id).join(',')})`)

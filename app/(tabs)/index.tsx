@@ -163,7 +163,7 @@ export default function HomeScreen() {
         // Any friendship attempt (pending or accepted) marks this done
         supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
         AsyncStorage.getItem(`weekly_plan_done_${uid}`),
-        supabase.from('users').select('id').eq('is_owner', true).single(),
+        supabase.from('public_profiles').select('id').eq('is_owner', true).single(),
       ]);
       const hasWorkout = (workoutCount ?? 0) > 0;
       const hasFriend = (friendCount ?? 0) > 0;

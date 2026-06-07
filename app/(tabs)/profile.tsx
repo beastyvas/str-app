@@ -349,7 +349,7 @@ export default function ProfileScreen() {
     setUsernameError('');
 
     if (uname && uname !== profile?.username) {
-      const { data: existing } = await supabase.from('users').select('id').eq('username', uname).neq('id', user!.id).maybeSingle();
+      const { data: existing } = await supabase.from('public_profiles').select('id').eq('username', uname).neq('id', user!.id).maybeSingle();
       if (existing) { setUsernameError('That username is already taken'); return; }
     }
 

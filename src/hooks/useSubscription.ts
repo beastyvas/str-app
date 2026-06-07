@@ -24,23 +24,18 @@ export function useSubscription() {
   const aiAsksRemaining = isPro ? Infinity : Math.max(0, FREE_AI_ASKS_PER_WEEK - aiAsksUsed);
   const canAskCoach = isPro || aiAsksRemaining > 0;
 
-  // Call before each AI message — returns false if at limit
+  // Pre-flight check before sending an AI message — returns false if at limit.
+  // The actual count is incremented server-side by the ai-coach edge function
+  // (ai_asks_count / ai_asks_week_start are locked to server-only writes —
+  // see migration 014 — so the client can no longer write them directly,
+  // which also closes a free-Pro-unlock exploit). Call refreshProfile()
+  // after the coach responds to pick up the server-incremented value.
   const recordAIAsk = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
     if (isPro) return true;
 
-    const needsReset = isNewWeek();
-    const currentCount = needsReset ? 0 : (profile?.ai_asks_count ?? 0);
-
-    if (currentCount >= FREE_AI_ASKS_PER_WEEK) return false;
-
-    await supabase.from('users').update({
-      ai_asks_count: currentCount + 1,
-      ai_asks_week_start: needsReset ? new Date().toISOString() : profile?.ai_asks_week_start,
-    }).eq('id', user.id);
-
-    await refreshProfile();
-    return true;
+    const currentCount = isNewWeek() ? 0 : (profile?.ai_asks_count ?? 0);
+    return currentCount < FREE_AI_ASKS_PER_WEEK;
   }, [user, isPro, profile]);
 
   // History date limit for free users (90 days)

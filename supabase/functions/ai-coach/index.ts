@@ -35,6 +35,10 @@ serve(async (req) => {
     }
 
     // ── Server-side rate limiting ────────────────────────────────────────────
+    // ai_asks_count / ai_asks_week_start / is_pro are locked to server-only
+    // writes (see migration 014) — this function is the sole writer, using the
+    // service-role client below, which the protect_subscription_columns
+    // trigger recognizes and allows through.
     const { data: userData } = await supabase
       .from('users')
       .select('is_pro, ai_asks_count, ai_asks_week_start')
@@ -42,18 +46,15 @@ serve(async (req) => {
       .single();
 
     const isPro = userData?.is_pro ?? false;
+    const weekStart = userData?.ai_asks_week_start ? new Date(userData.ai_asks_week_start) : null;
+    const isNewWeek = !weekStart || (Date.now() - weekStart.getTime()) / 86400000 >= 7;
+    const currentCount = isNewWeek ? 0 : (userData?.ai_asks_count ?? 0);
 
-    if (!isPro) {
-      const weekStart = userData?.ai_asks_week_start ? new Date(userData.ai_asks_week_start) : null;
-      const isNewWeek = !weekStart || (Date.now() - weekStart.getTime()) / 86400000 >= 7;
-      const currentCount = isNewWeek ? 0 : (userData?.ai_asks_count ?? 0);
-
-      if (currentCount >= FREE_ASKS_PER_WEEK) {
-        return new Response(
-          JSON.stringify({ error: 'Weekly limit reached. Upgrade to Pro for unlimited Coach access.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    if (!isPro && currentCount >= FREE_ASKS_PER_WEEK) {
+      return new Response(
+        JSON.stringify({ error: 'Weekly limit reached. Upgrade to Pro for unlimited Coach access.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     // ────────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,20 @@ serve(async (req) => {
     });
 
     const data = await response.json();
+
+    // Count this ask against the free weekly quota — only on a successful
+    // reply, and only via the service-role client (the only writer the
+    // protect_subscription_columns trigger allows to touch these columns).
+    if (!isPro && response.ok) {
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+      await supabaseAdmin.from('users').update({
+        ai_asks_count: isNewWeek ? 1 : currentCount + 1,
+        ai_asks_week_start: isNewWeek ? new Date().toISOString() : userData?.ai_asks_week_start,
+      }).eq('id', user.id);
+    }
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
