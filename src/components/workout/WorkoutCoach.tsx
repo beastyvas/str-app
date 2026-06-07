@@ -83,14 +83,14 @@ async function getAINudge(
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, trainingStyle, animeTierKey, onDismiss }: Props) {
+export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = true, trainingStyle, animeTierKey, onDismiss }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const slideAnim = useRef(new Animated.Value(80)).current;
   const processedSet = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!lastSet) return;
+    if (!lastSet || !enabled) return;
     const setKey = `${lastSet.exerciseName}-${lastSet.weight}-${lastSet.reps}-${lastSet.rpe}`;
     if (processedSet.current === setKey) return;
     processedSet.current = setKey;
@@ -120,16 +120,19 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, trainingStyl
     }
   }, [lastSet]);
 
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const show = (text: string) => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
     setMessage(text);
-    slideAnim.setValue(80);
-    Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }).start();
-    // Auto-dismiss after 6 seconds
-    setTimeout(() => dismiss(), 6000);
+    slideAnim.setValue(-80);
+    Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }).start();
+    dismissTimer.current = setTimeout(() => dismiss(), 4000);
   };
 
   const dismiss = () => {
-    Animated.timing(slideAnim, { toValue: 80, duration: 250, useNativeDriver: true }).start(() => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    Animated.timing(slideAnim, { toValue: -80, duration: 200, useNativeDriver: true }).start(() => {
       setMessage(null);
       onDismiss();
     });
@@ -138,38 +141,32 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, trainingStyl
   if (!message && !loading) return null;
 
   return (
-    <Animated.View style={{
-      position: 'absolute', bottom: 90, left: 16, right: 16,
-      transform: [{ translateY: slideAnim }],
-      zIndex: 100,
-    }}>
+    <Animated.View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute', top: 12, left: 16, right: 16,
+        transform: [{ translateY: slideAnim }],
+        zIndex: 100,
+      }}
+    >
+      {/* Compact banner — slides down from top, out of way of exercise controls */}
       <View style={{
-        backgroundColor: Colors.surface,
-        borderRadius: 14, padding: 14,
-        borderWidth: 1, borderColor: Colors.accent + '40',
-        flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-        shadowColor: Colors.accent, shadowOpacity: 0.2, shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 }, elevation: 8,
+        backgroundColor: Colors.surface + 'F0', // slightly transparent
+        borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14,
+        borderWidth: 1, borderColor: Colors.accent + '35',
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 }, elevation: 6,
       }}>
-        <View style={{
-          width: 28, height: 28, borderRadius: 14,
-          backgroundColor: Colors.accent + '20',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Text style={{ fontSize: 14 }}>⚡</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          {loading ? (
-            <Text style={{ color: Colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>Coach is watching...</Text>
-          ) : (
-            <Text style={{ color: Colors.text, fontSize: 13, lineHeight: 19 }}>{message}</Text>
-          )}
-          {isPro && (
-            <Text style={{ color: Colors.accent, fontSize: 9, fontWeight: '700', marginTop: 4, letterSpacing: 1 }}>COACH</Text>
-          )}
-        </View>
-        <TouchableOpacity onPress={dismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 16 }}>×</Text>
+        <Text style={{ fontSize: 13 }}>⚡</Text>
+        <Text style={{ color: Colors.text, fontSize: 12, flex: 1, lineHeight: 17 }} numberOfLines={2}>
+          {loading ? 'Coach...' : message}
+        </Text>
+        {isPro && !loading && (
+          <Text style={{ color: Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 }}>PRO</Text>
+        )}
+        <TouchableOpacity onPress={dismiss} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 15 }}>×</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

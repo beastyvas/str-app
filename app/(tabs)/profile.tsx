@@ -188,6 +188,7 @@ export default function ProfileScreen() {
   const [splitSaving, setSplitSaving] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
   const [dayExercises, setDayExercises] = useState<Record<number, { id: string; name: string; muscle_group: string }[]>>({});
+  const [coachEnabled, setCoachEnabled] = useState(true);
   const [expandedDayEx, setExpandedDayEx] = useState<number | null>(null);
   const [splitExSearch, setSplitExSearch] = useState('');
   const [allExercises, setAllExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
@@ -195,7 +196,12 @@ export default function ProfileScreen() {
   const [sbdSaving, setSbdSaving] = useState(false);
 
   useEffect(() => {
-    if (user) loadStats();
+    if (user) {
+      loadStats();
+      import('@react-native-async-storage/async-storage').then(({ default: AS }) =>
+        AS.getItem(`coach_enabled_${user.id}`).then(v => { if (v !== null) setCoachEnabled(v === 'true'); })
+      );
+    }
   }, [user, profile?.bodyweight_lbs]);
 
   const loadStats = async () => {
@@ -1106,6 +1112,39 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* ── COACH DURING SETS ────────────────────────────────────────────── */}
+          <TouchableOpacity
+            onPress={async () => {
+              const next = !coachEnabled;
+              setCoachEnabled(next);
+              const AS = (await import('@react-native-async-storage/async-storage')).default;
+              if (user) await AS.setItem(`coach_enabled_${user.id}`, String(next));
+            }}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+              borderWidth: 1, borderColor: Colors.border,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>Coach during sets</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                RPE feedback and tips after each set
+              </Text>
+            </View>
+            <View style={{
+              width: 44, height: 26, borderRadius: 13,
+              backgroundColor: coachEnabled ? Colors.accent : Colors.surface2,
+              justifyContent: 'center', paddingHorizontal: 3,
+              borderWidth: 1, borderColor: coachEnabled ? Colors.accent : Colors.border,
+            }}>
+              <View style={{
+                width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.text,
+                transform: [{ translateX: coachEnabled ? 18 : 0 }],
+              }} />
+            </View>
+          </TouchableOpacity>
 
           {/* ── SIGN OUT ─────────────────────────────────────────────────────── */}
           <TouchableOpacity

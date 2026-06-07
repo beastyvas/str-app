@@ -37,6 +37,14 @@ export default function WorkoutTab() {
   const { isPro } = useSubscription();
   const [coachLastSet, setCoachLastSet] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string } | null>(null);
   const [coachHistory, setCoachHistory] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string }[]>([]);
+  const [coachEnabled, setCoachEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    import('@react-native-async-storage/async-storage').then(({ default: AS }) =>
+      AS.getItem(`coach_enabled_${user.id}`).then(v => { if (v !== null) setCoachEnabled(v === 'true'); })
+    );
+  }, [user]);
 
   const {
     activeWorkout,
@@ -1204,6 +1212,7 @@ export default function WorkoutTab() {
         lastSet={coachLastSet}
         allSetsThisExercise={coachHistory}
         isPro={isPro}
+        enabled={coachEnabled}
         trainingStyle={profile?.training_style}
         animeTierKey={(profile as any)?.anime_tier_key}
         onDismiss={() => setCoachLastSet(null)}
