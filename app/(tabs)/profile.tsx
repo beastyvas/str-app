@@ -491,7 +491,14 @@ export default function ProfileScreen() {
         exercises: exercises.map(e => ({ id: e.id, name: e.name, muscle_group: e.muscle_group })),
         day_of_week: dayIdx,
       });
-      if (tmplErr) console.warn('[Split] template save error:', tmplErr.message);
+      if (tmplErr) {
+        console.warn('[Split] template save error:', tmplErr.message);
+        if (tmplErr.message?.includes('day_of_week')) {
+          Alert.alert('Run SQL first', 'In Supabase SQL editor run:\nALTER TABLE public.workout_templates ADD COLUMN IF NOT EXISTS day_of_week integer;');
+          setSplitSaving(false);
+          return;
+        }
+      }
     }
 
     await refreshProfile();
@@ -1302,6 +1309,7 @@ export default function ProfileScreen() {
       {/* ── SPLIT EDITOR MODAL ───────────────────────────────────────────────── */}
       <Modal visible={showSplitEditor} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={{
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
             paddingHorizontal: 20, paddingVertical: 16,
@@ -1481,6 +1489,7 @@ export default function ProfileScreen() {
               );
             })}
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
