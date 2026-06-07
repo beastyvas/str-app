@@ -186,6 +186,7 @@ export default function ProfileScreen() {
   const [showSplitEditor, setShowSplitEditor] = useState(false);
   const [editSplitSchedule, setEditSplitSchedule] = useState<Record<number, string>>({});
   const [splitSaving, setSplitSaving] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
 
@@ -197,7 +198,8 @@ export default function ProfileScreen() {
     if (!user) return;
     setLoadingStats(true);
     try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      // 8 days for timezone buffer
+      const eightDaysAgo = new Date(Date.now() - 8 * 86400000).toISOString();
 
       const [
         { data: workouts },
@@ -208,38 +210,53 @@ export default function ProfileScreen() {
         supabase.from('workouts').select('id, started_at').eq('user_id', user.id).not('ended_at', 'is', null),
         supabase.from('personal_records').select('weight, reps, achieved_at, exercises(name)').eq('user_id', user.id).order('achieved_at', { ascending: false }),
         supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`).eq('status', 'accepted'),
-        supabase.from('workouts').select('started_at, ended_at, workout_sets(weight, reps)').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', sevenDaysAgo),
+        supabase.from('workouts').select('id, started_at, ended_at').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', eightDaysAgo),
       ]);
 
       setFriendCount(friends ?? 0);
 
-      // Build weekly data (last 7 days Mon–Sun or actual days)
+      // Fetch sets separately — nested joins silently fail with some RLS configs
+      const weekWorkoutIds = (weekWorkouts ?? []).map((w: any) => w.id);
+      const { data: weekSets } = weekWorkoutIds.length > 0
+        ? await supabase.from('workout_sets').select('workout_id, weight, reps').in('workout_id', weekWorkoutIds)
+        : { data: [] };
+
+      // Build weekly data (last 7 days)
       const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-      const dayMap: Record<string, { volume: number; duration: number; sets: number; isToday: boolean }> = {};
+      const dayMap: Record<string, { volume: number; duration: number; sets: number }> = {};
       const today = new Date();
+      const dayLabels: Record<string, string> = {};
       for (let i = 6; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         const key = d.toDateString();
-        const label = i === 0 ? 'Today' : dayNames[d.getDay()];
-        dayMap[key] = { volume: 0, duration: 0, sets: 0, isToday: i === 0 };
-        // store label by key
-        (dayMap[key] as any).__label = label;
+        dayMap[key] = { volume: 0, duration: 0, sets: 0 };
+        dayLabels[key] = i === 0 ? 'Today' : dayNames[d.getDay()];
+      }
+
+      // Map sets by workout_id
+      const setsByWorkout: Record<string, { weight: number; reps: number }[]> = {};
+      for (const s of weekSets ?? []) {
+        const wid = (s as any).workout_id;
+        if (!setsByWorkout[wid]) setsByWorkout[wid] = [];
+        setsByWorkout[wid].push(s as any);
       }
 
       for (const w of weekWorkouts ?? []) {
-        const key = new Date(w.started_at).toDateString();
+        const key = new Date((w as any).started_at).toDateString();
         if (!dayMap[key]) continue;
-        const sets: any[] = (w as any).workout_sets ?? [];
-        dayMap[key].volume += sets.reduce((s: number, x: any) => s + (x.weight ?? 0) * (x.reps ?? 0), 0);
+        const sets = setsByWorkout[(w as any).id] ?? [];
+        dayMap[key].volume += sets.reduce((s, x) => s + (x.weight ?? 0) * (x.reps ?? 0), 0);
         dayMap[key].sets += sets.length;
-        if (w.ended_at) {
-          dayMap[key].duration += Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000);
+        if ((w as any).ended_at) {
+          dayMap[key].duration += Math.round(
+            (new Date((w as any).ended_at).getTime() - new Date((w as any).started_at).getTime()) / 60000
+          );
         }
       }
 
-      const weekly = Object.entries(dayMap).map(([, v]) => ({
-        day: (v as any).__label as string,
+      const weekly = Object.entries(dayMap).map(([key, v]) => ({
+        day: dayLabels[key] ?? key,
         volume: v.volume,
         duration: v.duration,
         sets: v.sets,
@@ -454,11 +471,16 @@ export default function ProfileScreen() {
     setSplitSaving(false);
   };
 
-  const openSplitEditor = () => {
+  const openSplitEditor = async () => {
     const existing = (profile?.split_schedule ?? {}) as Record<string, string>;
     const converted: Record<number, string> = {};
     Object.entries(existing).forEach(([k, v]) => { converted[Number(k)] = v; });
     setEditSplitSchedule(converted);
+    // Load templates so user can link them to days
+    if (user) {
+      const { data } = await supabase.from('workout_templates').select('*').eq('user_id', user.id).order('last_used_at', { ascending: false, nullsFirst: false });
+      setSavedTemplates(data ?? []);
+    }
     setShowSplitEditor(true);
   };
 
@@ -470,7 +492,30 @@ export default function ProfileScreen() {
       [
         ...SESSION_TYPES.map(type => ({
           text: type === current ? `${type} ✓` : type,
-          onPress: () => setEditSplitSchedule(prev => ({ ...prev, [dayIdx]: type })),
+          onPress: () => {
+            setEditSplitSchedule(prev => ({ ...prev, [dayIdx]: type }));
+            // Offer to link a template for this day
+            if (savedTemplates.length > 0) {
+              setTimeout(() => {
+                Alert.alert(
+                  `Pin a template for ${DAY_FULL[dayIdx]}?`,
+                  'Your workout will pre-load when you start this day.',
+                  [
+                    ...savedTemplates.slice(0, 4).map((tmpl: any) => ({
+                      text: tmpl.name,
+                      onPress: async () => {
+                        // Clear any existing pin for this day, then set new one
+                        await supabase.from('workout_templates').update({ day_of_week: null }).eq('user_id', user!.id).eq('day_of_week', dayIdx);
+                        await supabase.from('workout_templates').update({ day_of_week: dayIdx }).eq('id', tmpl.id);
+                        Alert.alert('Pinned!', `${tmpl.name} will load every ${DAY_FULL[dayIdx]}.`);
+                      },
+                    })),
+                    { text: 'Skip for now', style: 'cancel' },
+                  ]
+                );
+              }, 400);
+            }
+          },
         })),
         { text: 'Rest (clear)', style: 'destructive' as const, onPress: () => setEditSplitSchedule(prev => { const n = { ...prev }; delete n[dayIdx]; return n; }) },
         { text: 'Cancel', style: 'cancel' as const },
