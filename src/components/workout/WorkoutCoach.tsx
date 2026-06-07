@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 
 interface Set {
@@ -84,6 +85,7 @@ async function getAINudge(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = true, trainingStyle, animeTierKey, onDismiss }: Props) {
+  const { top: safeTop } = useSafeAreaInsets();
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const slideAnim = useRef(new Animated.Value(80)).current;
@@ -144,7 +146,7 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = tr
     <Animated.View
       pointerEvents="box-none"
       style={{
-        position: 'absolute', top: 12, left: 16, right: 16,
+        position: 'absolute', top: safeTop + 8, left: 16, right: 16,
         transform: [{ translateY: slideAnim }],
         zIndex: 100,
       }}
