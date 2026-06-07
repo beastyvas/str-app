@@ -16,6 +16,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.nickbuilds.str",
       "buildNumber": "4",
+      "appleTeamId": "4TB9550485",
       "entitlements": {
         "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
       },
