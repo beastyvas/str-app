@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
 export interface LoggedSet {
-  id?: string;               // undefined until saved to DB
-  localId: string;           // temp local key
+  id?: string;
+  localId: string;
   exerciseId: string;
   setNumber: number;
   weight: number;
@@ -13,6 +13,7 @@ export interface LoggedSet {
   rpe?: number;
   note?: string;
   loggedAt: string;
+  isWarmup?: boolean;
 }
 
 export interface WorkoutExercise {
@@ -40,7 +41,7 @@ interface WorkoutStore {
   removeExercise: (exerciseId: string) => void;
   logSet: (
     exerciseId: string,
-    set: { weight: number; reps: number; rpe?: number; note?: string },
+    set: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean },
     workoutId: string,
     userId: string
   ) => Promise<{ isPR: boolean }>;
@@ -133,11 +134,32 @@ export const useWorkoutStore = create<WorkoutStore>()(
         rpe: setData.rpe ?? null,
         note: setData.note ?? null,
         logged_at: loggedAt,
+        is_warmup: setData.isWarmup ?? false,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    // Warmup sets never count as PRs
+    if (setData.isWarmup) {
+      const newSet: LoggedSet = {
+        id: savedSet.id, localId, exerciseId, setNumber,
+        weight: setData.weight, reps: setData.reps,
+        rpe: setData.rpe, note: setData.note, loggedAt,
+        isWarmup: true,
+      };
+      set(state => ({
+        lastSetLoggedAt: new Date(),
+        activeWorkout: state.activeWorkout ? {
+          ...state.activeWorkout,
+          exercises: state.activeWorkout.exercises.map(e =>
+            e.exerciseId === exerciseId ? { ...e, sets: [...e.sets, newSet] } : e
+          ),
+        } : null,
+      }));
+      return { isPR: false };
+    }
 
     // Check PR — estimate 1RM using Epley formula: w * (1 + r/30)
     const oneRM = setData.weight * (1 + setData.reps / 30);

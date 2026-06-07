@@ -21,7 +21,7 @@ export function SetInputRow({
   setNumber: number;
   prevSet?: LoggedSet;
   equipmentType?: string;
-  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string }) => Promise<void>;
+  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => Promise<void>;
 }) {
   const defaultMode = prevSet?.weight === 0
     ? 'bw'
@@ -39,6 +39,7 @@ export function SetInputRow({
   const [rpe, setRpe] = useState<number | undefined>(undefined);
   const [note, setNote] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
+  const [isWarmup, setIsWarmup] = useState(false);
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
   const [showExtras, setShowExtras] = useState(false);
@@ -88,7 +89,7 @@ export function SetInputRow({
     const r = parseInt(reps);
     setLogging(true);
     try {
-      await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined });
+      await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined, isWarmup });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setNote('');
       setNoteOpen(false);
@@ -204,6 +205,19 @@ export function SetInputRow({
           <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
             {mode === 'number' ? 'lbs' : mode === 'bw' ? 'BW' : '🏋️'}
           </Text>
+        </TouchableOpacity>
+
+        {/* Warmup toggle */}
+        <TouchableOpacity
+          onPress={() => setIsWarmup(w => !w)}
+          style={{
+            backgroundColor: isWarmup ? '#F97316' + '25' : Colors.surface2,
+            borderRadius: 8, paddingHorizontal: 8, paddingVertical: 10,
+            borderWidth: 1, borderColor: isWarmup ? '#F97316' + '60' : Colors.border,
+            minWidth: 32, alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: isWarmup ? '#F97316' : Colors.textMuted, fontSize: 11, fontWeight: '900' }}>W</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -447,26 +461,22 @@ export function LoggedSetRow({
           paddingHorizontal: 16,
           paddingVertical: 10,
           gap: 8,
-          backgroundColor: isPR ? Colors.gold + '08' : 'transparent',
-          borderLeftWidth: isPR ? 3 : 0,
-          borderLeftColor: isPR ? Colors.gold : 'transparent',
+          backgroundColor: set.isWarmup ? '#F97316' + '08' : isPR ? Colors.gold + '08' : 'transparent',
+          borderLeftWidth: (set.isWarmup || isPR) ? 3 : 0,
+          borderLeftColor: set.isWarmup ? '#F97316' : isPR ? Colors.gold : 'transparent',
         }}
       >
         <Text style={{
-          color: isPR ? Colors.gold + 'CC' : Colors.textMuted,
-          fontSize: 12,
-          width: 22,
-          textAlign: 'center',
-          fontWeight: isPR ? '800' : '500',
+          color: set.isWarmup ? '#F97316' + 'CC' : isPR ? Colors.gold + 'CC' : Colors.textMuted,
+          fontSize: 11, width: 22, textAlign: 'center',
+          fontWeight: (set.isWarmup || isPR) ? '900' : '500',
         }}>
-          {set.setNumber}
+          {set.isWarmup ? 'W' : set.setNumber}
         </Text>
         <Text style={{
-          color: isPR ? Colors.text : Colors.text,
-          fontSize: 16,
-          fontWeight: '700',
-          flex: 1,
-          letterSpacing: -0.3,
+          color: set.isWarmup ? Colors.textMuted : Colors.text,
+          fontSize: 16, fontWeight: '700', flex: 1, letterSpacing: -0.3,
+          opacity: set.isWarmup ? 0.7 : 1,
         }}>
           {set.weight === 0 ? 'BW' : set.weight} × {set.reps}
         </Text>
