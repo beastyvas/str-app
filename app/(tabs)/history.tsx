@@ -580,10 +580,12 @@ export default function HistoryScreen() {
   useEffect(() => {
     let cancelled = false;
     const doLoad = async () => {
+      if (!user) return;
       if (loadKey === 0) setLoading(true);
       let query = supabase
         .from('workouts')
         .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
+        .eq('user_id', user.id)
         .not('ended_at', 'is', null)
         .order('started_at', { ascending: false })
         .limit(60);
@@ -626,7 +628,7 @@ export default function HistoryScreen() {
     };
     doLoad();
     return () => { cancelled = true; };
-  }, [loadKey]); // loadKey increments on pull-to-refresh
+  }, [loadKey, user?.id]); // loadKey increments on pull-to-refresh; reload on account switch
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
