@@ -862,29 +862,6 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Weakest lift → Coach */}
-              {animeResult.bottleneck && animeResult.bottleneck.weight > 0 && (
-                <TouchableOpacity
-                  onPress={() => goToCoachWithQuestion(
-                    `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs (${animeResult.bottleneck!.tier} tier). What's the most effective way to bring it up? Give me a real program adjustment, not generic advice.`
-                  )}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    backgroundColor: Colors.surface2,
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                  }}
-                >
-                  <Text style={{ fontSize: 14 }}>⚡</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
-                    Ask coach: how to bring up your {animeResult.bottleneck.label}
-                  </Text>
-                  <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>→</Text>
-                </TouchableOpacity>
-              )}
 
               {/* Set SBD manually */}
               <TouchableOpacity
