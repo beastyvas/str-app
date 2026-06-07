@@ -24,9 +24,10 @@ CREATE POLICY "Authenticated users can read public profile fields"
   TO authenticated
   USING (true);
 
--- Update the public_profiles view to include unit_pref (needed for displaying
--- friend weights in the correct unit on the home screen feed).
-CREATE OR REPLACE VIEW public.public_profiles AS
+-- Recreate the view to add unit_pref. CREATE OR REPLACE can't reorder columns,
+-- so we drop first.
+DROP VIEW IF EXISTS public.public_profiles;
+CREATE VIEW public.public_profiles AS
 SELECT
   id,
   username,
