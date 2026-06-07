@@ -779,44 +779,6 @@ export default function HomeScreen() {
               "{animeResult.animeTier.tagline}"
             </Text>
 
-            {/* Ask Coach — right up top, easy to find */}
-            {animeResult.bottleneck && animeResult.bottleneck.weight > 0 && (
-              <TouchableOpacity
-                onPress={() => {
-                  const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
-                  if (isPro) {
-                    (global as any).__coachPreFill = question;
-                    router.push('/(tabs)/insights');
-                  } else {
-                    Alert.alert(
-                      'Ask Coach',
-                      `This will use 1 of your ${aiAsksRemaining} remaining asks this week.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Ask anyway', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
-                      ]
-                    );
-                  }
-                }}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 8,
-                  backgroundColor: animeResult.animeTier.color + '15',
-                  borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-                  borderWidth: 1, borderColor: animeResult.animeTier.color + '30',
-                  marginBottom: 14,
-                }}
-              >
-                <Text style={{ fontSize: 14 }}>⚡</Text>
-                <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                  How to bring up my {animeResult.bottleneck.label}
-                </Text>
-                {!isPro && (
-                  <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{aiAsksRemaining} left</Text>
-                )}
-                <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '800' }}>Ask →</Text>
-              </TouchableOpacity>
-            )}
-
             {/* SBD bars */}
             <View style={{ gap: 10 }}>
               {animeResult.lifts.map((lift, i) => {
@@ -877,17 +839,42 @@ export default function HomeScreen() {
               borderTopColor: Colors.border,
               gap: 10,
             }}>
-              {/* Next tier hint */}
+              {/* Next tier hint + inline Ask Coach */}
               {animeResult.nextAnimeTier && animeResult.lifts.some(l => l.weight > 0) && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>
                       Next: {animeResult.nextAnimeTier.label}
                     </Text>
                     {getNextTierGap(animeResult) && (
-                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', marginTop: 2 }}>
-                        {getNextTierGap(animeResult)}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                        <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                          {getNextTierGap(animeResult)}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
+                            if (isPro) {
+                              (global as any).__coachPreFill = question;
+                              router.push('/(tabs)/insights');
+                            } else {
+                              Alert.alert('Ask Coach', `Uses 1 of your ${aiAsksRemaining} weekly asks.`, [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Ask', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
+                              ]);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: animeResult.animeTier.color + '20',
+                            borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
+                            borderWidth: 1, borderColor: animeResult.animeTier.color + '40',
+                          }}
+                        >
+                          <Text style={{ color: animeResult.animeTier.color, fontSize: 10, fontWeight: '800' }}>
+                            Ask Coach ⚡
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                   <View style={{

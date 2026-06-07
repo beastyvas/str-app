@@ -16,6 +16,7 @@ import { TierLadderModal } from '@/components/TierLadderModal';
 import { UserBadges } from '@/components/UserBadges';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
+import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
@@ -187,6 +188,8 @@ export default function ProfileScreen() {
   const [editSplitSchedule, setEditSplitSchedule] = useState<Record<number, string>>({});
   const [splitSaving, setSplitSaving] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
+  const [dayExercises, setDayExercises] = useState<Record<number, { id: string; name: string; muscle_group: string }[]>>({});
+  const [exercisePickerDay, setExercisePickerDay] = useState<number | null>(null);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
 
@@ -464,10 +467,27 @@ export default function ProfileScreen() {
       } else {
         Alert.alert('Error', error.message);
       }
-    } else {
-      await refreshProfile();
-      setShowSplitEditor(false);
+      setSplitSaving(false);
+      return;
     }
+
+    // Save exercises per day as pinned workout templates
+    for (const [dayStr, exercises] of Object.entries(dayExercises)) {
+      const dayIdx = Number(dayStr);
+      if (exercises.length === 0) continue;
+      const sessionType = editSplitSchedule[dayIdx] ?? 'Workout';
+      // Clear any existing pin, then upsert
+      await supabase.from('workout_templates').update({ day_of_week: null }).eq('user_id', user.id).eq('day_of_week', dayIdx);
+      await supabase.from('workout_templates').upsert({
+        user_id: user.id,
+        name: `${sessionType} Day`,
+        exercises: exercises.map(e => ({ id: e.id, name: e.name, muscle_group: e.muscle_group })),
+        day_of_week: dayIdx,
+      }, { onConflict: 'user_id,name' });
+    }
+
+    await refreshProfile();
+    setShowSplitEditor(false);
     setSplitSaving(false);
   };
 
@@ -476,10 +496,14 @@ export default function ProfileScreen() {
     const converted: Record<number, string> = {};
     Object.entries(existing).forEach(([k, v]) => { converted[Number(k)] = v; });
     setEditSplitSchedule(converted);
-    // Load templates so user can link them to days
     if (user) {
       const { data } = await supabase.from('workout_templates').select('*').eq('user_id', user.id).order('last_used_at', { ascending: false, nullsFirst: false });
       setSavedTemplates(data ?? []);
+      // Pre-load any existing day-pinned templates into dayExercises
+      const pinned = (data ?? []).filter((t: any) => t.day_of_week != null);
+      const init: Record<number, any[]> = {};
+      pinned.forEach((t: any) => { init[t.day_of_week] = t.exercises ?? []; });
+      setDayExercises(init);
     }
     setShowSplitEditor(true);
   };
@@ -1303,45 +1327,100 @@ export default function ProfileScreen() {
             {[1, 2, 3, 4, 5, 6, 0].map(dayIdx => {
               const type = editSplitSchedule[dayIdx];
               const color = type ? (SESSION_COLORS[type] ?? Colors.textMuted) : Colors.textMuted;
+              const exs = dayExercises[dayIdx] ?? [];
               return (
-                <TouchableOpacity
-                  key={dayIdx}
-                  onPress={() => pickDaySession(dayIdx)}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 14,
-                    backgroundColor: type ? color + '12' : Colors.surface,
-                    borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: type ? color + '40' : Colors.border,
-                  }}
-                >
-                  <View style={{
-                    width: 44, height: 44, borderRadius: 10,
-                    backgroundColor: type ? color + '20' : Colors.surface2,
-                    borderWidth: 1, borderColor: type ? color + '50' : Colors.border,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {type ? (
-                      <Text style={{ color, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' }}>
-                        {type === 'Full Body' ? 'FB' : type === 'Upper' ? 'UP' : type === 'Lower' ? 'LO' : type.slice(0, 2).toUpperCase()}
+                <View key={dayIdx} style={{
+                  backgroundColor: type ? color + '10' : Colors.surface,
+                  borderRadius: 14,
+                  borderWidth: 1, borderColor: type ? color + '40' : Colors.border,
+                  overflow: 'hidden',
+                }}>
+                  {/* Day header row */}
+                  <TouchableOpacity
+                    onPress={() => pickDaySession(dayIdx)}
+                    activeOpacity={0.7}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 }}
+                  >
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 8,
+                      backgroundColor: type ? color + '20' : Colors.surface2,
+                      borderWidth: 1, borderColor: type ? color + '50' : Colors.border,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {type ? (
+                        <Text style={{ color, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' }}>
+                          {type === 'Full Body' ? 'FB' : type === 'Upper' ? 'UP' : type === 'Lower' ? 'LO' : type.slice(0, 2).toUpperCase()}
+                        </Text>
+                      ) : (
+                        <Text style={{ color: Colors.textMuted, fontSize: 16 }}>—</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>{DAY_FULL[dayIdx]}</Text>
+                      <Text style={{ color: type ? color : Colors.textMuted, fontSize: 12, marginTop: 1, fontWeight: type ? '700' : '400' }}>
+                        {type ?? 'Rest — tap to set'}
                       </Text>
-                    ) : (
-                      <Text style={{ color: Colors.textMuted, fontSize: 16 }}>—</Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>{DAY_FULL[dayIdx]}</Text>
-                    <Text style={{ color: type ? color : Colors.textMuted, fontSize: 12, marginTop: 2, fontWeight: type ? '700' : '400' }}>
-                      {type ?? 'Rest — tap to assign'}
-                    </Text>
-                  </View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 18 }}>›</Text>
-                </TouchableOpacity>
+                    </View>
+                    <Text style={{ color: Colors.textMuted, fontSize: 18 }}>›</Text>
+                  </TouchableOpacity>
+
+                  {/* Exercises for this day */}
+                  {type && (
+                    <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
+                      {exs.length > 0 && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {exs.map((ex, i) => (
+                            <TouchableOpacity
+                              key={ex.id}
+                              onPress={() => setDayExercises(prev => ({
+                                ...prev,
+                                [dayIdx]: (prev[dayIdx] ?? []).filter((_, idx) => idx !== i),
+                              }))}
+                              style={{
+                                backgroundColor: color + '20', borderRadius: 8,
+                                paddingHorizontal: 10, paddingVertical: 5,
+                                flexDirection: 'row', alignItems: 'center', gap: 5,
+                                borderWidth: 1, borderColor: color + '40',
+                              }}
+                            >
+                              <Text style={{ color, fontSize: 11, fontWeight: '700' }}>{ex.name}</Text>
+                              <Text style={{ color: color + '80', fontSize: 10 }}>×</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        onPress={() => setExercisePickerDay(dayIdx)}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 6,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text style={{ color, fontSize: 12, fontWeight: '700' }}>+ Add exercises</Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>(optional — pre-loads your workout)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               );
             })}
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Exercise picker for split day templates */}
+      <ExercisePickerModal
+        visible={exercisePickerDay !== null}
+        alreadyAdded={(dayExercises[exercisePickerDay ?? -1] ?? []).map(e => e.id)}
+        onSelect={(ex) => {
+          if (exercisePickerDay === null) return;
+          setDayExercises(prev => ({
+            ...prev,
+            [exercisePickerDay]: [...(prev[exercisePickerDay] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
+          }));
+        }}
+        onClose={() => setExercisePickerDay(null)}
+      />
 
       {/* ── LIFTER DNA MODAL ─────────────────────────────────────────────────── */}
       <Modal visible={dnaModalOpen} animationType="slide" presentationStyle="pageSheet">
