@@ -495,26 +495,25 @@ export default function ProfileScreen() {
           onPress: () => {
             setEditSplitSchedule(prev => ({ ...prev, [dayIdx]: type }));
             // Offer to link a template for this day
-            if (savedTemplates.length > 0) {
-              setTimeout(() => {
-                Alert.alert(
-                  `Pin a template for ${DAY_FULL[dayIdx]}?`,
-                  'Your workout will pre-load when you start this day.',
-                  [
-                    ...savedTemplates.slice(0, 4).map((tmpl: any) => ({
-                      text: tmpl.name,
-                      onPress: async () => {
-                        // Clear any existing pin for this day, then set new one
-                        await supabase.from('workout_templates').update({ day_of_week: null }).eq('user_id', user!.id).eq('day_of_week', dayIdx);
-                        await supabase.from('workout_templates').update({ day_of_week: dayIdx }).eq('id', tmpl.id);
-                        Alert.alert('Pinned!', `${tmpl.name} will load every ${DAY_FULL[dayIdx]}.`);
-                      },
-                    })),
-                    { text: 'Skip for now', style: 'cancel' },
-                  ]
-                );
-              }, 400);
-            }
+            setTimeout(() => {
+              Alert.alert(
+                `Pin a template for ${DAY_FULL[dayIdx]}?`,
+                savedTemplates.length > 0
+                  ? 'Choose a saved template — it will pre-load every time you train this day.'
+                  : 'No saved templates yet. Log a workout first, then you can pin it here.',
+                [
+                  ...savedTemplates.slice(0, 4).map((tmpl: any) => ({
+                    text: tmpl.name,
+                    onPress: async () => {
+                      await supabase.from('workout_templates').update({ day_of_week: null }).eq('user_id', user!.id).eq('day_of_week', dayIdx);
+                      await supabase.from('workout_templates').update({ day_of_week: dayIdx }).eq('id', tmpl.id);
+                      Alert.alert('Pinned! 📌', `${tmpl.name} will pre-load every ${DAY_FULL[dayIdx]}.`);
+                    },
+                  })),
+                  { text: savedTemplates.length === 0 ? 'Got it' : 'Skip for now', style: 'cancel' },
+                ]
+              );
+            }, 400);
           },
         })),
         { text: 'Rest (clear)', style: 'destructive' as const, onPress: () => setEditSplitSchedule(prev => { const n = { ...prev }; delete n[dayIdx]; return n; }) },

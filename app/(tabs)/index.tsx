@@ -779,6 +779,44 @@ export default function HomeScreen() {
               "{animeResult.animeTier.tagline}"
             </Text>
 
+            {/* Ask Coach — right up top, easy to find */}
+            {animeResult.bottleneck && animeResult.bottleneck.weight > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
+                  if (isPro) {
+                    (global as any).__coachPreFill = question;
+                    router.push('/(tabs)/insights');
+                  } else {
+                    Alert.alert(
+                      'Ask Coach',
+                      `This will use 1 of your ${aiAsksRemaining} remaining asks this week.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Ask anyway', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
+                      ]
+                    );
+                  }
+                }}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 8,
+                  backgroundColor: animeResult.animeTier.color + '15',
+                  borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+                  borderWidth: 1, borderColor: animeResult.animeTier.color + '30',
+                  marginBottom: 14,
+                }}
+              >
+                <Text style={{ fontSize: 14 }}>⚡</Text>
+                <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                  How to bring up my {animeResult.bottleneck.label}
+                </Text>
+                {!isPro && (
+                  <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{aiAsksRemaining} left</Text>
+                )}
+                <Text style={{ color: animeResult.animeTier.color, fontSize: 12, fontWeight: '800' }}>Ask →</Text>
+              </TouchableOpacity>
+            )}
+
             {/* SBD bars */}
             <View style={{ gap: 10 }}>
               {animeResult.lifts.map((lift, i) => {
@@ -864,42 +902,6 @@ export default function HomeScreen() {
                 </View>
               )}
 
-
-              {/* Ask Coach — pro goes straight through, free sees ask count */}
-              {animeResult.bottleneck && animeResult.bottleneck.weight > 0 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
-                    if (isPro) {
-                      (global as any).__coachPreFill = question;
-                      router.push('/(tabs)/insights');
-                    } else {
-                      Alert.alert(
-                        'Ask Coach',
-                        `This will use 1 of your ${aiAsksRemaining} remaining asks this week.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Ask anyway', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
-                        ]
-                      );
-                    }
-                  }}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 8,
-                    backgroundColor: Colors.surface2, borderRadius: 10,
-                    paddingHorizontal: 12, paddingVertical: 10,
-                  }}
-                >
-                  <Text style={{ fontSize: 14 }}>⚡</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
-                    Ask coach: how to bring up your {animeResult.bottleneck.label}
-                  </Text>
-                  {!isPro && (
-                    <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{aiAsksRemaining} asks left</Text>
-                  )}
-                  <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>→</Text>
-                </TouchableOpacity>
-              )}
 
               {/* Set SBD manually */}
               <TouchableOpacity
