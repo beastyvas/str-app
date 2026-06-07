@@ -1318,7 +1318,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="always">
             <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
               Tap each day to set your session type. Coach references this every time you ask a training question.
             </Text>
