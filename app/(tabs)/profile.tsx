@@ -1422,17 +1422,28 @@ export default function ProfileScreen() {
                       />
                       {/* Results — only when this day is expanded and has text */}
                       {expandedDayEx === dayIdx && splitExSearch.length > 0 && (() => {
-                        // Fuzzy match: words in query match name OR muscle group
-                        const words = splitExSearch.toLowerCase().split(' ').filter(w => w.length > 1);
-                        const results = allExercises
-                          .filter(e => {
-                            if (exs.some(x => x.id === e.id)) return false;
+                        const q = splitExSearch.toLowerCase().trim();
+                        const words = q.split(' ').filter(w => w.length > 1);
+                        const scored = allExercises
+                          .filter(e => !exs.some(x => x.id === e.id))
+                          .map(e => {
                             const nameL = e.name.toLowerCase();
                             const muscleL = (e.muscle_group ?? '').toLowerCase();
-                            const matched = words.filter(w => nameL.includes(w) || muscleL.includes(w)).length;
-                            return matched >= Math.max(1, Math.ceil(words.length * 0.5));
+                            let score = 0;
+                            if (nameL === q) score = 100;                          // exact
+                            else if (nameL.startsWith(q)) score = 90;             // starts with
+                            else if (nameL.includes(q)) score = 80;               // substring
+                            else {
+                              const nameMatches = words.filter(w => nameL.includes(w)).length;
+                              const muscleMatches = words.filter(w => muscleL.includes(w)).length;
+                              // Require at least one name word to match (not just muscle)
+                              if (nameMatches > 0) score = 40 + nameMatches * 10 + muscleMatches * 5;
+                            }
+                            return { e, score };
                           })
-                          .slice(0, 8);
+                          .filter(x => x.score > 0)
+                          .sort((a, b) => b.score - a.score);
+                        const results = scored.slice(0, 8).map(x => x.e);
                         if (results.length === 0) return (
                           <Text style={{ color: Colors.textMuted, fontSize: 12, paddingVertical: 4 }}>No matches</Text>
                         );
