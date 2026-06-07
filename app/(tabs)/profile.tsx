@@ -1406,68 +1406,64 @@ export default function ProfileScreen() {
                         </View>
                       )}
 
-                      {/* Expand/collapse inline search */}
-                      {expandedDayEx === dayIdx ? (
-                        <View style={{ gap: 8 }}>
-                          <TextInput
-                            value={splitExSearch}
-                            onChangeText={setSplitExSearch}
-                            placeholder="Search exercises..."
-                            placeholderTextColor={Colors.textMuted}
-                            autoFocus
-                            style={{
-                              backgroundColor: Colors.surface2, borderRadius: 10,
-                              paddingHorizontal: 12, paddingVertical: 10,
-                              color: Colors.text, fontSize: 14,
-                              borderWidth: 1, borderColor: Colors.border,
-                            }}
-                          />
-                          {/* Plain View — no nested scroll, avoids iOS blocking outer scroll */}
-                          <View>
-                            {allExercises
-                              .filter(e =>
-                                e.name.toLowerCase().includes(splitExSearch.toLowerCase()) &&
-                                !exs.some(x => x.id === e.id)
-                              )
-                              .slice(0, 8)
-                              .map((ex) => (
-                                <TouchableOpacity
-                                  key={ex.id}
-                                  onPress={() => {
-                                    setDayExercises(prev => ({
-                                      ...prev,
-                                      [dayIdx]: [...(prev[dayIdx] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
-                                    }));
-                                    setSplitExSearch('');
-                                  }}
-                                  style={{
-                                    paddingVertical: 10, paddingHorizontal: 4,
-                                    borderBottomWidth: 1, borderBottomColor: Colors.border,
-                                    flexDirection: 'row', alignItems: 'center', gap: 8,
-                                  }}
-                                >
-                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
-                                  <Text style={{ color: Colors.text, fontSize: 13, flex: 1 }}>{ex.name}</Text>
-                                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{ex.muscle_group}</Text>
-                                </TouchableOpacity>
-                              ))
-                            }
+                      {/* Always-visible search — no expand/collapse friction */}
+                      <TextInput
+                        value={expandedDayEx === dayIdx ? splitExSearch : ''}
+                        onFocus={() => { setExpandedDayEx(dayIdx); setSplitExSearch(''); }}
+                        onChangeText={setSplitExSearch}
+                        placeholder={exs.length > 0 ? '+ Add more...' : '+ Add exercises for this day'}
+                        placeholderTextColor={color + '90'}
+                        style={{
+                          backgroundColor: color + '10', borderRadius: 8,
+                          paddingHorizontal: 12, paddingVertical: 8,
+                          color: Colors.text, fontSize: 13,
+                          borderWidth: 1, borderColor: color + '30',
+                        }}
+                      />
+                      {/* Results — only when this day is expanded and has text */}
+                      {expandedDayEx === dayIdx && splitExSearch.length > 0 && (() => {
+                        // Fuzzy match: words in query match name OR muscle group
+                        const words = splitExSearch.toLowerCase().split(' ').filter(w => w.length > 1);
+                        const results = allExercises
+                          .filter(e => {
+                            if (exs.some(x => x.id === e.id)) return false;
+                            const nameL = e.name.toLowerCase();
+                            const muscleL = (e.muscle_group ?? '').toLowerCase();
+                            const matched = words.filter(w => nameL.includes(w) || muscleL.includes(w)).length;
+                            return matched >= Math.max(1, Math.ceil(words.length * 0.5));
+                          })
+                          .slice(0, 8);
+                        if (results.length === 0) return (
+                          <Text style={{ color: Colors.textMuted, fontSize: 12, paddingVertical: 4 }}>No matches</Text>
+                        );
+                        return (
+                          <View style={{ borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
+                            {results.map((ex, ri) => (
+                              <TouchableOpacity
+                                key={ex.id}
+                                onPress={() => {
+                                  setDayExercises(prev => ({
+                                    ...prev,
+                                    [dayIdx]: [...(prev[dayIdx] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
+                                  }));
+                                  // Don't clear search — keep results visible for quick multi-add
+                                }}
+                                style={{
+                                  flexDirection: 'row', alignItems: 'center', gap: 8,
+                                  paddingVertical: 10, paddingHorizontal: 12,
+                                  backgroundColor: Colors.surface,
+                                  borderBottomWidth: ri < results.length - 1 ? 1 : 0,
+                                  borderBottomColor: Colors.border,
+                                }}
+                              >
+                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+                                <Text style={{ color: Colors.text, fontSize: 13, flex: 1 }}>{ex.name}</Text>
+                                <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{ex.muscle_group}</Text>
+                              </TouchableOpacity>
+                            ))}
                           </View>
-                          <TouchableOpacity onPress={() => { setExpandedDayEx(null); setSplitExSearch(''); }}>
-                            <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center' }}>Done adding</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={() => { setExpandedDayEx(dayIdx); setSplitExSearch(''); }}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                        >
-                          <Text style={{ color, fontSize: 12, fontWeight: '700' }}>
-                            {exs.length > 0 ? '+ Add more exercises' : '+ Add exercises for this day'}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>optional</Text>
-                        </TouchableOpacity>
-                      )}
+                        );
+                      })()}
                     </View>
                   )}
                 </View>

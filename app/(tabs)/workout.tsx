@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWorkoutStore } from '@/hooks/useWorkout';
 import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
+import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
+import { useSubscription } from '@/hooks/useSubscription';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
@@ -32,6 +34,9 @@ type PRMap = Record<string, boolean>;
 export default function WorkoutTab() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { isPro } = useSubscription();
+  const [coachLastSet, setCoachLastSet] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string } | null>(null);
+  const [coachHistory, setCoachHistory] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string }[]>([]);
 
   const {
     activeWorkout,
@@ -411,6 +416,11 @@ export default function WorkoutTab() {
     if (ex && ex.sets.length > 0) {
       const lastSet = ex.sets[ex.sets.length - 1];
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
+      // Feed coach
+      const coachSet = { weight: data.weight, reps: data.reps, rpe: data.rpe, note: data.note, exerciseName: ex.exerciseName };
+      const history = ex.sets.slice(0, -1).map(s => ({ weight: s.weight, reps: s.reps, rpe: s.rpe, note: s.note, exerciseName: ex.exerciseName }));
+      setCoachHistory(history);
+      setCoachLastSet(coachSet);
     }
 
     // Check for tier/sub-tier advancement on SBD PRs
@@ -1190,6 +1200,14 @@ export default function WorkoutTab() {
 
       {/* Rest timer — appears after first set */}
       <RestTimer lastSetLoggedAt={lastSetLoggedAt} />
+      <WorkoutCoach
+        lastSet={coachLastSet}
+        allSetsThisExercise={coachHistory}
+        isPro={isPro}
+        trainingStyle={profile?.training_style}
+        animeTierKey={(profile as any)?.anime_tier_key}
+        onDismiss={() => setCoachLastSet(null)}
+      />
 
       {/* PR Flash Banner */}
       {newPRs.length > 0 && (
