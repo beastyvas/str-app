@@ -23,8 +23,13 @@ export const WorkoutLiveActivity = {
   },
 
   async startActivity(workoutName: string, state: WorkoutActivityState): Promise<void> {
-    if (!NativeModule) return;
-    try { await NativeModule.startActivity({ workoutName, ...state }); } catch {}
+    if (!NativeModule) { console.log('[LiveActivity] native module not available'); return; }
+    try {
+      const available = NativeModule.isAvailable();
+      console.log('[LiveActivity] isAvailable:', available);
+      await NativeModule.startActivity({ workoutName, ...state });
+      console.log('[LiveActivity] started:', workoutName);
+    } catch (e: any) { console.warn('[LiveActivity] startActivity error:', e.message); }
   },
 
   async updateActivity(state: WorkoutActivityState): Promise<void> {
