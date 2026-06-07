@@ -1002,58 +1002,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── AI COACH ────────────────────────────────────────────── */}
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/insights')}
-          activeOpacity={0.82}
-          style={{
-            backgroundColor: Colors.surface,
-            borderRadius: 18,
-            padding: 18,
-            marginBottom: 16,
-            borderWidth: 1,
-            borderColor: Colors.accent + '30',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 14,
-          }}
-        >
-          <View style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: Colors.accentDim,
-            borderWidth: 1.5,
-            borderColor: Colors.accent + '45',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Text style={{ fontSize: 20 }}>⚡</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{
-              color: Colors.text,
-              fontSize: 14,
-              fontWeight: '800',
-              letterSpacing: -0.2,
-            }}>
-              AI Coach
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-              Volume trends · recovery · programming
-            </Text>
-          </View>
-          <View style={{
-            width: 28,
-            height: 28,
-            borderRadius: 14,
-            backgroundColor: Colors.accentDim,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Text style={{ color: Colors.accent, fontSize: 14, fontWeight: '800' }}>›</Text>
-          </View>
-        </TouchableOpacity>
 
         {/* ── CREW ACTIVITY ────────────────────────────────────────── */}
         <TouchableOpacity
