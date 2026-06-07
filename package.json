@@ -48,6 +48,7 @@
     "react-native-web": "^0.21.0",
     "react-native-worklets": "npm:react-native-worklets-core@0.5.1",
     "tailwindcss": "^3.4.7",
+    "workout-live-activity": "file:modules/WorkoutLiveActivity",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
