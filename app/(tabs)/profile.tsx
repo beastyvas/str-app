@@ -16,7 +16,6 @@ import { TierLadderModal } from '@/components/TierLadderModal';
 import { UserBadges } from '@/components/UserBadges';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
-import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
 
@@ -189,7 +188,9 @@ export default function ProfileScreen() {
   const [splitSaving, setSplitSaving] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
   const [dayExercises, setDayExercises] = useState<Record<number, { id: string; name: string; muscle_group: string }[]>>({});
-  const [exercisePickerDay, setExercisePickerDay] = useState<number | null>(null);
+  const [expandedDayEx, setExpandedDayEx] = useState<number | null>(null);
+  const [splitExSearch, setSplitExSearch] = useState('');
+  const [allExercises, setAllExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
   const [sbdInputs, setSbdInputs] = useState({ sq: '', bp: '', dl: '' });
   const [sbdSaving, setSbdSaving] = useState(false);
 
@@ -497,14 +498,21 @@ export default function ProfileScreen() {
     Object.entries(existing).forEach(([k, v]) => { converted[Number(k)] = v; });
     setEditSplitSchedule(converted);
     if (user) {
-      const { data } = await supabase.from('workout_templates').select('*').eq('user_id', user.id).order('last_used_at', { ascending: false, nullsFirst: false });
-      setSavedTemplates(data ?? []);
-      // Pre-load any existing day-pinned templates into dayExercises
-      const pinned = (data ?? []).filter((t: any) => t.day_of_week != null);
+      const [{ data: templates }, { data: exercises }] = await Promise.all([
+        supabase.from('workout_templates').select('*').eq('user_id', user.id).order('last_used_at', { ascending: false, nullsFirst: false }),
+        supabase.from('exercises').select('id, name, muscle_group').order('name'),
+      ]);
+      setSavedTemplates(templates ?? []);
+      setAllExercises(exercises ?? []);
+      // Pre-load existing pinned day templates
       const init: Record<number, any[]> = {};
-      pinned.forEach((t: any) => { init[t.day_of_week] = t.exercises ?? []; });
+      (templates ?? []).filter((t: any) => t.day_of_week != null).forEach((t: any) => {
+        init[t.day_of_week] = t.exercises ?? [];
+      });
       setDayExercises(init);
     }
+    setExpandedDayEx(null);
+    setSplitExSearch('');
     setShowSplitEditor(true);
   };
 
@@ -1364,9 +1372,10 @@ export default function ProfileScreen() {
                     <Text style={{ color: Colors.textMuted, fontSize: 18 }}>›</Text>
                   </TouchableOpacity>
 
-                  {/* Exercises for this day */}
+                  {/* Inline exercise editor — no modal needed */}
                   {type && (
-                    <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
+                    <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
+                      {/* Added exercises as removable chips */}
                       {exs.length > 0 && (
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                           {exs.map((ex, i) => (
@@ -1384,25 +1393,76 @@ export default function ProfileScreen() {
                               }}
                             >
                               <Text style={{ color, fontSize: 11, fontWeight: '700' }}>{ex.name}</Text>
-                              <Text style={{ color: color + '80', fontSize: 10 }}>×</Text>
+                              <Text style={{ color: Colors.textMuted, fontSize: 11 }}>×</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
                       )}
-                      <TouchableOpacity
-                        onPress={() => {
-                          // Dismiss split editor first — iOS can't stack two Modals
-                          setShowSplitEditor(false);
-                          setTimeout(() => setExercisePickerDay(dayIdx), 350);
-                        }}
-                        style={{
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                          paddingVertical: 6,
-                        }}
-                      >
-                        <Text style={{ color, fontSize: 12, fontWeight: '700' }}>+ Add exercises</Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>(optional)</Text>
-                      </TouchableOpacity>
+
+                      {/* Expand/collapse inline search */}
+                      {expandedDayEx === dayIdx ? (
+                        <View style={{ gap: 8 }}>
+                          <TextInput
+                            value={splitExSearch}
+                            onChangeText={setSplitExSearch}
+                            placeholder="Search exercises..."
+                            placeholderTextColor={Colors.textMuted}
+                            autoFocus
+                            style={{
+                              backgroundColor: Colors.surface2, borderRadius: 10,
+                              paddingHorizontal: 12, paddingVertical: 10,
+                              color: Colors.text, fontSize: 14,
+                              borderWidth: 1, borderColor: Colors.border,
+                            }}
+                          />
+                          <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            {allExercises
+                              .filter(e =>
+                                e.name.toLowerCase().includes(splitExSearch.toLowerCase()) &&
+                                !exs.some(x => x.id === e.id)
+                              )
+                              .slice(0, 20)
+                              .map((ex: any) => (
+                                <TouchableOpacity
+                                  key={ex.id}
+                                  onPress={() => {
+                                    setDayExercises(prev => ({
+                                      ...prev,
+                                      [dayIdx]: [...(prev[dayIdx] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
+                                    }));
+                                    setSplitExSearch('');
+                                  }}
+                                  style={{
+                                    paddingVertical: 10, paddingHorizontal: 4,
+                                    borderBottomWidth: 1, borderBottomColor: Colors.border,
+                                    flexDirection: 'row', alignItems: 'center', gap: 8,
+                                  }}
+                                >
+                                  <View style={{
+                                    width: 6, height: 6, borderRadius: 3,
+                                    backgroundColor: color,
+                                  }} />
+                                  <Text style={{ color: Colors.text, fontSize: 13 }}>{ex.name}</Text>
+                                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginLeft: 'auto' as any }}>{ex.muscle_group}</Text>
+                                </TouchableOpacity>
+                              ))
+                            }
+                          </ScrollView>
+                          <TouchableOpacity onPress={() => { setExpandedDayEx(null); setSplitExSearch(''); }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center' }}>Done adding</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => { setExpandedDayEx(dayIdx); setSplitExSearch(''); }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                        >
+                          <Text style={{ color, fontSize: 12, fontWeight: '700' }}>
+                            {exs.length > 0 ? '+ Add more exercises' : '+ Add exercises for this day'}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>optional</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1412,24 +1472,6 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Exercise picker — rendered outside split editor to avoid iOS modal stacking */}
-      <ExercisePickerModal
-        visible={exercisePickerDay !== null}
-        alreadyAdded={(dayExercises[exercisePickerDay ?? -1] ?? []).map(e => e.id)}
-        onSelect={(ex) => {
-          if (exercisePickerDay === null) return;
-          setDayExercises(prev => ({
-            ...prev,
-            [exercisePickerDay]: [...(prev[exercisePickerDay] ?? []), { id: ex.id, name: ex.name, muscle_group: ex.muscle_group }],
-          }));
-          // Keep picker open so they can add multiple exercises
-        }}
-        onClose={() => {
-          setExercisePickerDay(null);
-          // Re-show split editor after picker closes
-          setTimeout(() => setShowSplitEditor(true), 50);
-        }}
-      />
 
       {/* ── LIFTER DNA MODAL ─────────────────────────────────────────────────── */}
       <Modal visible={dnaModalOpen} animationType="slide" presentationStyle="pageSheet">
