@@ -58,8 +58,9 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
   // Create exercise state
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newGroup, setNewGroup] = useState('Chest');
+  const [newGroup, setNewGroup] = useState('');
   const [newEquipment, setNewEquipment] = useState('Barbell');
+  const [newUnit, setNewUnit] = useState<'lbs' | 'kg'>('lbs');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -347,109 +348,118 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
           )}
         </KeyboardAvoidingView>
 
-        {/* Create Exercise Modal */}
-        <Modal visible={showCreate} transparent animationType="slide">
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            <TouchableOpacity
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}
-              activeOpacity={1}
-              onPress={() => setShowCreate(false)}
-            />
-            <View style={{
-              backgroundColor: Colors.surface,
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              padding: 24, borderTopWidth: 1, borderTopColor: Colors.border,
-              gap: 16,
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Create Exercise</Text>
-                <TouchableOpacity
-                  onPress={() => setShowCreate(false)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
+        {/* Create Exercise — inline full-screen view, no nested Modal */}
+        {showCreate && (
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: Colors.bg, zIndex: 10,
+          }}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+              <View style={{
+                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                paddingHorizontal: 20, paddingVertical: 16,
+                borderBottomWidth: 1, borderBottomColor: Colors.border,
+              }}>
+                <TouchableOpacity onPress={() => setShowCreate(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>← Back</Text>
                 </TouchableOpacity>
+                <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900' }}>New Exercise</Text>
+                <View style={{ width: 60 }} />
               </View>
 
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Exercise Name</Text>
-                <TextInput
-                  value={newName}
-                  onChangeText={setNewName}
-                  autoFocus
-                  placeholder="e.g. Cable Pullthrough"
-                  placeholderTextColor={Colors.textMuted}
-                  style={{
-                    backgroundColor: Colors.surface2, borderRadius: 12,
-                    paddingHorizontal: 16, paddingVertical: 14,
-                    color: Colors.text, fontSize: 16,
-                    borderWidth: 1, borderColor: Colors.border,
-                  }}
-                />
-              </View>
+              <ScrollView contentContainerStyle={{ padding: 24, gap: 20 }} keyboardShouldPersistTaps="handled">
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Exercise Name</Text>
+                  <TextInput
+                    value={newName}
+                    onChangeText={setNewName}
+                    autoFocus
+                    placeholder="e.g. Cable Pullthrough"
+                    placeholderTextColor={Colors.textMuted}
+                    style={{
+                      backgroundColor: Colors.surface, borderRadius: 12,
+                      paddingHorizontal: 16, paddingVertical: 14,
+                      color: Colors.text, fontSize: 16,
+                      borderWidth: 1, borderColor: Colors.border,
+                    }}
+                  />
+                </View>
 
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Muscle Group</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Muscle Group</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {MUSCLE_GROUPS.filter(g => g !== 'All').map(g => (
                       <TouchableOpacity
                         key={g}
                         onPress={() => setNewGroup(g)}
                         style={{
-                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-                          backgroundColor: newGroup === g ? Colors.accent : Colors.surface2,
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: newGroup === g ? Colors.accent : Colors.surface,
                           borderWidth: 1, borderColor: newGroup === g ? Colors.accent : Colors.border,
                         }}
                       >
-                        <Text style={{ color: newGroup === g ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{g}</Text>
+                        <Text style={{ color: newGroup === g ? Colors.text : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>{g}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </ScrollView>
-              </View>
+                </View>
 
-              <View>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Equipment</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Equipment</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {EQUIPMENT_OPTIONS.map(eq => (
                       <TouchableOpacity
                         key={eq}
                         onPress={() => setNewEquipment(eq)}
                         style={{
-                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-                          backgroundColor: newEquipment === eq ? Colors.accent : Colors.surface2,
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: newEquipment === eq ? Colors.accent : Colors.surface,
                           borderWidth: 1, borderColor: newEquipment === eq ? Colors.accent : Colors.border,
                         }}
                       >
-                        <Text style={{ color: newEquipment === eq ? Colors.text : Colors.textMuted, fontSize: 12, fontWeight: '700' }}>{eq}</Text>
+                        <Text style={{ color: newEquipment === eq ? Colors.text : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>{eq}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </ScrollView>
-              </View>
+                </View>
 
-              <TouchableOpacity
-                onPress={handleCreateExercise}
-                disabled={!newName.trim() || creating}
-                style={{
-                  backgroundColor: newName.trim() && !creating ? Colors.accent : Colors.surface2,
-                  borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-                }}
-              >
-                {creating
-                  ? <ActivityIndicator color={Colors.text} />
-                  : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>Create & Add</Text>
-                }
-              </TouchableOpacity>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+                <View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Default Weight Unit</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {(['lbs', 'kg'] as const).map(u => (
+                      <TouchableOpacity
+                        key={u}
+                        onPress={() => setNewUnit?.(u)}
+                        style={{
+                          flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+                          backgroundColor: (newUnit ?? 'lbs') === u ? Colors.accent : Colors.surface,
+                          borderWidth: 1, borderColor: (newUnit ?? 'lbs') === u ? Colors.accent : Colors.border,
+                        }}
+                      >
+                        <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, textTransform: 'uppercase' }}>{u}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleCreateExercise}
+                  disabled={!newName.trim() || !newGroup || creating}
+                  style={{
+                    backgroundColor: newName.trim() && newGroup && !creating ? Colors.accent : Colors.surface,
+                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
+                    marginTop: 8,
+                  }}
+                >
+                  {creating
+                    ? <ActivityIndicator color={Colors.text} />
+                    : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>Create & Add →</Text>
+                  }
+                </TouchableOpacity>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
