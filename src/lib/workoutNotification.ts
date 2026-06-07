@@ -97,8 +97,8 @@ export async function notifySetLogged(
     await N.scheduleNotificationAsync({
       identifier: REST_ALERT_ID,
       content: {
-        title: `⏱ Rest complete`,
-        body: `Time for set ${setNumber + 1}${_lastExercise ? ` of ${_lastExercise}` : ''}`,
+        title: `Rest done — next set ready`,
+        body: _lastExercise ? _lastExercise : 'Tap to log your next set',
         data: { url: '/(tabs)/workout' },
         sound: false,
         ...(Platform.OS === 'android' && { channelId: 'rest-alert', vibrate: [0, 250] }),
@@ -110,13 +110,11 @@ export async function notifySetLogged(
 
 async function _updateActiveNotif(elapsedSeconds: number) {
   if (!N) return;
-  const restText = elapsedSeconds > 0
-    ? `Resting ${fmtElapsed(elapsedSeconds)} · tap to continue`
-    : `Set ${_lastSetNum} done · resting now`;
 
+  // Clean simple copy: exercise name + set number. No elapsed time (confusing).
   const body = _lastExercise
-    ? `${_lastExercise}  ·  ${restText}`
-    : restText;
+    ? `${_lastExercise} — Set ${_lastSetNum} logged`
+    : `Set ${_lastSetNum} logged`;
 
   await N.scheduleNotificationAsync({
     identifier: WORKOUT_NOTIF_ID,
