@@ -29,11 +29,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
+    if (error) console.error('[useAuth] fetchProfile error:', error.message, error.code);
     if (data) setProfile(data);
 
     // Identify user in RevenueCat (skip in Expo Go)

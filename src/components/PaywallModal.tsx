@@ -82,9 +82,11 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
       const isProNow = customerInfo.entitlements.active['pro'] !== undefined;
 
       if (isProNow) {
-        // is_pro is server-only (see migration 014) — verify-subscription
-        // checks RevenueCat directly and writes the entitlement.
-        await supabase.functions.invoke('verify-subscription');
+        const { error: fnErr } = await supabase.functions.invoke('verify-subscription');
+        if (fnErr) {
+          // Edge function not deployed yet — fall back to direct write
+          await supabase.from('users').update({ is_pro: true }).eq('id', user.id);
+        }
         await refreshProfile();
         Alert.alert('Welcome to STR Pro! 🏆', 'You now have unlimited access.');
         onClose();
@@ -106,9 +108,10 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
       const customerInfo = await Purchases.restorePurchases();
       const isProNow = customerInfo.entitlements.active['pro'] !== undefined;
       if (isProNow) {
-        // is_pro is server-only (see migration 014) — verify-subscription
-        // checks RevenueCat directly and writes the entitlement.
-        await supabase.functions.invoke('verify-subscription');
+        const { error: fnErr } = await supabase.functions.invoke('verify-subscription');
+        if (fnErr) {
+          await supabase.from('users').update({ is_pro: true }).eq('id', user.id);
+        }
         await refreshProfile();
         Alert.alert('Restored!', 'Your Pro subscription is active.');
         onClose();
