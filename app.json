@@ -15,7 +15,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nickbuilds.str",
-      "buildNumber": "3",
+      "buildNumber": "4",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "STR uses your photo library so you can add a progress photo to your workout session and set your profile picture. For example, after a big PR you can attach a gym photo to that workout entry.",
@@ -37,7 +40,6 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-apple-authentication",
       [
         "expo-image-picker",
         {
@@ -64,7 +66,27 @@
       "expo-font",
       "expo-web-browser",
       "expo-camera",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "./modules/WorkoutLiveActivity",
+      [
+        "@bacons/apple-targets",
+        {
+          "targets": {
+            "WorkoutWidget": {
+              "type": "widget",
+              "deploymentTarget": "16.2",
+              "frameworks": ["WidgetKit", "SwiftUI", "ActivityKit"],
+              "files": [
+                "targets/WorkoutWidget/WorkoutWidget.swift",
+                "targets/WorkoutWidget/WorkoutAttributes.swift"
+              ],
+              "entitlements": {
+                "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
+              }
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -15,6 +15,7 @@ import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
 import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
 import { useSubscription } from '@/hooks/useSubscription';
+import { WorkoutLiveActivity } from '@/modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
@@ -380,6 +381,9 @@ export default function WorkoutTab() {
         lastWorkoutExercises.forEach(ex => addExercise(ex));
       }
       notifyWorkoutStarted(workoutName.trim());
+      WorkoutLiveActivity.startActivity(workoutName.trim(), {
+        exerciseName: '', setNumber: 0, weight: 0, reps: 0, totalSets: 0,
+      });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not start workout');
     }
@@ -507,10 +511,18 @@ export default function WorkoutTab() {
       }
     }
 
-    // Lock screen notification — show rest timer on lock screen
+    // Lock screen notification + Live Activity update
     const exName = ex?.exerciseName ?? '';
     const setNum = ex?.sets.length ?? 1;
     notifySetLogged(exName, setNum, restAlertSeconds);
+    WorkoutLiveActivity.updateActivity({
+      exerciseName: exName,
+      setNumber: setNum,
+      weight: data.weight,
+      reps: data.reps,
+      totalSets: ex?.sets.length ?? 0,
+      restSeconds: restAlertSeconds,
+    });
 
     return result;
   };
@@ -603,6 +615,8 @@ export default function WorkoutTab() {
       setPrevSetsCache({});
       setIsFirstWorkout(false);
       setTutorialStep('done');
+      clearWorkoutNotifications();
+      WorkoutLiveActivity.endActivity();
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
@@ -622,6 +636,8 @@ export default function WorkoutTab() {
           style: 'destructive',
           onPress: async () => {
             await discardWorkout();
+            clearWorkoutNotifications();
+            WorkoutLiveActivity.endActivity();
             setPrMap({});
             setPrevSetsCache({});
           },
