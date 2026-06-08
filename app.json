@@ -2,7 +2,7 @@
   "expo": {
     "name": "STR",
     "slug": "str",
-    "version": "1.0.1",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "str",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nickbuilds.str",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "appleTeamId": "4TB9550485",
       "entitlements": {
         "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
