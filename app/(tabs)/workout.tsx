@@ -139,8 +139,12 @@ export default function WorkoutTab() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (activeWorkout) {
+      // startedAt may still be a string if Zustand rehydrated before onRehydrateStorage ran
+      const startedAt = activeWorkout.startedAt instanceof Date
+        ? activeWorkout.startedAt
+        : new Date(activeWorkout.startedAt as any);
       const tick = () => {
-        setElapsedSec(Math.floor((Date.now() - activeWorkout.startedAt.getTime()) / 1000));
+        setElapsedSec(Math.floor((Date.now() - startedAt.getTime()) / 1000));
       };
       tick();
       timerRef.current = setInterval(tick, 1000);
