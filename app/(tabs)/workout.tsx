@@ -621,6 +621,12 @@ export default function WorkoutTab() {
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
+
+      // Fire-and-forget AI grade — runs in background, doesn't block navigation
+      if (summary?.workoutId) {
+        supabase.functions.invoke('grade-workout', { body: { workoutId: summary.workoutId } });
+      }
+
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
