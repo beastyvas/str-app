@@ -106,7 +106,21 @@ export default function HomeScreen() {
     exercises: string[];
     endedAt: string;
   } | null>(null);
-  const [workoutDays, setWorkoutDays] = useState<Record<number, string>>({});
+  const [workoutDays, setWorkoutDays] = useState<Record<number, {
+    sessionType: string;
+    grade: string | null;
+    summary: string | null;
+    name: string;
+    durationMins: number;
+  }>>({});
+  const [selectedDayWorkout, setSelectedDayWorkout] = useState<{
+    dow: number;
+    sessionType: string;
+    grade: string | null;
+    summary: string | null;
+    name: string;
+    durationMins: number;
+  } | null>(null);
 
   const [showTierLadder, setShowTierLadder] = useState(false);
 
@@ -296,20 +310,34 @@ export default function HomeScreen() {
         }
       }
 
-      // Last 7 days of own workouts for weekly strip
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      // This calendar week's workouts for the weekly strip (Mon–Sun)
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+      const daysSinceMon = (dayOfWeek + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - daysSinceMon);
+      weekStart.setHours(0, 0, 0, 0);
       const { data: weekData } = await supabase
         .from('workouts')
-        .select('started_at, workout_sets(exercises(name))')
+        .select('name, started_at, ended_at, ai_grade, ai_summary, workout_sets(exercises(name))')
         .eq('user_id', uid)
         .not('ended_at', 'is', null)
-        .gte('started_at', sevenDaysAgo);
+        .gte('started_at', weekStart.toISOString());
       if (weekData) {
-        const days: Record<number, string> = {};
+        const days: Record<number, { sessionType: string; grade: string | null; summary: string | null; name: string; durationMins: number; }> = {};
         (weekData as any[]).forEach(w => {
           const dow = new Date(w.started_at).getDay();
           const exs = (w.workout_sets ?? []).map((s: any) => s.exercises?.name).filter(Boolean);
-          days[dow] = classifySession(exs) ?? 'Training';
+          const durationMins = w.ended_at
+            ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000)
+            : 0;
+          days[dow] = {
+            sessionType: classifySession(exs) ?? 'Training',
+            grade: w.ai_grade ?? null,
+            summary: w.ai_summary ?? null,
+            name: w.name ?? 'Workout',
+            durationMins,
+          };
         });
         setWorkoutDays(days);
       }
@@ -591,14 +619,20 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', gap: 5 }}>
               {[1, 2, 3, 4, 5, 6, 0].map((dayIdx) => {
                 const label = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][dayIdx];
-                const sessionType = workoutDays[dayIdx];
+                const dayData = workoutDays[dayIdx];
                 const isToday = new Date().getDay() === dayIdx;
-                const color = sessionType ? (SESSION_COLORS[sessionType] ?? '#888') : null;
-                const isPlanned = isToday && todaySession && !sessionType;
+                const color = dayData ? (SESSION_COLORS[dayData.sessionType] ?? '#888') : null;
+                const isPlanned = isToday && todaySession && !dayData;
                 const plannedColor = isPlanned ? (SESSION_COLORS[todaySession!] ?? Colors.accent) : null;
+                const displayEmoji = dayData?.grade ?? (dayData ? (SESSION_EMOJI[dayData.sessionType] ?? '🏋️') : null);
 
                 return (
-                  <View key={dayIdx} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+                  <TouchableOpacity
+                    key={dayIdx}
+                    style={{ flex: 1, alignItems: 'center', gap: 5 }}
+                    disabled={!dayData}
+                    onPress={() => dayData && setSelectedDayWorkout({ dow: dayIdx, ...dayData })}
+                  >
                     <View style={{
                       width: '100%',
                       height: 36,
@@ -615,8 +649,8 @@ export default function HomeScreen() {
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}>
-                      {color ? (
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color }} />
+                      {displayEmoji ? (
+                        <Text style={{ fontSize: 16 }}>{displayEmoji}</Text>
                       ) : isPlanned && plannedColor ? (
                         <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: plannedColor, opacity: 0.4 }} />
                       ) : null}
@@ -629,7 +663,7 @@ export default function HomeScreen() {
                     }}>
                       {label}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -1263,6 +1297,85 @@ export default function HomeScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* Day workout grade modal */}
+        <Modal visible={!!selectedDayWorkout} transparent animationType="slide" onRequestClose={() => setSelectedDayWorkout(null)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setSelectedDayWorkout(null)}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              {selectedDayWorkout && (() => {
+                const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const CANNED: Record<string, string> = {
+                  '💀': 'You went full beast mode. Every set was a war and you won.',
+                  '🔥': 'A great session. You showed up and put in real work.',
+                  '✅': 'Solid training day. Consistent effort, consistent progress.',
+                  '😐': 'Not every day is a banger. You still showed up — that matters.',
+                  '🤕': 'Rough one. Rest up and come back stronger.',
+                };
+                const grade = selectedDayWorkout.grade;
+                const summaryText = isPro && selectedDayWorkout.summary
+                  ? selectedDayWorkout.summary
+                  : grade ? CANNED[grade] : null;
+                const gradeDisplay = grade ?? SESSION_EMOJI[selectedDayWorkout.sessionType] ?? '🏋️';
+
+                return (
+                  <View style={{
+                    backgroundColor: Colors.surface,
+                    borderTopLeftRadius: 24,
+                    borderTopRightRadius: 24,
+                    padding: 28,
+                    paddingBottom: 40,
+                    borderTopWidth: 1,
+                    borderColor: Colors.border,
+                  }}>
+                    <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 24 }} />
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                      <Text style={{ fontSize: 48 }}>{gradeDisplay}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 }}>
+                          {DAY_LABELS[selectedDayWorkout.dow]}
+                        </Text>
+                        <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }} numberOfLines={1}>
+                          {selectedDayWorkout.name}
+                        </Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                          {selectedDayWorkout.durationMins >= 60
+                            ? `${Math.floor(selectedDayWorkout.durationMins / 60)}h ${selectedDayWorkout.durationMins % 60}m`
+                            : `${selectedDayWorkout.durationMins}m`}
+                          {' · '}{selectedDayWorkout.sessionType}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {summaryText ? (
+                      <View style={{
+                        backgroundColor: Colors.surface2,
+                        borderRadius: 12,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                      }}>
+                        <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
+                          {summaryText}
+                        </Text>
+                        {!isPro && grade && (
+                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 8 }}>
+                            Upgrade to Pro for your personalized session breakdown.
+                          </Text>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 14 }}>AI grade loading…</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
       </Animated.ScrollView>
       <CelebrationToast
         visible={!!celebration}

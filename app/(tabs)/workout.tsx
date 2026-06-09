@@ -139,8 +139,12 @@ export default function WorkoutTab() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (activeWorkout) {
+      // startedAt may still be a string if Zustand rehydrated before onRehydrateStorage ran
+      const startedAt = activeWorkout.startedAt instanceof Date
+        ? activeWorkout.startedAt
+        : new Date(activeWorkout.startedAt as any);
       const tick = () => {
-        setElapsedSec(Math.floor((Date.now() - activeWorkout.startedAt.getTime()) / 1000));
+        setElapsedSec(Math.floor((Date.now() - startedAt.getTime()) / 1000));
       };
       tick();
       timerRef.current = setInterval(tick, 1000);
@@ -617,6 +621,12 @@ export default function WorkoutTab() {
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
+
+      // Fire-and-forget AI grade — runs in background, doesn't block navigation
+      if (summary?.workoutId) {
+        supabase.functions.invoke('grade-workout', { body: { workoutId: summary.workoutId } });
+      }
+
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
