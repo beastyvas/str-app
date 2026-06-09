@@ -296,14 +296,19 @@ export default function HomeScreen() {
         }
       }
 
-      // Last 7 days of own workouts for weekly strip
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      // This calendar week's workouts for the weekly strip (Mon–Sun)
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+      const daysSinceMon = (dayOfWeek + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - daysSinceMon);
+      weekStart.setHours(0, 0, 0, 0);
       const { data: weekData } = await supabase
         .from('workouts')
         .select('started_at, workout_sets(exercises(name))')
         .eq('user_id', uid)
         .not('ended_at', 'is', null)
-        .gte('started_at', sevenDaysAgo);
+        .gte('started_at', weekStart.toISOString());
       if (weekData) {
         const days: Record<number, string> = {};
         (weekData as any[]).forEach(w => {
@@ -615,8 +620,8 @@ export default function HomeScreen() {
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}>
-                      {color ? (
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color }} />
+                      {sessionType ? (
+                        <Text style={{ fontSize: 16 }}>{SESSION_EMOJI[sessionType] ?? '🏋️'}</Text>
                       ) : isPlanned && plannedColor ? (
                         <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: plannedColor, opacity: 0.4 }} />
                       ) : null}
