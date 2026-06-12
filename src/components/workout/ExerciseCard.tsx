@@ -49,6 +49,10 @@ export function ExerciseCard({
   onNavigateToDetail,
 }: ExerciseCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // Show the input row immediately for a brand-new exercise; otherwise wait
+  // for the user to tap "+ Add Set" so the card doesn't keep an open row
+  // dangling after every logged set.
+  const [showSetInput, setShowSetInput] = useState(exercise.sets.length === 0);
 
   const nextSetNumber = exercise.sets.length + 1;
   const prevSetForNext = prevSets[exercise.sets.length];
@@ -216,13 +220,43 @@ export function ExerciseCard({
             <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 14, marginTop: 4 }} />
           )}
 
-          {/* Input row for next set */}
-          <SetInputRow
-            setNumber={nextSetNumber}
-            prevSet={prevSetForNext}
-            equipmentType={exercise.equipmentType}
-            onLog={(data) => onLogSet(exercise.exerciseId, data)}
-          />
+          {/* Input row for next set — hidden after logging until "+ Add Set" is tapped */}
+          {showSetInput ? (
+            <SetInputRow
+              setNumber={nextSetNumber}
+              prevSet={prevSetForNext}
+              equipmentType={exercise.equipmentType}
+              onLog={async (data) => {
+                const result = await onLogSet(exercise.exerciseId, data);
+                setShowSetInput(false);
+                return result;
+              }}
+            />
+          ) : (
+            <TouchableOpacity
+              onPress={() => setShowSetInput(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                marginHorizontal: 14,
+                marginTop: 4,
+                marginBottom: 14,
+                paddingVertical: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderStyle: 'dashed',
+                borderColor: accentColor + '50',
+                backgroundColor: accentColor + '0C',
+              }}
+            >
+              <Text style={{ color: accentColor, fontSize: 16, lineHeight: 18, fontWeight: '600' }}>+</Text>
+              <Text style={{ color: accentColor, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>
+                ADD SET
+              </Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
     </View>

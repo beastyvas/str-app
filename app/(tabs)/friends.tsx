@@ -21,6 +21,14 @@ interface ExerciseSummary {
   setCount: number;
   topWeight: number;
   topReps: number;
+  sets: { weight: number; reps: number }[];
+}
+
+interface FeedComment {
+  id: string;
+  content: string;
+  displayName: string;
+  avatarUrl?: string;
 }
 
 interface FeedPost {
@@ -45,6 +53,7 @@ interface FeedPost {
   likeCount: number;
   isLiked: boolean;
   commentCount: number;
+  previewComments: FeedComment[];
 }
 
 interface Friend {
@@ -220,7 +229,14 @@ export default function SocialScreen() {
             const exerciseSummaries: ExerciseSummary[] = Object.entries(exMap).map(([name, data]) => {
               const topSet = data.sets.reduce((best: any, s: any) =>
                 s.weight > best.weight ? s : best, data.sets[0]);
-              return { name, setCount: data.sets.length, topWeight: topSet?.weight ?? 0, topReps: topSet?.reps ?? 0 };
+              const sortedSets = [...data.sets].sort((a: any, b: any) => (a.set_number ?? 0) - (b.set_number ?? 0));
+              return {
+                name,
+                setCount: data.sets.length,
+                topWeight: topSet?.weight ?? 0,
+                topReps: topSet?.reps ?? 0,
+                sets: sortedSets.map((s: any) => ({ weight: s.weight, reps: s.reps })),
+              };
             });
 
             return {
@@ -243,6 +259,7 @@ export default function SocialScreen() {
               likeCount: 0,
               isLiked: false,
               commentCount: 0,
+              previewComments: [],
               animeTierLabel: (sbdByUser[w.user_id] ?? []).length > 0
                 ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
                     exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
@@ -261,17 +278,30 @@ export default function SocialScreen() {
             const workoutIds = posts.map(p => p.workoutId);
             const [likesRes, commentsRes, photosRes] = await Promise.all([
               supabase.from('workout_likes').select('workout_id, user_id').in('workout_id', workoutIds),
-              supabase.from('workout_comments').select('workout_id').in('workout_id', workoutIds),
+              supabase.from('workout_comments')
+                .select('id, workout_id, content, created_at, users(display_name, avatar_url)')
+                .in('workout_id', workoutIds)
+                .order('created_at', { ascending: false }),
               supabase.from('workout_photos').select('workout_id, photo_url').in('workout_id', workoutIds),
             ]);
             const myId = user!.id;
-            const enriched = posts.map(p => ({
-              ...p,
-              likeCount: (likesRes.data ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
-              isLiked: (likesRes.data ?? []).some((l: any) => l.workout_id === p.workoutId && l.user_id === myId),
-              commentCount: (commentsRes.data ?? []).filter((c: any) => c.workout_id === p.workoutId).length,
-              photoUrl: (photosRes.data ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
-            }));
+            const enriched = posts.map(p => {
+              const postComments = (commentsRes.data ?? []).filter((c: any) => c.workout_id === p.workoutId);
+              return {
+                ...p,
+                likeCount: (likesRes.data ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
+                isLiked: (likesRes.data ?? []).some((l: any) => l.workout_id === p.workoutId && l.user_id === myId),
+                commentCount: postComments.length,
+                // Most recent 2 comments, oldest-first for natural reading order
+                previewComments: postComments.slice(0, 2).reverse().map((c: any) => ({
+                  id: c.id,
+                  content: c.content,
+                  displayName: c.users?.display_name ?? 'Unknown',
+                  avatarUrl: c.users?.avatar_url,
+                })),
+                photoUrl: (photosRes.data ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
+              };
+            });
             setFeed(enriched);
           } else {
             setFeed(posts);
@@ -433,7 +463,16 @@ export default function SocialScreen() {
     if (data) {
       setComments(prev => [...prev, data]);
       setFeed(prev => prev.map(p => p.workoutId === commentWorkoutId
-        ? { ...p, commentCount: p.commentCount + 1 }
+        ? {
+            ...p,
+            commentCount: p.commentCount + 1,
+            previewComments: [...p.previewComments, {
+              id: (data as any).id,
+              content: (data as any).content,
+              displayName: (data as any).users?.display_name ?? 'Unknown',
+              avatarUrl: (data as any).users?.avatar_url,
+            }].slice(-2),
+          }
         : p
       ));
     }
@@ -670,7 +709,7 @@ export default function SocialScreen() {
                   </View>
                 )}
 
-                {/* Exercise breakdown */}
+                {/* Exercise breakdown — full workout, every exercise and every set */}
                 {post.exerciseSummaries.length > 0 && (
                   <View style={{
                     marginHorizontal: 14, marginBottom: 12,
@@ -678,43 +717,41 @@ export default function SocialScreen() {
                     borderRadius: 12, overflow: 'hidden',
                     borderWidth: 1, borderColor: Colors.border,
                   }}>
-                    {post.exerciseSummaries.slice(0, 4).map((ex, i) => (
+                    {post.exerciseSummaries.map((ex, i) => (
                       <View key={i} style={{
-                        flexDirection: 'row', alignItems: 'center',
                         paddingHorizontal: 12, paddingVertical: 10,
-                        borderBottomWidth: i < Math.min(post.exerciseSummaries.length, 4) - 1 ? 1 : 0,
-                        borderBottomColor: Colors.border, gap: 10,
+                        borderBottomWidth: i < post.exerciseSummaries.length - 1 ? 1 : 0,
+                        borderBottomColor: Colors.border, gap: 8,
                       }}>
-                        <View style={{
-                          width: 3, height: 20, borderRadius: 2,
-                          backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.55,
-                        }} />
-                        <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                          {ex.name}
-                        </Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                          {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
-                        </Text>
-                        {ex.topWeight > 0 && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                           <View style={{
-                            backgroundColor: Colors.surface2, borderRadius: 6,
-                            paddingHorizontal: 6, paddingVertical: 2,
-                            borderWidth: 1, borderColor: Colors.border,
-                          }}>
-                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
-                              {ex.topWeight}×{ex.topReps}
-                            </Text>
+                            width: 3, height: 20, borderRadius: 2,
+                            backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.55,
+                          }} />
+                          <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                            {ex.name}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                            {ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}
+                          </Text>
+                        </View>
+                        {ex.sets.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 13 }}>
+                            {ex.sets.map((s, j) => (
+                              <View key={j} style={{
+                                backgroundColor: Colors.surface2, borderRadius: 6,
+                                paddingHorizontal: 7, paddingVertical: 3,
+                                borderWidth: 1, borderColor: Colors.border,
+                              }}>
+                                <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                                  {s.weight === 0 ? 'BW' : s.weight}×{s.reps}
+                                </Text>
+                              </View>
+                            ))}
                           </View>
                         )}
                       </View>
                     ))}
-                    {post.exerciseSummaries.length > 4 && (
-                      <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border }}>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                          +{post.exerciseSummaries.length - 4} more exercises
-                        </Text>
-                      </View>
-                    )}
                   </View>
                 )}
 
@@ -757,6 +794,29 @@ export default function SocialScreen() {
                     )}
                   </TouchableOpacity>
                 </View>
+
+                {/* Comment previews — latest comments shown right on the feed */}
+                {post.previewComments.length > 0 && (
+                  <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
+                    {post.previewComments.map(c => (
+                      <View key={c.id} style={{ flexDirection: 'row', gap: 6 }}>
+                        <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '800' }}>
+                          {c.displayName}
+                        </Text>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12, flex: 1, lineHeight: 17 }} numberOfLines={3}>
+                          {c.content}
+                        </Text>
+                      </View>
+                    ))}
+                    {post.commentCount > post.previewComments.length && (
+                      <TouchableOpacity onPress={() => openComments(post.workoutId)}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '600' }}>
+                          View all {post.commentCount} comments
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             ))
           )}
