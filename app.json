@@ -15,15 +15,16 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nickbuilds.str",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "appleTeamId": "4TB9550485",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
+        "com.apple.security.application-groups": ["group.com.nickbuilds.str"],
+        "com.apple.developer.applesignin": ["Default"]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "STR uses your photo library so you can add a progress photo to your workout session and set your profile picture. For example, after a big PR you can attach a gym photo to that workout entry.",
-        "NSCameraUsageDescription": "STR uses your camera so you can take a progress photo directly during a workout session or update your profile picture in real time."
+        "NSPhotoLibraryUsageDescription": "STR needs access to your photo library so you can choose a picture from your camera roll to use as your profile avatar, or attach a progress photo to a workout entry. For example, you can select an existing photo of yourself to display as your avatar on your profile and to friends in the social feed.",
+        "NSCameraUsageDescription": "STR uses your camera so you can take a new photo directly within the app to use as your profile avatar or attach as a progress photo to a workout entry. For example, you can snap a gym mirror photo right after a workout to attach to that session."
       }
     },
     "android": {
@@ -44,7 +45,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "STR uses your photo library to let you choose a profile photo. For example, you can select a photo of yourself to display on your profile and to friends in the social feed."
+          "photosPermission": "STR needs access to your photo library so you can choose a picture from your camera roll to use as your profile avatar, or attach a progress photo to a workout entry. For example, you can select an existing photo of yourself to display as your avatar on your profile and to friends in the social feed.",
+          "cameraPermission": "STR uses your camera so you can take a new photo directly within the app to use as your profile avatar or attach as a progress photo to a workout entry. For example, you can snap a gym mirror photo right after a workout to attach to that session."
         }
       ],
       [
