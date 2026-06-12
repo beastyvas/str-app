@@ -30,12 +30,21 @@ serve(async (req) => {
     // Fetch the workout — must belong to the authed user
     const { data: workout } = await supabase
       .from('workouts')
-      .select('id, name, started_at, ended_at, notes, workout_sets(weight, reps, rpe, note, exercises(name, muscle_group))')
+      .select('id, name, started_at, ended_at, notes, ai_grade, ai_summary, workout_sets(weight, reps, rpe, note, exercises(name, muscle_group))')
       .eq('id', workoutId)
       .eq('user_id', user.id)
       .single();
 
     if (!workout) return new Response(JSON.stringify({ error: 'Workout not found' }), { status: 404, headers: corsHeaders });
+
+    // Already graded — return the existing grade instead of burning another
+    // AI call. Prevents repeated calls on the same workout from racking up
+    // Anthropic usage.
+    if (workout.ai_grade) {
+      return new Response(JSON.stringify({ grade: workout.ai_grade, summary: workout.ai_summary ?? '' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const sets = (workout.workout_sets ?? []) as any[];
     const durationMins = workout.ended_at
