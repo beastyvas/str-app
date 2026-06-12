@@ -319,12 +319,13 @@ export default function HomeScreen() {
       weekStart.setHours(0, 0, 0, 0);
       const { data: weekData } = await supabase
         .from('workouts')
-        .select('name, started_at, ended_at, ai_grade, ai_summary, workout_sets(exercises(name))')
+        .select('id, name, started_at, ended_at, ai_grade, ai_summary, workout_sets(exercises(name))')
         .eq('user_id', uid)
         .not('ended_at', 'is', null)
         .gte('started_at', weekStart.toISOString());
       if (weekData) {
         const days: Record<number, { sessionType: string; grade: string | null; summary: string | null; name: string; durationMins: number; }> = {};
+        const ungraded: { dow: number; id: string }[] = [];
         (weekData as any[]).forEach(w => {
           const dow = new Date(w.started_at).getDay();
           const exs = (w.workout_sets ?? []).map((s: any) => s.exercises?.name).filter(Boolean);
@@ -338,8 +339,23 @@ export default function HomeScreen() {
             name: w.name ?? 'Workout',
             durationMins,
           };
+          if (!w.ai_grade) ungraded.push({ dow, id: w.id });
         });
         setWorkoutDays(days);
+
+        // Backfill — grade any finished workout this week that never got
+        // graded (e.g. the fire-and-forget call at finish time failed).
+        ungraded.forEach(({ dow, id }) => {
+          supabase.functions.invoke('grade-workout', { body: { workoutId: id } }).then(({ data }) => {
+            if (data?.grade) {
+              setWorkoutDays(prev => {
+                const existing = prev[dow];
+                if (!existing) return prev;
+                return { ...prev, [dow]: { ...existing, grade: data.grade, summary: data.summary ?? existing.summary } };
+              });
+            }
+          }).catch(() => {});
+        });
       }
     } catch (e) {
       // silence
