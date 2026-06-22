@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const VALID_GRADES = ['💀', '🔥', '✅', '😐', '🤕'];
+const MAX_GRADE_CALLS_PER_DAY = 15;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -23,6 +24,29 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
+
+    // ── Server-side rate limiting ────────────────────────────────────────────
+    // A client can freely reset its own workout's ai_grade back to NULL (RLS
+    // only restricts rows, not columns), so the "already graded" short-circuit
+    // below isn't enough on its own to cap Anthropic spend. grade_calls_count /
+    // grade_calls_day_start are locked to server-only writes (migration 022).
+    const { data: userData } = await supabase
+      .from('users')
+      .select('grade_calls_count, grade_calls_day_start')
+      .eq('id', user.id)
+      .single();
+
+    const dayStart = userData?.grade_calls_day_start ? new Date(userData.grade_calls_day_start) : null;
+    const isNewDay = !dayStart || (Date.now() - dayStart.getTime()) / 86400000 >= 1;
+    const currentCount = isNewDay ? 0 : (userData?.grade_calls_count ?? 0);
+
+    if (currentCount >= MAX_GRADE_CALLS_PER_DAY) {
+      return new Response(
+        JSON.stringify({ error: 'Daily grading limit reached. Try again tomorrow.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     const { workoutId } = await req.json();
     if (!workoutId) return new Response(JSON.stringify({ error: 'workoutId required' }), { status: 400, headers: corsHeaders });
@@ -111,6 +135,12 @@ SUMMARY: [one punchy sentence, max 12 words, past tense, no filler]`;
       .from('workouts')
       .update({ ai_grade: safeGrade, ai_summary: summary })
       .eq('id', workoutId);
+
+    // Count this call against the daily quota — only after a real AI call.
+    await supabaseAdmin.from('users').update({
+      grade_calls_count: isNewDay ? 1 : currentCount + 1,
+      grade_calls_day_start: isNewDay ? new Date().toISOString() : userData?.grade_calls_day_start,
+    }).eq('id', user.id);
 
     return new Response(JSON.stringify({ grade: safeGrade, summary }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

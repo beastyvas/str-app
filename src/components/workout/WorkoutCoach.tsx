@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
 
 interface Set {
   weight: number;
@@ -44,7 +45,7 @@ function getRulesNudge(set: Set, history: Set[]): string | null {
   return null;
 }
 
-// ── AI nudge (Pro — calls Claude via Supabase edge function) ──────────────────
+// ── AI nudge (Pro — calls Claude via Supabase edge function, key never leaves the server) ──
 async function getAINudge(
   set: Set,
   history: Set[],
@@ -52,32 +53,11 @@ async function getAINudge(
   tierKey: string,
 ): Promise<string | null> {
   try {
-    const persona = tierKey === 'god_tier' || tierKey === 'final_boss'
-      ? 'You are a cold, elite-level S-rank strength coach. Surgical, no hand-holding.'
-      : trainingStyle === 'powerlifting'
-        ? 'You are a powerlifting coach. Focus on technique, bar path, and meet prep.'
-        : trainingStyle === 'bodybuilding'
-          ? 'You are a bodybuilding coach. Focus on mind-muscle connection, volume, and hypertrophy.'
-          : 'You are a knowledgeable strength coach. Be direct and practical.';
-
-    const context = history.length > 0
-      ? `Previous sets this exercise: ${history.map(s => `${s.weight}×${s.reps}${s.rpe ? ` @${s.rpe}` : ''}`).join(', ')}. `
-      : '';
-
-    const setDesc = `Just logged: ${set.exerciseName} ${set.weight}×${set.reps}${set.rpe ? ` RPE ${set.rpe}` : ''}${set.note ? ` (note: "${set.note}")` : ''}.`;
-
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY });
-
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 80,
-      system: `${persona} Give ONE short coaching cue (1-2 sentences max, no filler). Be specific to the set data.`,
-      messages: [{ role: 'user', content: `${context}${setDesc} Quick coaching note?` }],
+    const { data, error } = await supabase.functions.invoke('coach-nudge', {
+      body: { lastSet: set, history, trainingStyle, animeTierKey: tierKey },
     });
-
-    const text = (msg.content[0] as any)?.text?.trim();
-    return text || null;
+    if (error) return null;
+    return data?.text || null;
   } catch {
     return null;
   }

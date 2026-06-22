@@ -147,11 +147,7 @@ export default function SocialScreen() {
       // Load friendships
       const { data: friendships } = await supabase
         .from('friendships')
-        .select(`
-          id, status, requester_id, addressee_id,
-          requester:users!friendships_requester_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro),
-          addressee:users!friendships_addressee_id_fkey(id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro)
-        `)
+        .select('id, status, requester_id, addressee_id')
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
       console.log('[Friends] total friendships:', friendships?.length ?? 0);
@@ -160,11 +156,28 @@ export default function SocialScreen() {
       const friendIds = accepted.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
       console.log('[Friends] accepted:', accepted.length, 'friendIds:', friendIds);
 
+      // RLS on public.users only allows reading your own row — fetch everyone
+      // else's safe, public fields via the public_profiles view instead and
+      // merge them back in client-side.
+      const profileIds = Array.from(new Set([
+        user.id,
+        ...friendIds,
+        ...incoming.map(f => f.requester_id),
+      ]));
+      const { data: profilesData } = profileIds.length > 0
+        ? await supabase
+            .from('public_profiles')
+            .select('id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro')
+            .in('id', profileIds)
+        : { data: [] as any[] };
+      const profilesById: Record<string, any> = {};
+      (profilesData ?? []).forEach((p: any) => { profilesById[p.id] = p; });
+
       setPending(incoming.map(f => ({
-        id: (f.requester as any).id,
+        id: f.requester_id,
         friendshipId: f.id,
-        display_name: (f.requester as any).display_name ?? 'Unknown',
-        avatar_url: (f.requester as any).avatar_url,
+        display_name: profilesById[f.requester_id]?.display_name ?? 'Unknown',
+        avatar_url: profilesById[f.requester_id]?.avatar_url,
       })));
 
       // ── Batch all friend PRs FIRST so sbdByUser is available for feed + friendList ──
@@ -196,7 +209,6 @@ export default function SocialScreen() {
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes, is_imported,
-            users(display_name, avatar_url, is_owner, is_og, is_pro, bodyweight_lbs),
             workout_sets(weight, reps, set_number, exercises(name))
           `)
           .in('user_id', feedUserIds)
@@ -214,7 +226,7 @@ export default function SocialScreen() {
           .filter((w: any) => !w.is_imported)
           .map((w: any) => {
             const isOwn = w.user_id === user.id;
-            const other = w.users as any ?? null;
+            const other = profilesById[w.user_id] ?? null;
             const sets = w.workout_sets ?? [];
             const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
             const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
@@ -279,7 +291,7 @@ export default function SocialScreen() {
             const [likesRes, commentsRes, photosRes] = await Promise.all([
               supabase.from('workout_likes').select('workout_id, user_id').in('workout_id', workoutIds),
               supabase.from('workout_comments')
-                .select('id, workout_id, content, created_at, users(display_name, avatar_url)')
+                .select('id, workout_id, content, created_at, user_id')
                 .in('workout_id', workoutIds)
                 .order('created_at', { ascending: false }),
               supabase.from('workout_photos').select('workout_id, photo_url').in('workout_id', workoutIds),
@@ -296,8 +308,8 @@ export default function SocialScreen() {
                 previewComments: postComments.slice(0, 2).reverse().map((c: any) => ({
                   id: c.id,
                   content: c.content,
-                  displayName: c.users?.display_name ?? 'Unknown',
-                  avatarUrl: c.users?.avatar_url,
+                  displayName: profilesById[c.user_id]?.display_name ?? 'Unknown',
+                  avatarUrl: profilesById[c.user_id]?.avatar_url,
                 })),
                 photoUrl: (photosRes.data ?? []).find((ph: any) => ph.workout_id === p.workoutId)?.photo_url,
               };
@@ -314,9 +326,10 @@ export default function SocialScreen() {
 
       const friendList: Friend[] = accepted
         .map(f => {
-        const other = (f.requester_id === user.id ? f.addressee : f.requester) as any;
+        const otherId = f.requester_id === user.id ? f.addressee_id : f.requester_id;
+        const other = profilesById[otherId];
         if (!other?.id) {
-          console.log('[Friends] null other for friendship:', f.id, '— RLS may be blocking user join');
+          console.log('[Friends] missing profile for friendship:', f.id);
           return null;
         }
         const sbdPrs = (sbdByUser[other.id] ?? []).map((p: any) => ({
@@ -445,10 +458,21 @@ export default function SocialScreen() {
     setLoadingComments(true);
     const { data } = await supabase
       .from('workout_comments')
-      .select('id, content, created_at, users(display_name, avatar_url)')
+      .select('id, content, created_at, user_id')
       .eq('workout_id', workoutId)
       .order('created_at', { ascending: true });
-    setComments(data ?? []);
+
+    const userIds = Array.from(new Set((data ?? []).map((c: any) => c.user_id)));
+    const { data: profiles } = userIds.length > 0
+      ? await supabase.from('public_profiles').select('id, display_name, avatar_url').in('id', userIds)
+      : { data: [] as any[] };
+    const profileMap: Record<string, any> = {};
+    (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
+
+    setComments((data ?? []).map((c: any) => ({
+      ...c,
+      users: { display_name: profileMap[c.user_id]?.display_name, avatar_url: profileMap[c.user_id]?.avatar_url },
+    })));
     setLoadingComments(false);
   };
 

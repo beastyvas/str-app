@@ -230,7 +230,7 @@ export default function HomeScreen() {
         // Friends' recent PRs
         supabase
           .from('personal_records')
-          .select('weight, reps, achieved_at, exercises(name), users!inner(display_name, unit_pref)')
+          .select('user_id, weight, reps, achieved_at, exercises(name)')
           .neq('user_id', uid)
           .order('achieved_at', { ascending: false })
           .limit(8),
@@ -265,15 +265,25 @@ export default function HomeScreen() {
         });
       }
 
-      // Friend PRs
-      if (friendRes.data) {
+      // Friend PRs — RLS on public.users only allows reading your own row, so
+      // pull the friends' display names/unit prefs from public_profiles instead
+      // of embedding the users table directly.
+      if (friendRes.data && friendRes.data.length > 0) {
+        const prUserIds = Array.from(new Set(friendRes.data.map((pr: any) => pr.user_id)));
+        const { data: prProfiles } = await supabase
+          .from('public_profiles')
+          .select('id, display_name, unit_pref')
+          .in('id', prUserIds);
+        const prProfileMap: Record<string, any> = {};
+        (prProfiles ?? []).forEach((p: any) => { prProfileMap[p.id] = p; });
+
         setFriendPRs(friendRes.data.map((pr: any) => ({
-          display_name: pr.users.display_name,
+          display_name: prProfileMap[pr.user_id]?.display_name ?? 'Friend',
           exercise_name: pr.exercises.name,
           weight: pr.weight,
           reps: pr.reps,
           achieved_at: pr.achieved_at,
-          unit_pref: pr.users.unit_pref,
+          unit_pref: prProfileMap[pr.user_id]?.unit_pref,
         })));
       }
 
@@ -289,17 +299,22 @@ export default function HomeScreen() {
       if (friendIds.length > 0) {
         const { data: recentPost } = await supabase
           .from('workouts')
-          .select('name, ended_at, notes, user_id, workout_sets(exercises(name)), users!inner(display_name)')
+          .select('name, ended_at, notes, user_id, workout_sets(exercises(name))')
           .in('user_id', friendIds)
           .not('ended_at', 'is', null)
           .order('ended_at', { ascending: false })
           .limit(1)
           .maybeSingle();
         if (recentPost) {
+          const { data: posterProfile } = await supabase
+            .from('public_profiles')
+            .select('display_name')
+            .eq('id', (recentPost as any).user_id)
+            .maybeSingle();
           const sets = (recentPost as any).workout_sets ?? [];
           const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
           setRecentFriendPost({
-            displayName: (recentPost as any).users?.display_name ?? 'Friend',
+            displayName: posterProfile?.display_name ?? 'Friend',
             workoutName: recentPost.name,
             notes: recentPost.notes?.trim() || undefined,
             exercises: exs,
