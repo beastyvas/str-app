@@ -29,13 +29,13 @@ export function SetInputRow({
 
   const [mode, setMode] = useState<WeightMode>(defaultMode);
   const [plateSystem, setPlateSystem] = useState<PlateSystem>('lbs');
-  // Default to EMPTY — user types their own weight, previous shown as hint only
+  // Pre-fill from the last time this set number was logged — editable, just a head start
   const [weight, setWeight] = useState(
     defaultMode === 'bw' ? '' :
-    defaultMode === 'plates' ? String(PLATE_CONFIGS.lbs.barWeight) :
-    ''  // always start empty, prev shown as placeholder hint
+    defaultMode === 'plates' ? String(prevSet?.weight ?? PLATE_CONFIGS.lbs.barWeight) :
+    prevSet ? String(prevSet.weight) : ''
   );
-  const [reps, setReps] = useState('');  // always start empty
+  const [reps, setReps] = useState(prevSet ? String(prevSet.reps) : '');
   const [rpe, setRpe] = useState<number | undefined>(undefined);
   const [note, setNote] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
@@ -129,11 +129,6 @@ export function SetInputRow({
 
         {/* Weight — switches by mode */}
         <View style={{ flex: 1.6 }}>
-          {prevSet && (
-            <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 2 }}>
-              {prevSet.weight === 0 ? 'BW' : prevSet.weight}
-            </Text>
-          )}
           {mode === 'bw' ? (
             <View style={[inputStyle, { justifyContent: 'center', alignItems: 'center' }]}>
               <Text style={{ color: Colors.success, fontSize: 22, fontWeight: '900' }}>BW</Text>
@@ -161,11 +156,6 @@ export function SetInputRow({
         <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300' }}>×</Text>
 
         <View style={{ flex: 1 }}>
-          {prevSet && (
-            <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 2 }}>
-              {prevSet.reps}
-            </Text>
-          )}
           <TextInput
             value={reps}
             onChangeText={setReps}

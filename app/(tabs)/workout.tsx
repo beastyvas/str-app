@@ -53,6 +53,7 @@ export default function WorkoutTab() {
     newPRs,
     startWorkout,
     addExercise,
+    replaceExercise,
     removeExercise,
     logSet,
     updateSet,
@@ -86,6 +87,8 @@ export default function WorkoutTab() {
 
   // Local state
   const [showPicker, setShowPicker] = useState(false);
+  const [replacingExerciseId, setReplacingExerciseId] = useState<string | null>(null);
+  const [showMidWorkoutTemplates, setShowMidWorkoutTemplates] = useState(false);
   const [prMap, setPrMap] = useState<PRMap>({});
   const [finishing, setFinishing] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
@@ -283,8 +286,8 @@ export default function WorkoutTab() {
   };
 
   useEffect(() => {
-    if (user && !activeWorkout) loadSavedTemplates();
-  }, [user, activeWorkout]);
+    if (user) loadSavedTemplates();
+  }, [user, activeWorkout?.id]);
 
   const saveTemplate = async (name: string, exercises: any[]) => {
     if (!user || !name.trim() || exercises.length === 0) return;
@@ -394,8 +397,13 @@ export default function WorkoutTab() {
   };
 
   // ─── ADD EXERCISE ─────────────────────────────────────────────────────────
-  const handlePickExercise = async (exercise: { id: string; name: string; muscle_group: string }) => {
-    addExercise(exercise);
+  const handlePickExercise = async (exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }) => {
+    if (replacingExerciseId) {
+      await replaceExercise(replacingExerciseId, exercise);
+      setReplacingExerciseId(null);
+    } else {
+      addExercise(exercise);
+    }
     if (isFirstWorkout && tutorialStep === 'add_exercise') {
       setTutorialStep('log_set');
     }
@@ -412,6 +420,20 @@ export default function WorkoutTab() {
         setPrevSetsCache(prev => ({ ...prev, [exercise.id]: data.slice(0, 6) }));
       }
     }
+  };
+
+  const handleReplaceExercise = (exerciseId: string) => {
+    setReplacingExerciseId(exerciseId);
+    setShowPicker(true);
+  };
+
+  const handleAddTemplateExercises = (tmpl: any) => {
+    (tmpl.exercises as any[]).forEach(ex => {
+      if (!useWorkoutStore.getState().activeWorkout?.exercises.find(e => e.exerciseId === ex.id)) {
+        addExercise({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
+      }
+    });
+    setShowMidWorkoutTemplates(false);
   };
 
   // ─── LOG SET ──────────────────────────────────────────────────────────────
@@ -1193,6 +1215,24 @@ export default function WorkoutTab() {
           </View>
         </View>
 
+        {/* Templates — peek at saved templates without leaving the workout */}
+        <TouchableOpacity
+          onPress={() => setShowMidWorkoutTemplates(true)}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            backgroundColor: Colors.surface2,
+            borderWidth: 1,
+            borderColor: Colors.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ fontSize: 14 }}>📋</Text>
+        </TouchableOpacity>
+
         {/* Discard */}
         <TouchableOpacity
           onPress={handleDiscard}
@@ -1319,6 +1359,7 @@ export default function WorkoutTab() {
             userId={user!.id}
             onLogSet={handleLogSet}
             onRemove={removeExercise}
+            onReplace={handleReplaceExercise}
             onDeleteSet={deleteSet}
             onEditSet={updateSet}
             onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
@@ -1401,8 +1442,66 @@ export default function WorkoutTab() {
         visible={showPicker}
         alreadyAdded={activeWorkout.exercises.map(e => e.exerciseId)}
         onSelect={handlePickExercise}
-        onClose={() => setShowPicker(false)}
+        onClose={() => { setShowPicker(false); setReplacingExerciseId(null); }}
       />
+
+      {/* Templates — viewable mid-workout without leaving the session */}
+      <Modal visible={showMidWorkoutTemplates} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+          <View style={{
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            paddingHorizontal: 20, paddingVertical: 16,
+            borderBottomWidth: 1, borderBottomColor: Colors.border,
+          }}>
+            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Your Templates</Text>
+            <TouchableOpacity onPress={() => setShowMidWorkoutTemplates(false)}>
+              <Text style={{ color: Colors.accent, fontWeight: '700' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
+            {savedTemplates.length === 0 && (
+              <Text style={{ color: Colors.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 }}>
+                No saved templates yet.
+              </Text>
+            )}
+            {savedTemplates.map(tmpl => (
+              <View
+                key={tmpl.id}
+                style={{
+                  backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+                  borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                    {tmpl.name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleAddTemplateExercises(tmpl)}
+                    style={{
+                      backgroundColor: Colors.accentDim, borderRadius: 8,
+                      paddingHorizontal: 10, paddingVertical: 6,
+                      borderWidth: 1, borderColor: Colors.accent + '40',
+                    }}
+                  >
+                    <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>+ Add exercises</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {(tmpl.exercises as any[]).map((ex: any, i: number) => (
+                    <View key={i} style={{
+                      backgroundColor: Colors.surface2, borderRadius: 6,
+                      paddingHorizontal: 8, paddingVertical: 4,
+                    }}>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{ex.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Finish Modal — social post style */}
       <Modal visible={showFinishModal} animationType="slide" presentationStyle="pageSheet">

@@ -15,6 +15,7 @@ interface ExerciseCardProps {
     data: { weight: number; reps: number; rpe?: number; note?: string }
   ) => Promise<{ isPR: boolean }>;
   onRemove: (exerciseId: string) => void;
+  onReplace: (exerciseId: string) => void;
   onDeleteSet: (exerciseId: string, localId: string) => void;
   onEditSet: (exerciseId: string, localId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => void;
   onNavigateToDetail: (exerciseId: string) => void;
@@ -44,6 +45,7 @@ export function ExerciseCard({
   userId,
   onLogSet,
   onRemove,
+  onReplace,
   onDeleteSet,
   onEditSet,
   onNavigateToDetail,
@@ -141,6 +143,24 @@ export function ExerciseCard({
           }}
         >
           <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '800' }}>i</Text>
+        </TouchableOpacity>
+
+        {/* Replace */}
+        <TouchableOpacity
+          onPress={() => onReplace(exercise.exerciseId)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: Colors.surface2,
+            borderWidth: 1,
+            borderColor: Colors.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '800' }}>⇄</Text>
         </TouchableOpacity>
 
         {/* Remove */}

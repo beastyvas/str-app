@@ -38,6 +38,10 @@ interface WorkoutStore {
 
   startWorkout: (name: string, userId: string) => Promise<void>;
   addExercise: (exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }) => void;
+  replaceExercise: (
+    oldExerciseId: string,
+    exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }
+  ) => Promise<void>;
   removeExercise: (exerciseId: string) => void;
   logSet: (
     exerciseId: string,
@@ -96,6 +100,40 @@ export const useWorkoutStore = create<WorkoutStore>()(
           ...activeWorkout.exercises,
           { exerciseId: exercise.id, exerciseName: exercise.name, muscleGroup: exercise.muscle_group, equipmentType: exercise.equipment_type, sets: [] },
         ],
+      },
+    });
+  },
+
+  replaceExercise: async (oldExerciseId, exercise) => {
+    const { activeWorkout } = get();
+    if (!activeWorkout) return;
+    if (activeWorkout.exercises.find(e => e.exerciseId === exercise.id)) return;
+
+    // Re-point any sets already logged for the old exercise so they stay
+    // attached to the swapped-in one instead of vanishing from the workout.
+    if (activeWorkout.id) {
+      await supabase
+        .from('workout_sets')
+        .update({ exercise_id: exercise.id })
+        .eq('workout_id', activeWorkout.id)
+        .eq('exercise_id', oldExerciseId);
+    }
+
+    set({
+      activeWorkout: {
+        ...activeWorkout,
+        exercises: activeWorkout.exercises.map(e =>
+          e.exerciseId === oldExerciseId
+            ? {
+                ...e,
+                exerciseId: exercise.id,
+                exerciseName: exercise.name,
+                muscleGroup: exercise.muscle_group,
+                equipmentType: exercise.equipment_type,
+                sets: e.sets.map(s => ({ ...s, exerciseId: exercise.id })),
+              }
+            : e
+        ),
       },
     });
   },
@@ -163,36 +201,44 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
     // Check PR — estimate 1RM using Epley formula: w * (1 + r/30)
     const oneRM = setData.weight * (1 + setData.reps / 30);
-    const { data: existingPR } = await supabase
+    // maybeSingle — zero rows (no PR yet) is a valid, non-error result here.
+    // Using .single() previously meant ANY fetch error (not just "no rows")
+    // fell through the same `: 0` branch below, silently treating every set
+    // as beating a "0" PR and marking it a personal record every time.
+    const { data: existingPR, error: prFetchError } = await supabase
       .from('personal_records')
       .select('*')
       .eq('user_id', userId)
       .eq('exercise_id', exerciseId)
-      .single();
+      .maybeSingle();
 
     let isPR = false;
-    const existingOneRM = existingPR
-      ? existingPR.weight * (1 + existingPR.reps / 30)
-      : 0;
+    if (prFetchError) {
+      console.warn('[logSet] could not fetch existing PR, skipping PR check:', prFetchError.message);
+    } else {
+      const existingOneRM = existingPR
+        ? existingPR.weight * (1 + existingPR.reps / 30)
+        : 0;
 
-    if (oneRM > existingOneRM) {
-      isPR = true;
-      await supabase
-        .from('personal_records')
-        .upsert({
-          user_id: userId,
-          exercise_id: exerciseId,
-          weight: setData.weight,
-          reps: setData.reps,
-          achieved_at: loggedAt,
-        }, { onConflict: 'user_id,exercise_id' });
+      if (oneRM > existingOneRM) {
+        isPR = true;
+        await supabase
+          .from('personal_records')
+          .upsert({
+            user_id: userId,
+            exercise_id: exerciseId,
+            weight: setData.weight,
+            reps: setData.reps,
+            achieved_at: loggedAt,
+          }, { onConflict: 'user_id,exercise_id' });
 
-      set(state => ({
-        newPRs: [
-          ...state.newPRs,
-          { exerciseName: ex.exerciseName, weight: setData.weight, reps: setData.reps },
-        ],
-      }));
+        set(state => ({
+          newPRs: [
+            ...state.newPRs,
+            { exerciseName: ex.exerciseName, weight: setData.weight, reps: setData.reps },
+          ],
+        }));
+      }
     }
 
     const newSet: LoggedSet = {
