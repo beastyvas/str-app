@@ -16,6 +16,7 @@ interface Props {
   lastSet: Set | null;
   allSetsThisExercise: Set[];
   isPro: boolean;
+  enabled?: boolean; // coach-during-sets toggle (defaults on)
   trainingStyle?: string | null; // 'powerlifting' | 'bodybuilding' | 'hybrid' etc.
   rankTierKey?: string; // 'godhand' etc. — determines coach persona
   onDismiss: () => void;
