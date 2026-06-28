@@ -42,7 +42,6 @@ export function SetInputRow({
   const [isWarmup, setIsWarmup] = useState(false);
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
-  const [showExtras, setShowExtras] = useState(false);
   const savedNumericWeight = useRef(weight);
 
   const cfg = PLATE_CONFIGS[plateSystem];
@@ -167,20 +166,6 @@ export function SetInputRow({
           />
         </View>
 
-        {/* Expand RPE/note — hidden by default, clean for new users */}
-        <TouchableOpacity
-          onPress={() => setShowExtras(!showExtras)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{
-            paddingHorizontal: 8, paddingVertical: 10,
-            opacity: (rpe || note) ? 1 : 0.5,
-          }}
-        >
-          <Text style={{ color: (rpe || note) ? Colors.accent : Colors.textMuted, fontSize: 13 }}>
-            {(rpe || note) ? '●' : '···'}
-          </Text>
-        </TouchableOpacity>
-
         {/* Mode cycle — small, tucked */}
         <TouchableOpacity
           onPress={cycleMode}
@@ -247,37 +232,43 @@ export function SetInputRow({
         </View>
       )}
 
-      {/* Extras — RPE and note, only shown when expanded */}
-      {showExtras && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
-          <TouchableOpacity
-            onPress={() => setShowRpe(!showRpe)}
-            style={{
-              backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
-              borderRadius: 8, borderWidth: 1,
-              borderColor: rpe ? Colors.accent : Colors.border,
-              paddingHorizontal: 12, paddingVertical: 7, minWidth: 52, alignItems: 'center',
-            }}
+      {/* Note — the hero. Always visible, one tap to write. The coach reads these. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+        <TouchableOpacity
+          onPress={() => setNoteOpen(true)}
+          activeOpacity={0.7}
+          style={{
+            flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: note ? Colors.accentDim : Colors.surface2,
+            borderRadius: 10, borderWidth: 1,
+            borderColor: note ? Colors.accent + '80' : Colors.border,
+            paddingHorizontal: 12, paddingVertical: 10,
+          }}
+        >
+          <Text style={{ fontSize: 14 }}>💬</Text>
+          <Text
+            style={{ color: note ? Colors.text : Colors.textMuted, fontSize: 13, flex: 1 }}
+            numberOfLines={1}
           >
-            <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
-              {rpe ? `RPE ${rpe}` : 'RPE'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setNoteOpen(true)}
-            style={{
-              backgroundColor: note ? Colors.accentDim : Colors.surface2,
-              borderRadius: 8, borderWidth: 1,
-              borderColor: note ? Colors.accent : Colors.border,
-              paddingHorizontal: 12, paddingVertical: 7, flex: 1,
-            }}
-          >
-            <Text style={{ color: note ? Colors.accent : Colors.textMuted, fontSize: 11 }} numberOfLines={1}>
-              {note || 'Add note...'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+            {note || 'Add a note — "felt heavy", "left shoulder tight"…'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* RPE — smaller, optional secondary action, one tap to open */}
+        <TouchableOpacity
+          onPress={() => setShowRpe(!showRpe)}
+          style={{
+            backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
+            borderRadius: 8, borderWidth: 1,
+            borderColor: rpe ? Colors.accent : Colors.border,
+            paddingHorizontal: 12, paddingVertical: 10, minWidth: 50, alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+            {rpe ? `RPE ${rpe}` : 'RPE'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Plate controls — shown when in plates mode */}
       {mode === 'plates' && (
