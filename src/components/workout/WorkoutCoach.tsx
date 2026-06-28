@@ -17,7 +17,7 @@ interface Props {
   allSetsThisExercise: Set[];
   isPro: boolean;
   trainingStyle?: string | null; // 'powerlifting' | 'bodybuilding' | 'hybrid' etc.
-  animeTierKey?: string; // 'god_tier' etc. — determines coach persona
+  rankTierKey?: string; // 'godhand' etc. — determines coach persona
   onDismiss: () => void;
 }
 
@@ -54,7 +54,7 @@ async function getAINudge(
 ): Promise<string | null> {
   try {
     const { data, error } = await supabase.functions.invoke('coach-nudge', {
-      body: { lastSet: set, history, trainingStyle, animeTierKey: tierKey },
+      body: { lastSet: set, history, trainingStyle, rankTierKey: tierKey },
     });
     if (error) return null;
     return data?.text || null;
@@ -64,7 +64,7 @@ async function getAINudge(
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = true, trainingStyle, animeTierKey, onDismiss }: Props) {
+export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = true, trainingStyle, rankTierKey, onDismiss }: Props) {
   const { top: safeTop } = useSafeAreaInsets();
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -85,7 +85,7 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = tr
       show(rulesNudge);
       // If Pro, also try AI for richer response
       if (isPro) {
-        getAINudge(lastSet, history, trainingStyle ?? 'hybrid', animeTierKey ?? 'civilian')
+        getAINudge(lastSet, history, trainingStyle ?? 'hybrid', rankTierKey ?? 'mortal')
           .then(aiText => { if (aiText) show(aiText); });
       }
     } else if (isPro) {
@@ -93,7 +93,7 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = tr
       const notable = (lastSet.rpe && lastSet.rpe >= 7) || allSetsThisExercise.length % 3 === 0;
       if (notable) {
         setLoading(true);
-        getAINudge(lastSet, history, trainingStyle ?? 'hybrid', animeTierKey ?? 'civilian')
+        getAINudge(lastSet, history, trainingStyle ?? 'hybrid', rankTierKey ?? 'mortal')
           .then(aiText => {
             setLoading(false);
             if (aiText) show(aiText);

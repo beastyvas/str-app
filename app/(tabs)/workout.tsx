@@ -20,7 +20,7 @@ import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
-import { getAnimeTierResult, AnimeTier } from '@/constants/animeTiers';
+import { getRankResult, RankTier } from '@/constants/ranks';
 import {
   requestNotificationPermissions,
   setupNotificationChannels,
@@ -115,7 +115,7 @@ export default function WorkoutTab() {
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>('add_exercise');
 
   // Tier advancement
-  const [tierAdvancement, setTierAdvancement] = useState<AnimeTier | null>(null);
+  const [tierAdvancement, setTierAdvancement] = useState<RankTier | null>(null);
   const [tierAdvSubTier, setTierAdvSubTier] = useState<number | undefined>(undefined);
   const [isSubTierAdvance, setIsSubTierAdvance] = useState(false);
   const [showTierAdvancement, setShowTierAdvancement] = useState(false);
@@ -340,11 +340,11 @@ export default function WorkoutTab() {
     const prs = (data ?? []).map((p: any) => ({
       exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
     }));
-    const result = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
+    const result = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
     currentTierRef.current = {
-      key: result.animeTier.key,
+      key: result.tier.key,
       subTier: result.subTier,
-      minScore: result.animeTier.minScore,
+      minScore: result.tier.minScore,
     };
   };
 
@@ -467,7 +467,7 @@ export default function WorkoutTab() {
       const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
       const exName = ex?.exerciseName ?? '';
       if (SBD_NAMES.some(n => exName.toLowerCase() === n.toLowerCase())) {
-        // Fetch ALL PRs (filter to SBD inside getAnimeTierResult)
+        // Fetch ALL PRs (filter to SBD inside getRankResult)
         const { data: allPrs } = await supabase
           .from('personal_records')
           .select('weight, reps, exercises!inner(name)')
@@ -477,9 +477,9 @@ export default function WorkoutTab() {
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight, reps: p.reps,
         }));
-        const newResult = getAnimeTierResult(prs, profile?.bodyweight_lbs ?? 185);
-        const newKey = newResult.animeTier.key;
-        const newMinScore = newResult.animeTier.minScore;
+        const newResult = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
+        const newKey = newResult.tier.key;
+        const newMinScore = newResult.tier.minScore;
         const newSubTier = newResult.subTier;
 
         const prev = currentTierRef.current as any;
@@ -499,19 +499,19 @@ export default function WorkoutTab() {
 
         if (!prev) {
           // First ever SBD PR — always fire
-          setTierAdvancement(newResult.animeTier);
+          setTierAdvancement(newResult.tier);
           setTierAdvSubTier(newSubTier);
           setIsSubTierAdvance(false);
           setShowTierAdvancement(true);
         } else if (newMinScore > prev.minScore) {
           // Full overall rank advance
-          setTierAdvancement(newResult.animeTier);
+          setTierAdvancement(newResult.tier);
           setTierAdvSubTier(undefined);
           setIsSubTierAdvance(false);
           setShowTierAdvancement(true);
         } else if (newKey === prev.key && newSubTier > prev.subTier) {
           // Sub-tier advance within same rank
-          setTierAdvancement(newResult.animeTier);
+          setTierAdvancement(newResult.tier);
           setTierAdvSubTier(newSubTier);
           setIsSubTierAdvance(true);
           setShowTierAdvancement(true);
@@ -522,7 +522,7 @@ export default function WorkoutTab() {
           const tierLabel = (thisLift.tier.charAt(0).toUpperCase() + thisLift.tier.slice(1)).toUpperCase();
           const liftColor = TIER_COLORS_INLINE[thisLift.tier];
           // Mutate the tier object temporarily to pass lift info
-          const liftTierObj = { ...newResult.animeTier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
+          const liftTierObj = { ...newResult.tier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
           setTierAdvancement(liftTierObj as any);
           setTierAdvSubTier(undefined);
           setIsSubTierAdvance(false);
@@ -1276,7 +1276,7 @@ export default function WorkoutTab() {
         isPro={isPro}
         enabled={coachEnabled}
         trainingStyle={profile?.training_style}
-        animeTierKey={(profile as any)?.anime_tier_key}
+        rankTierKey={(profile as any)?.rank_tier_key}
         onDismiss={() => setCoachLastSet(null)}
       />
 

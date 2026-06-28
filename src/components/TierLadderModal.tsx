@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
-import { ANIME_TIERS, AnimeTierResult, ROMAN } from '@/constants/animeTiers';
+import { RANK_TIERS, RankResult, ROMAN } from '@/constants/ranks';
 import { getScaledThresholds } from '@/constants/strengthStandards';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  result: AnimeTierResult | null;
+  result: RankResult | null;
   bodyweightLbs?: number;
   gender?: 'male' | 'female' | 'other' | null;
 }
@@ -27,15 +27,15 @@ function lbsForRankEntry(lift: 'squat'|'bench'|'deadlift', rankIndex: number, bw
 
 export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gender }: Props) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const currentKey = result?.animeTier.key;
+  const currentKey = result?.tier.key;
   const avgScore = result?.avgScore ?? 0;
   const actualAvg = result?.actualAvgScore ?? 0;
   const bw = bodyweightLbs ?? 185;
   const g: 'male'|'female' = gender === 'female' ? 'female' : 'male';
 
   const getSubTierRanges = (tierIndex: number) => {
-    const tier = ANIME_TIERS[tierIndex];
-    const next = ANIME_TIERS[tierIndex + 1];
+    const tier = RANK_TIERS[tierIndex];
+    const next = RANK_TIERS[tierIndex + 1];
     const min = tier.minScore;
     const max = next?.minScore ?? (min + 1.0);
     const step = (max - min) / 4;
@@ -70,11 +70,11 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-          {[...ANIME_TIERS].reverse().map((tier) => {
-            const tierIndex = ANIME_TIERS.indexOf(tier);
+          {[...RANK_TIERS].reverse().map((tier) => {
+            const tierIndex = RANK_TIERS.indexOf(tier);
             const isCurrent = tier.key === currentKey;
             const isAchieved = avgScore >= tierIndex; // avgScore is now rank index 0-5
-            const isNext = !isAchieved && tierIndex === (result ? result.animeTier && ANIME_TIERS.indexOf(result.animeTier) + 1 : 0);
+            const isNext = !isAchieved && tierIndex === (result ? result.tier && RANK_TIERS.indexOf(result.tier) + 1 : 0);
             const isExpanded = expandedKey === tier.key;
             const subRanges = getSubTierRanges(tierIndex);
 
@@ -164,18 +164,18 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                 })()}
 
                 {/* Progress bar for current tier */}
-                {isCurrent && result?.nextAnimeTier && (
+                {isCurrent && result?.nextTier && (
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Progress to {result.nextAnimeTier.label}</Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Progress to {result.nextTier.label}</Text>
                       <Text style={{ color: tier.color, fontSize: 10, fontWeight: '700' }}>
-                        {avgScore.toFixed(2)} / {result.nextAnimeTier.minScore.toFixed(2)}
+                        {avgScore.toFixed(2)} / {result.nextTier.minScore.toFixed(2)}
                       </Text>
                     </View>
                     <View style={{ height: 4, backgroundColor: Colors.surface2, borderRadius: 2 }}>
                       <View style={{
                         height: '100%', borderRadius: 2, backgroundColor: tier.color,
-                        width: `${Math.min(((avgScore - tier.minScore) / (result.nextAnimeTier.minScore - tier.minScore)) * 100, 100)}%`,
+                        width: `${Math.min(((avgScore - tier.minScore) / (result.nextTier.minScore - tier.minScore)) * 100, 100)}%`,
                       }} />
                     </View>
                   </View>
@@ -257,14 +257,14 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
               How Ranks Work
             </Text>
             <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
-              Your rank is your <Text style={{ color: Colors.text, fontWeight: '700' }}>weakest SBD lift</Text>. A 400 squat and 400 deadlift won't move you past NINJA if your bench is still at NINJA level. Every lift has to earn the rank.
+              Your rank is your <Text style={{ color: Colors.text, fontWeight: '700' }}>weakest SBD lift</Text>. A 400 squat and 400 deadlift won't move you past MORTAL if your bench is still at MORTAL level. Every lift has to earn the rank.
             </Text>
             <View style={{ height: 1, backgroundColor: Colors.border }} />
             <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>
               The I · II · III · IV System
             </Text>
             <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 20 }}>
-              Every tier has four sub-ranks. <Text style={{ color: Colors.text, fontWeight: '700' }}>NINJA I → NINJA II → NINJA III → NINJA IV → DEMON I</Text>.{'\n\n'}Sub-tiers measure your <Text style={{ color: Colors.text, fontWeight: '700' }}>average</Text> across all three lifts — so even when your weakest lift is holding your rank, you can still feel progress climbing through the sub-tiers as your other lifts improve.{'\n\n'}Hit a new PR on any SBD lift and watch for the advance screen.
+              Every tier has four sub-ranks. <Text style={{ color: Colors.text, fontWeight: '700' }}>MORTAL I → MORTAL II → MORTAL III → MORTAL IV → AWAKENED I</Text>.{'\n\n'}Sub-tiers measure your <Text style={{ color: Colors.text, fontWeight: '700' }}>average</Text> across all three lifts — so even when your weakest lift is holding your rank, you can still feel progress climbing through the sub-tiers as your other lifts improve.{'\n\n'}Hit a new PR on any SBD lift and watch for the advance screen.
             </Text>
             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingTop: 4 }}>
               {['I', 'II', 'III', 'IV'].map((r, i) => (

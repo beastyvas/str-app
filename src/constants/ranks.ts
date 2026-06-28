@@ -1,8 +1,8 @@
 import { TierName } from './colors';
 import { getTierForWeight, TIER_ORDER, getLiftTierResult, getScaledThresholds, type Lift, type Gender } from './strengthStandards';
 
-export interface AnimeTier {
-  key: 'civilian' | 'training_arc' | 'tournament_arc' | 'rival_level' | 'final_boss' | 'god_tier';
+export interface RankTier {
+  key: 'mortal' | 'awakened' | 'ascendant' | 'phantom' | 'sovereign' | 'godhand';
   label: string;
   tagline: string;
   color: string;
@@ -11,64 +11,64 @@ export interface AnimeTier {
 
 // Coach personality per tier — same AI, different energy
 export const TIER_COACH_PERSONALITY: Record<string, string> = {
-  civilian: "You're speaking to a lifter early in their journey. Be encouraging and foundational. Build their confidence. Don't overwhelm — focus on habits and basics.",
-  training_arc: "This lifter is building something real. Push them harder than they push themselves. Be direct, be motivating. They can handle honest feedback.",
-  tournament_arc: "Technical territory. Speak to programming concepts — RPE, volume landmarks, weak point training. This lifter wants to understand the why, not just the what.",
-  rival_level: "This athlete has transcended most lifters. Cold analysis, no hand-holding. Peer-level conversation. Call out what others won't.",
-  final_boss: "S-rank mentality. Surgical feedback. Precise programming. This lifter operates at a level most never reach. Respect it and match it.",
-  god_tier: "Saiyan level. You are speaking to someone who has broken the ceiling. Assume elite knowledge. No basics, no encouragement needed — just pure precision.",
+  mortal: "You're speaking to a lifter at the very start of their journey. Be warm, protective, and foundational — this may be someone nervous or intimidated by the gym. Build their confidence, focus on habits and basics, and never overwhelm them. They showed up; that's the hardest part.",
+  awakened: "This lifter has unlocked something real. The training wheels come off. Push them harder than they push themselves — be direct, motivating, and honest. They're not new anymore and can handle real feedback.",
+  ascendant: "Technical territory. Speak to programming concepts — RPE, volume landmarks, weak-point training. This lifter wants to understand the WHY, not just the what. Respect their hunger to understand the mechanics.",
+  phantom: "This athlete has surpassed most lifters. Cold analysis, no hand-holding, peer-level conversation. Call out what others won't. The warmth is mostly gone — they've earned blunt truth over comfort.",
+  sovereign: "S-rank mentality. Surgical feedback, precise programming. This lifter operates at a level most never reach. Match it, respect it, and waste no words.",
+  godhand: "This lifter broke the ceiling. Assume elite knowledge — no basics, no encouragement needed, pure precision. You're speaking to a force of nature as an equal. There's nothing left to teach, only to sharpen.",
 };
 
 export const TIER_COACH_NAME: Record<string, string> = {
-  civilian: 'NINJA Sensei',
-  training_arc: 'DEMON Sensei',
-  tournament_arc: 'SORCERERS Sensei',
-  rival_level: 'HOLLOW Sensei',
-  final_boss: 'SOLO Sensei',
-  god_tier: 'WARRIOR Sensei',
+  mortal: 'The Mentor',
+  awakened: 'The Trainer',
+  ascendant: 'The Tactician',
+  phantom: 'The Rival',
+  sovereign: 'The Sovereign',
+  godhand: 'The Limitless',
 };
 
-export const ANIME_TIERS: AnimeTier[] = [
+export const RANK_TIERS: RankTier[] = [
   {
-    key: 'civilian',
-    label: 'NINJA',
+    key: 'mortal',
+    label: 'MORTAL',
     tagline: "Every legend had a day one. This is yours. Keep showing up.",
-    color: '#F97316',       // Naruto orange
+    color: '#F97316',
     minScore: 0,
   },
   {
-    key: 'training_arc',
-    label: 'DEMON',
-    tagline: "You've unlocked something. The real training starts now.",
-    color: '#EF4444',       // Tanjiro / Demon Slayer red
+    key: 'awakened',
+    label: 'AWAKENED',
+    tagline: "You've crossed the threshold. The real training starts now.",
+    color: '#EF4444',
     minScore: 0.75,
   },
   {
-    key: 'tournament_arc',
-    label: 'SORCERERS',
-    tagline: "Limitless. You see things most lifters never will.",
-    color: '#818CF8',       // Gojo blue-purple
+    key: 'ascendant',
+    label: 'ASCENDANT',
+    tagline: "You're rising above the rest. Now you'll see what most never do.",
+    color: '#818CF8',
     minScore: 1.75,
   },
   {
-    key: 'rival_level',
-    label: 'HOLLOW',
-    tagline: "You've transcended. The power isn't borrowed anymore — it's yours.",
-    color: '#38BDF8',       // Bleach — hollow white-blue
+    key: 'phantom',
+    label: 'PHANTOM',
+    tagline: "You've transcended the physical. The power is yours now.",
+    color: '#38BDF8',
     minScore: 2.75,
   },
   {
-    key: 'final_boss',
-    label: 'SOLO',
-    tagline: "You arose alone. S-rank. The gap between you and others is silent.",
-    color: '#A78BFA',       // Jin Woo dark purple
+    key: 'sovereign',
+    label: 'SOVEREIGN',
+    tagline: "You rule your domain. S-rank. The gap between you and others is silent.",
+    color: '#A78BFA',
     minScore: 3.75,
   },
   {
-    key: 'god_tier',
-    label: 'WARRIOR',
-    tagline: "Saiyan level. There is no ceiling because you already broke it.",
-    color: '#FBBF24',       // Super Saiyan gold
+    key: 'godhand',
+    label: 'GODHAND',
+    tagline: "You broke the ceiling. There is no limit left — only the blade to sharpen.",
+    color: '#FBBF24',
     minScore: 4.75,
   },
 ];
@@ -91,12 +91,12 @@ export interface SBDResult {
   nextTierWeight: number | null; // lbs needed for next tier
 }
 
-export interface AnimeTierResult {
-  animeTier: AnimeTier;
-  nextAnimeTier: AnimeTier | null;
+export interface RankResult {
+  tier: RankTier;
+  nextTier: RankTier | null;
   avgScore: number;      // weakest-link rank score (used for competitive rank)
   actualAvgScore: number; // true average across logged lifts (used for sub-tier)
-  subTier: number;        // 1-4 progress within current anime tier
+  subTier: number;        // 1-4 progress within current rank tier
   lifts: SBDResult[];
   bottleneck: SBDResult | null; // the weakest lift holding overall tier back
 }
@@ -104,12 +104,12 @@ export interface AnimeTierResult {
 // Roman numerals for sub-tier display
 export const ROMAN = ['', 'I', 'II', 'III', 'IV'] as const;
 
-export function getAnimeTierResult(
+export function getRankResult(
   prs: { exerciseName: string; weight: number; reps: number; achievedAt?: string }[],
   bodyweightLbs: number,
   useDecay = false,
   gender: 'male' | 'female' | 'other' | null = 'male'
-): AnimeTierResult {
+): RankResult {
   const bw = Math.max(bodyweightLbs || 185, 50);
   const g: Gender = gender === 'female' ? 'female' : 'male';
   const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
@@ -162,8 +162,8 @@ export function getAnimeTierResult(
   const rankScore = weakestScore24 >= 0 ? Math.floor(weakestScore24 / 4) : 0; // 0-5
   const subTier = weakestScore24 >= 0 ? (weakestScore24 % 4) + 1 : 1;        // 1-4
 
-  const animeTier = ANIME_TIERS[Math.min(rankScore, 5)];
-  const nextAnimeTier = rankScore < 5 ? ANIME_TIERS[rankScore + 1] : null;
+  const tier = RANK_TIERS[Math.min(rankScore, 5)];
+  const nextTier = rankScore < 5 ? RANK_TIERS[rankScore + 1] : null;
 
   // avgScore: progress within rank as 0.0–1.0 fraction for progress bar
   const posInRank = weakestScore24 >= 0 ? (weakestScore24 % 4) / 4 : 0;
@@ -172,12 +172,12 @@ export function getAnimeTierResult(
   // Bottleneck = weakest lift by 24-point score
   const bottleneck = weakestLift ?? null;
 
-  return { animeTier, nextAnimeTier, avgScore: rankScore, actualAvgScore, subTier, lifts, bottleneck };
+  return { tier, nextTier, avgScore: rankScore, actualAvgScore, subTier, lifts, bottleneck };
 }
 
-// How much each lift needs to increase for the next anime tier
-export function getNextTierGap(result: AnimeTierResult): string | null {
-  if (!result.nextAnimeTier || !result.bottleneck) return null;
+// How much each lift needs to increase for the next rank tier
+export function getNextTierGap(result: RankResult): string | null {
+  if (!result.nextTier || !result.bottleneck) return null;
   const b = result.bottleneck;
   if (!b.nextTierWeight || b.weight <= 0) return null;
   const gap = b.nextTierWeight - b.weight;

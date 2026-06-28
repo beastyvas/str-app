@@ -5,7 +5,7 @@ import { Colors, TierName } from '@/constants/colors';
 import { UserBadges } from './UserBadges';
 import { supabase } from '@/lib/supabase';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
-import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
+import { getRankResult, ROMAN } from '@/constants/ranks';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
@@ -77,7 +77,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [recentWorkouts, setRecentWorkouts] = useState<any[]>([]);
   const [workoutCount, setWorkoutCount] = useState(0);
   const [splitData, setSplitData] = useState<ReturnType<typeof computeSplit>>(null);
-  const [animeTier, setAnimeTier] = useState<ReturnType<typeof getAnimeTierResult> | null>(null);
+  const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(null);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
 
@@ -128,7 +128,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
       const sbdPrs = (prData ?? [])
         .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
         .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
-      setAnimeTier(getAnimeTierResult(sbdPrs, prof?.bodyweight_lbs ?? 185));
+      setRankTier(getRankResult(sbdPrs, prof?.bodyweight_lbs ?? 185));
 
       const { data: { user: me } } = await supabase.auth.getUser();
       if (me && userId) {
@@ -167,7 +167,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
     }
   };
 
-  const tierColor = animeTier?.animeTier.color ?? Colors.accent;
+  const tierColor = rankResult?.tier.color ?? Colors.accent;
 
   const formatDuration = (start: string, end: string) => {
     const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
@@ -297,7 +297,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
             </View>
 
             {/* ── RANK CARD ─────────────────────────────────────────────── */}
-            {animeTier && (
+            {rankResult && (
               <View style={{
                 backgroundColor: tierColor + '10',
                 borderRadius: 16, padding: 18,
@@ -315,25 +315,25 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                     letterSpacing: 2.5, textTransform: 'uppercase',
                     textShadowColor: tierColor, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6,
                   }}>
-                    {animeTier.animeTier.label} {ROMAN[animeTier.subTier]}
+                    {rankResult.tier.label} {ROMAN[rankResult.subTier]}
                   </Text>
                 </View>
                 <Text style={{ color: Colors.textSecondary, fontSize: 13, fontStyle: 'italic', textAlign: 'center', lineHeight: 19 }}>
-                  "{animeTier.animeTier.tagline}"
+                  "{rankResult.tier.tagline}"
                 </Text>
-                {animeTier.avgScore > 0 && (
+                {rankResult.avgScore > 0 && (
                   <Text style={{ color: tierColor + 'AA', fontSize: 11, fontWeight: '700' }}>
-                    {animeTier.avgScore.toFixed(1)} / 5.0
+                    {rankResult.avgScore.toFixed(1)} / 5.0
                   </Text>
                 )}
               </View>
             )}
 
             {/* ── SBD ───────────────────────────────────────────────────── */}
-            {animeTier && animeTier.lifts.some(l => l.weight > 0) && (
+            {rankResult && rankResult.lifts.some(l => l.weight > 0) && (
               <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, gap: 10 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>SBD Strength</Text>
-                {animeTier.lifts.map((lift, i) => {
+                {rankResult.lifts.map((lift, i) => {
                   const hasData = lift.weight > 0;
                   return (
                     <View key={i}>

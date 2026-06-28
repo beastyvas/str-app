@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
-import { getAnimeTierResult, ANIME_TIERS, ROMAN } from '@/constants/animeTiers';
+import { getRankResult, RANK_TIERS, ROMAN } from '@/constants/ranks';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 
 type Step = 'welcome' | 'identity' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
@@ -135,11 +135,11 @@ export default function OnboardingScreen() {
         const prs = sbdEntries.map(e => ({
           exerciseName: e.name, weight: parseFloat(e.val), reps: 1,
         }));
-        const result = getAnimeTierResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
-        setRevealTier(result.animeTier);
+        const result = getRankResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
+        setRevealTier(result.tier);
       } else {
-        // No SBD — show NINJA as starting rank
-        setRevealTier(ANIME_TIERS[0]);
+        // No SBD — show MORTAL as starting rank
+        setRevealTier(RANK_TIERS[0]);
       }
 
       setShowTierReveal(true);
@@ -541,19 +541,19 @@ export default function OnboardingScreen() {
                     { exerciseName: 'Deadlifts', weight: parseFloat(sbd.dl) || 0, reps: 1 },
                   ].filter(p => p.weight > 0);
                   if (prs.length === 0) return null;
-                  const result = getAnimeTierResult(prs, bwLbs, false, (gender || 'male') as any);
+                  const result = getRankResult(prs, bwLbs, false, (gender || 'male') as any);
                   return (
                     <View style={{
-                      backgroundColor: result.animeTier.color + '15',
+                      backgroundColor: result.tier.color + '15',
                       borderRadius: 14, padding: 16,
-                      borderWidth: 1, borderColor: result.animeTier.color + '40',
+                      borderWidth: 1, borderColor: result.tier.color + '40',
                       alignItems: 'center', gap: 4,
                     }}>
-                      <Text style={{ color: result.animeTier.color, fontSize: 22, fontWeight: '900', letterSpacing: 1.5 }}>
-                        {result.animeTier.label} {ROMAN[result.subTier]}
+                      <Text style={{ color: result.tier.color, fontSize: 22, fontWeight: '900', letterSpacing: 1.5 }}>
+                        {result.tier.label} {ROMAN[result.subTier]}
                       </Text>
                       <Text style={{ color: Colors.textMuted, fontSize: 12, fontStyle: 'italic' }}>
-                        "{result.animeTier.tagline}"
+                        "{result.tier.tagline}"
                       </Text>
                     </View>
                   );

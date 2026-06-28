@@ -24,7 +24,7 @@ const FREE_FEATURES = [
   'Unlimited workout logging',
   'Full exercise library',
   'PR tracking & strength tiers',
-  'Anime physique rank (SBD)',
+  'Physique rank (SBD)',
   'Unlimited friends & social feed',
   '3 AI coach messages per week',
   'Workout history (last 90 days)',
@@ -170,7 +170,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
               Your rank progression unlocked
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              {['NINJA', 'GRAPPLER', 'BLACK\nSWORDSMAN', 'HOLLOW', 'SOLO', 'FREEDOM'].map((tier, i) => {
+              {['MORTAL', 'AWAKENED', 'ASCENDANT', 'PHANTOM', 'SOVEREIGN', 'GODHAND'].map((tier, i) => {
                 const colors = ['#CD7F32', '#A67C52', '#A8A9AD', '#FFB800', '#9B8FFF', '#B9F2FF'];
                 return (
                   <View key={i} style={{ alignItems: 'center', flex: 1 }}>

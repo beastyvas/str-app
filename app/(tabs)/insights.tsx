@@ -12,7 +12,7 @@ import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore } from '@/hooks/useChatStore';
-import { getAnimeTierResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY, ROMAN } from '@/constants/animeTiers';
+import { getRankResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY, ROMAN } from '@/constants/ranks';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -34,7 +34,7 @@ export default function InsightsTab() {
   const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
 
   // Derive coach identity from user's tier
-  const [coachTierKey, setCoachTierKey] = useState('civilian');
+  const [coachTierKey, setCoachTierKey] = useState('mortal');
   const [coachTierColor, setCoachTierColor] = useState('#F97316');
   const [coachSubTier, setCoachSubTier] = useState(1);
 
@@ -50,18 +50,18 @@ export default function InsightsTab() {
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight, reps: p.reps, achievedAt: p.achieved_at,
         }));
-        const result = getAnimeTierResult(prs, profile.bodyweight_lbs ?? 185, true);
-        setCoachTierKey(result.animeTier.key);
-        setCoachTierColor(result.animeTier.color);
+        const result = getRankResult(prs, profile.bodyweight_lbs ?? 185, true);
+        setCoachTierKey(result.tier.key);
+        setCoachTierColor(result.tier.color);
         setCoachSubTier(result.subTier);
       });
   }, [user, profile?.bodyweight_lbs]);
 
-  // e.g. "DEMON II Sensei"
+  // Coach identity is the tier title plus the user's sub-tier, e.g. "The Tactician II"
   const coachName = (() => {
     const base = TIER_COACH_NAME[coachTierKey] ?? 'Coach';
-    // Insert sub-tier before "Sensei": "DEMON Sensei" → "DEMON II Sensei"
-    return base.replace(' Sensei', ` ${ROMAN[coachSubTier]} Sensei`);
+    const roman = ROMAN[coachSubTier];
+    return roman ? `${base} ${roman}` : base;
   })();
   const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
@@ -103,9 +103,9 @@ export default function InsightsTab() {
     if (!canRunAnalysis) { setShowPaywall(true); return; }
     setAnalysisLoading(true);
     try {
-      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['civilian'];
+      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['mortal'];
       const { data, error } = await supabase.functions.invoke('monthly-analysis', {
-        body: { coachName, tierPersonality, animeTierKey: coachTierKey, trainingStyle: profile?.training_style },
+        body: { coachName, tierPersonality, rankTierKey: coachTierKey, trainingStyle: profile?.training_style },
       });
       if (error) {
         // Non-2xx — pull the structured payload out of the response if we can
@@ -275,7 +275,7 @@ export default function InsightsTab() {
 
     try {
       const context = await buildContext();
-      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['civilian'];
+      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['mortal'];
       const systemPrompt = `You are ${coachName}, a strength and physique coach identity tied to the user's current rank in the STR app.
 
 Tier-specific energy: ${tierPersonality}

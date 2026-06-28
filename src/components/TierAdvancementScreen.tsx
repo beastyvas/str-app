@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, Animated, Modal, Dimensions, TouchableOpacity } from 'react-native';
 import { Colors } from '@/constants/colors';
-import { AnimeTier, ROMAN } from '@/constants/animeTiers';
+import { RankTier, ROMAN } from '@/constants/ranks';
 
 interface Props {
   visible: boolean;
-  tier: AnimeTier | null;
+  tier: RankTier | null;
   subTier?: number;
   isSubTierAdvance?: boolean;
   liftName?: string;

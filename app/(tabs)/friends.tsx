@@ -10,7 +10,7 @@ import { CameraView, Camera } from 'expo-camera';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
-import { getAnimeTierResult } from '@/constants/animeTiers';
+import { getRankResult } from '@/constants/ranks';
 import { FriendProfileModal } from '@/components/FriendProfileModal';
 import { UserBadges } from '@/components/UserBadges';
 
@@ -47,8 +47,8 @@ interface FeedPost {
   totalVolume: number;
   exercises: string[];
   exerciseSummaries: ExerciseSummary[];
-  animeTierLabel?: string;
-  animeTierColor?: string;
+  rankTierLabel?: string;
+  rankTierColor?: string;
   photoUrl?: string;
   likeCount: number;
   isLiked: boolean;
@@ -63,8 +63,8 @@ interface Friend {
   bio?: string;
   bodyweight_lbs?: number;
   friendshipId: string;
-  animeTierLabel?: string;
-  animeTierColor?: string;
+  rankTierLabel?: string;
+  rankTierColor?: string;
   recentPR?: { exerciseName: string; weight: number; achieved_at: string };
   is_owner?: boolean;
   is_og?: boolean;
@@ -272,15 +272,15 @@ export default function SocialScreen() {
               isLiked: false,
               commentCount: 0,
               previewComments: [],
-              animeTierLabel: (sbdByUser[w.user_id] ?? []).length > 0
-                ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
+              rankTierLabel: (sbdByUser[w.user_id] ?? []).length > 0
+                ? getRankResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
                     exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
-                  })), other?.bodyweight_lbs ?? 185).animeTier.label
+                  })), other?.bodyweight_lbs ?? 185).tier.label
                 : undefined,
-              animeTierColor: (sbdByUser[w.user_id] ?? []).length > 0
-                ? getAnimeTierResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
+              rankTierColor: (sbdByUser[w.user_id] ?? []).length > 0
+                ? getRankResult((sbdByUser[w.user_id] ?? []).map((p: any) => ({
                     exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
-                  })), other?.bodyweight_lbs ?? 185).animeTier.color
+                  })), other?.bodyweight_lbs ?? 185).tier.color
                 : undefined,
             };
           });
@@ -336,7 +336,7 @@ export default function SocialScreen() {
           exerciseName: p.exercises?.name ?? '',
           weight: p.weight, reps: p.reps,
         }));
-        const tierResult = getAnimeTierResult(sbdPrs, other.bodyweight_lbs ?? 185);
+        const tierResult = getRankResult(sbdPrs, other.bodyweight_lbs ?? 185);
         const pr = recentByUser[other.id];
         return {
           id: other.id,
@@ -345,8 +345,8 @@ export default function SocialScreen() {
           bio: other.bio,
           bodyweight_lbs: other.bodyweight_lbs,
           friendshipId: f.id,
-          animeTierLabel: tierResult.animeTier.label,
-          animeTierColor: tierResult.animeTier.color,
+          rankTierLabel: tierResult.tier.label,
+          rankTierColor: tierResult.tier.color,
           is_owner: other.is_owner ?? false,
           is_og: other.is_og ?? false,
           is_pro: other.is_pro ?? false,
@@ -643,16 +643,16 @@ export default function SocialScreen() {
                 borderRadius: 18,
                 marginBottom: 16,
                 borderWidth: 1,
-                borderColor: (post.animeTierColor ?? Colors.accent) + '22',
+                borderColor: (post.rankTierColor ?? Colors.accent) + '22',
                 overflow: 'hidden',
-                shadowColor: post.animeTierColor ?? Colors.accent,
+                shadowColor: post.rankTierColor ?? Colors.accent,
                 shadowOpacity: 0.07,
                 shadowRadius: 12,
                 shadowOffset: { width: 0, height: 4 },
                 elevation: 2,
               }}>
                 {/* Tier accent strip */}
-                <View style={{ height: 3, backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.65 }} />
+                <View style={{ height: 3, backgroundColor: post.rankTierColor ?? Colors.accent, opacity: 0.65 }} />
 
                 {/* Photo — square crop, full bleed, no black bars */}
                 {post.photoUrl && (
@@ -669,21 +669,21 @@ export default function SocialScreen() {
                   activeOpacity={0.8}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}
                 >
-                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.animeTierColor ?? Colors.accent} size={42} />
+                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.rankTierColor ?? Colors.accent} size={42} />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
                         {post.displayName}
                       </Text>
                       <UserBadges isOwner={post.isOwner} isOg={post.isOg} isPro={post.isPro} size="sm" />
-                      {post.animeTierLabel && (
+                      {post.rankTierLabel && (
                         <View style={{
-                          backgroundColor: (post.animeTierColor ?? Colors.accent) + '20',
+                          backgroundColor: (post.rankTierColor ?? Colors.accent) + '20',
                           borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
-                          borderWidth: 1, borderColor: (post.animeTierColor ?? Colors.accent) + '40',
+                          borderWidth: 1, borderColor: (post.rankTierColor ?? Colors.accent) + '40',
                         }}>
-                          <Text style={{ color: post.animeTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
-                            {post.animeTierLabel}
+                          <Text style={{ color: post.rankTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
+                            {post.rankTierLabel}
                           </Text>
                         </View>
                       )}
@@ -750,7 +750,7 @@ export default function SocialScreen() {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                           <View style={{
                             width: 3, height: 20, borderRadius: 2,
-                            backgroundColor: post.animeTierColor ?? Colors.accent, opacity: 0.55,
+                            backgroundColor: post.rankTierColor ?? Colors.accent, opacity: 0.55,
                           }} />
                           <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
                             {ex.name}
@@ -1011,13 +1011,13 @@ export default function SocialScreen() {
                     backgroundColor: Colors.surface,
                     borderRadius: 18,
                     borderWidth: 1,
-                    borderColor: (f.animeTierColor ?? Colors.border) + '30',
+                    borderColor: (f.rankTierColor ?? Colors.border) + '30',
                     overflow: 'hidden',
                   }}
                 >
                   {/* Profile header */}
                   <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                    <Avatar url={f.avatar_url} name={f.display_name} color={f.animeTierColor ?? Colors.accent} size={56} />
+                    <Avatar url={f.avatar_url} name={f.display_name} color={f.rankTierColor ?? Colors.accent} size={56} />
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
@@ -1041,20 +1041,20 @@ export default function SocialScreen() {
                   </View>
 
                   {/* Tier bar */}
-                  {f.animeTierLabel && (
+                  {f.rankTierLabel && (
                     <View style={{
                       marginHorizontal: 16, marginBottom: 12,
-                      backgroundColor: (f.animeTierColor ?? Colors.accent) + '15',
+                      backgroundColor: (f.rankTierColor ?? Colors.accent) + '15',
                       borderRadius: 10, padding: 12,
-                      borderWidth: 1, borderColor: (f.animeTierColor ?? Colors.accent) + '30',
+                      borderWidth: 1, borderColor: (f.rankTierColor ?? Colors.accent) + '30',
                       flexDirection: 'row', alignItems: 'center', gap: 10,
                     }}>
                       <View style={{
-                        backgroundColor: (f.animeTierColor ?? Colors.accent) + '25',
+                        backgroundColor: (f.rankTierColor ?? Colors.accent) + '25',
                         borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
                       }}>
-                        <Text style={{ color: f.animeTierColor ?? Colors.accent, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 }}>
-                          {f.animeTierLabel}
+                        <Text style={{ color: f.rankTierColor ?? Colors.accent, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 }}>
+                          {f.rankTierLabel}
                         </Text>
                       </View>
                       {f.recentPR && (

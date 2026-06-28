@@ -10,20 +10,20 @@ export type Gender = 'male' | 'female';
 // TierName maps to rank index for backward compat with existing UI
 export const TIER_ORDER: TierName[] = ['beginner', 'bronze', 'silver', 'gold', 'platinum', 'diamond'];
 export const TIER_LABELS: Record<TierName, string> = {
-  beginner: 'Ninja', bronze: 'Demon', silver: 'Sorcerer',
-  gold: 'Hollow', platinum: 'Solo', diamond: 'Warrior',
+  beginner: 'Mortal', bronze: 'Awakened', silver: 'Ascendant',
+  gold: 'Phantom', platinum: 'Sovereign', diamond: 'Godhand',
 };
 
 // ─── Base thresholds (men, ~180 lb anchor) ────────────────────────────────────
-// 24 values per lift: [Ninja1, Ninja2, Ninja3, Ninja4, Demon1, ... Warrior4]
+// 24 values per lift: [Mortal1, Mortal2, Mortal3, Mortal4, Awakened1, ... Godhand4]
 const MEN_BASE: Record<Lift, number[]> = {
   squat: [
-     95,  115,  135,  155,   // Ninja  1-4
-    175,  195,  215,  235,   // Demon  1-4
-    255,  275,  300,  330,   // Sorcerer 1-4
-    355,  380,  410,  435,   // Hollow 1-4
-    455,  475,  500,  520,   // Solo   1-4
-    545,  570,  600,  640,   // Warrior 1-4
+     95,  115,  135,  155,   // Mortal    1-4
+    175,  195,  215,  235,   // Awakened  1-4
+    255,  275,  300,  330,   // Ascendant 1-4
+    355,  380,  410,  435,   // Phantom   1-4
+    455,  475,  500,  520,   // Sovereign 1-4
+    545,  570,  600,  640,   // Godhand   1-4
   ],
   bench: [
      55,   70,   85,  100,
@@ -119,7 +119,7 @@ export function getScaledThresholds(lift: Lift, bwLbs: number, gender: Gender): 
 // ─── Core lookup ──────────────────────────────────────────────────────────────
 
 export interface LiftTierResult {
-  rank: number;           // 0=Ninja … 5=Warrior
+  rank: number;           // 0=Mortal … 5=Godhand
   tier: number;           // 1–4 within the rank
   score: number;          // rank*4+(tier-1), 0–23; -1 = below all thresholds
   nextThreshold: number | null;

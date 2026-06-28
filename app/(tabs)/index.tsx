@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
 import { TIER_ORDER } from '@/constants/strengthStandards';
-import { getAnimeTierResult, getNextTierGap, AnimeTierResult, SBD_EXERCISES, ROMAN } from '@/constants/animeTiers';
+import { getRankResult, getNextTierGap, RankResult, SBD_EXERCISES, ROMAN } from '@/constants/ranks';
 import { CelebrationToast } from '@/components/CelebrationToast';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -86,7 +86,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [friendPRs, setFriendPRs] = useState<FriendPR[]>([]);
   const [lastWorkout, setLastWorkout] = useState<LastWorkout | null>(null);
-  const [animeResult, setAnimeResult] = useState<AnimeTierResult | null>(null);
+  const [rankResult, setRankResult] = useState<RankResult | null>(null);
   const [tierReady, setTierReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [firstSteps, setFirstSteps] = useState<{
@@ -141,10 +141,10 @@ export default function HomeScreen() {
 
   // Fade in rank once ready
   useEffect(() => {
-    if (tierReady && animeResult) {
+    if (tierReady && rankResult) {
       Animated.spring(rankOpacity, { toValue: 1, tension: 80, friction: 9, useNativeDriver: true }).start();
     }
-  }, [tierReady, animeResult]);
+  }, [tierReady, rankResult]);
 
   // CTA pulse glow
   useEffect(() => {
@@ -205,7 +205,7 @@ export default function HomeScreen() {
       }
       setFirstSteps(newSteps);
       const [prRes, workoutRes, friendRes] = await Promise.all([
-        // SBD PRs for anime tier
+        // SBD PRs for rank tier
         supabase
           .from('personal_records')
           .select('weight, reps, achieved_at, exercises!inner(name)')
@@ -232,7 +232,7 @@ export default function HomeScreen() {
           .limit(8),
       ]);
 
-      // Anime tier — only set after fresh fetch, never from stale state
+      // Rank tier — only set after fresh fetch, never from stale state
       const bw = Math.max(profile?.bodyweight_lbs ?? 185, 50); // guard against sub-50 lbs
       if (prRes.data) {
         const prs = prRes.data.map((p: any) => ({
@@ -241,9 +241,9 @@ export default function HomeScreen() {
           reps: p.reps,
           achievedAt: p.achieved_at,
         }));
-        setAnimeResult(getAnimeTierResult(prs, bw, true));
+        setRankResult(getRankResult(prs, bw, true));
       } else {
-        setAnimeResult(getAnimeTierResult([], bw));
+        setRankResult(getRankResult([], bw));
       }
       setTierReady(true);
 
@@ -474,16 +474,16 @@ export default function HomeScreen() {
 
           {/* Prominent rank badge with tagline */}
           <Animated.View style={{ opacity: rankOpacity, marginTop: 12 }}>
-            {animeResult && (
+            {rankResult && (
               <TouchableOpacity
                 onPress={() => setShowTierLadder(true)}
                 activeOpacity={0.85}
                 style={{
-                  backgroundColor: animeResult.animeTier.color + '12',
+                  backgroundColor: rankResult.tier.color + '12',
                   borderRadius: 14,
                   padding: 14,
                   borderWidth: 1,
-                  borderColor: animeResult.animeTier.color + '35',
+                  borderColor: rankResult.tier.color + '35',
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,
@@ -491,26 +491,26 @@ export default function HomeScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={{
-                    color: animeResult.animeTier.color,
+                    color: rankResult.tier.color,
                     fontSize: 13, fontWeight: '900', letterSpacing: 2.5, textTransform: 'uppercase',
                   }}>
-                    {animeResult.animeTier.label} {ROMAN[animeResult.subTier]}
+                    {rankResult.tier.label} {ROMAN[rankResult.subTier]}
                   </Text>
                   <Text style={{
                     color: Colors.textSecondary, fontSize: 12, marginTop: 3, fontStyle: 'italic', lineHeight: 17,
                   }} numberOfLines={1}>
-                    "{animeResult.animeTier.tagline}"
+                    "{rankResult.tier.tagline}"
                   </Text>
                   {/* Next gap + Ask Coach — right on the badge */}
-                  {getNextTierGap(animeResult) && (
+                  {getNextTierGap(rankResult) && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                        {getNextTierGap(animeResult)?.replace('+', '').replace(' lbs on ', ' lbs needed on ').replace(/(\w+)$/, '$1 to rank up')}
+                        {getNextTierGap(rankResult)?.replace('+', '').replace(' lbs on ', ' lbs needed on ').replace(/(\w+)$/, '$1 to rank up')}
                       </Text>
                       <TouchableOpacity
                         onPress={(e) => {
                           e.stopPropagation?.();
-                          const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
+                          const question = `My ${rankResult.bottleneck!.exercise} is my weakest SBD lift at ${rankResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
                           if (isPro) {
                             (global as any).__coachPreFill = question;
                             router.push('/(tabs)/insights');
@@ -522,11 +522,11 @@ export default function HomeScreen() {
                           }
                         }}
                         style={{
-                          backgroundColor: animeResult.animeTier.color + '25',
+                          backgroundColor: rankResult.tier.color + '25',
                           borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
                         }}
                       >
-                        <Text style={{ color: animeResult.animeTier.color, fontSize: 10, fontWeight: '900' }}>
+                        <Text style={{ color: rankResult.tier.color, fontSize: 10, fontWeight: '900' }}>
                           Ask Coach ⚡
                         </Text>
                       </TouchableOpacity>
@@ -534,8 +534,8 @@ export default function HomeScreen() {
                   )}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                  <Text style={{ color: animeResult.animeTier.color, fontSize: 18, fontWeight: '900' }}>
-                    {animeResult.avgScore.toFixed(1)}
+                  <Text style={{ color: rankResult.tier.color, fontSize: 18, fontWeight: '900' }}>
+                    {rankResult.avgScore.toFixed(1)}
                   </Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1 }}>/ 5.0</Text>
                 </View>
@@ -799,38 +799,38 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── ANIME TIER CARD (moved to profile) ──────────────────── */}
-        {false && animeResult && (
+        {/* ── RANK CARD (moved to profile) ──────────────────── */}
+        {false && rankResult && (
           <View style={{
             backgroundColor: Colors.surface,
             borderRadius: 20,
             padding: 20,
             marginBottom: 14,
             borderWidth: 1.5,
-            borderColor: animeResult.animeTier.color + '60',
+            borderColor: rankResult.tier.color + '60',
             overflow: 'hidden',
           }}>
             {/* Tier label */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <View style={{
-                backgroundColor: animeResult.animeTier.color + '20',
+                backgroundColor: rankResult.tier.color + '20',
                 borderRadius: 8,
                 paddingHorizontal: 10,
                 paddingVertical: 4,
               }}>
                 <Text style={{
-                  color: animeResult.animeTier.color,
+                  color: rankResult.tier.color,
                   fontSize: 11,
                   fontWeight: '900',
                   letterSpacing: 2,
                   textTransform: 'uppercase',
                 }}>
-                  {animeResult.animeTier.label}
+                  {rankResult.tier.label}
                 </Text>
               </View>
-              {animeResult.lifts.some(l => l.weight > 0) && (
+              {rankResult.lifts.some(l => l.weight > 0) && (
                 <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                  SBD avg · {animeResult.avgScore.toFixed(1)} / 5.0
+                  SBD avg · {rankResult.avgScore.toFixed(1)} / 5.0
                 </Text>
               )}
             </View>
@@ -843,12 +843,12 @@ export default function HomeScreen() {
               marginBottom: 18,
               opacity: 0.85,
             }}>
-              "{animeResult.animeTier.tagline}"
+              "{rankResult.tier.tagline}"
             </Text>
 
             {/* SBD bars */}
             <View style={{ gap: 10 }}>
-              {animeResult.lifts.map((lift, i) => {
+              {rankResult.lifts.map((lift, i) => {
                 const hasData = lift.weight > 0;
                 const pct = Math.min(lift.tierScore / 5, 1);
                 return (
@@ -907,20 +907,20 @@ export default function HomeScreen() {
               gap: 10,
             }}>
               {/* Next tier hint + inline Ask Coach */}
-              {animeResult.nextAnimeTier && animeResult.lifts.some(l => l.weight > 0) && (
+              {rankResult.nextTier && rankResult.lifts.some(l => l.weight > 0) && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' }}>
-                      Next: {animeResult.nextAnimeTier.label}
+                      Next: {rankResult.nextTier.label}
                     </Text>
-                    {getNextTierGap(animeResult) && (
+                    {getNextTierGap(rankResult) && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
                         <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
-                          {getNextTierGap(animeResult)}
+                          {getNextTierGap(rankResult)}
                         </Text>
                         <TouchableOpacity
                           onPress={() => {
-                            const question = `My ${animeResult.bottleneck!.exercise} is my weakest SBD lift at ${animeResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
+                            const question = `My ${rankResult.bottleneck!.exercise} is my weakest SBD lift at ${rankResult.bottleneck!.weight} lbs. What's the most effective way to bring it up? Give me a real program adjustment.`;
                             if (isPro) {
                               (global as any).__coachPreFill = question;
                               router.push('/(tabs)/insights');
@@ -932,12 +932,12 @@ export default function HomeScreen() {
                             }
                           }}
                           style={{
-                            backgroundColor: animeResult.animeTier.color + '20',
+                            backgroundColor: rankResult.tier.color + '20',
                             borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
-                            borderWidth: 1, borderColor: animeResult.animeTier.color + '40',
+                            borderWidth: 1, borderColor: rankResult.tier.color + '40',
                           }}
                         >
-                          <Text style={{ color: animeResult.animeTier.color, fontSize: 10, fontWeight: '800' }}>
+                          <Text style={{ color: rankResult.tier.color, fontSize: 10, fontWeight: '800' }}>
                             Ask Coach ⚡
                           </Text>
                         </TouchableOpacity>
@@ -947,10 +947,10 @@ export default function HomeScreen() {
                   <View style={{
                     paddingHorizontal: 10, paddingVertical: 5,
                     borderRadius: 8, borderWidth: 1,
-                    borderColor: animeResult.nextAnimeTier.color + '40',
+                    borderColor: rankResult.nextTier.color + '40',
                   }}>
-                    <Text style={{ color: animeResult.nextAnimeTier.color, fontSize: 11, fontWeight: '800' }}>
-                      {animeResult.nextAnimeTier.label}
+                    <Text style={{ color: rankResult.nextTier.color, fontSize: 11, fontWeight: '800' }}>
+                      {rankResult.nextTier.label}
                     </Text>
                   </View>
                 </View>
@@ -966,7 +966,7 @@ export default function HomeScreen() {
                 }}
               >
                 <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '600' }}>
-                  {animeResult.lifts.some(l => l.weight > 0) ? 'Update your SBD maxes' : 'Set your SBD maxes manually →'}
+                  {rankResult.lifts.some(l => l.weight > 0) ? 'Update your SBD maxes' : 'Set your SBD maxes manually →'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1227,7 +1227,7 @@ export default function HomeScreen() {
         </Modal>
 
         {/* Tier Ladder */}
-        <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeResult} bodyweightLbs={profile?.bodyweight_lbs ?? 185} gender={profile?.gender} />
+        <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={rankResult} bodyweightLbs={profile?.bodyweight_lbs ?? 185} gender={profile?.gender} />
 
         {/* SBD Entry Modal */}
         <Modal visible={sbdModalOpen} transparent animationType="slide">

@@ -18,7 +18,7 @@ import { MuscleHeatmap } from '@/components/MuscleHeatmap';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
-import { getAnimeTierResult, ROMAN } from '@/constants/animeTiers';
+import { getRankResult, ROMAN } from '@/constants/ranks';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -170,7 +170,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [animeTier, setAnimeTier] = useState<ReturnType<typeof getAnimeTierResult> | null>(null);
+  const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(null);
   const [friendCount, setFriendCount] = useState(0);
   const [weeklyData, setWeeklyData] = useState<{ day: string; volume: number; duration: number; sets: number }[]>([]);
   const [muscleVolume, setMuscleVolume] = useState<Record<string, number>>({});
@@ -327,7 +327,7 @@ export default function ProfileScreen() {
       const sbdPRs = allPRs
         .filter(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName))
         .map(p => ({ exerciseName: p.exerciseName, weight: p.weight, reps: p.reps }));
-      setAnimeTier(getAnimeTierResult(sbdPRs, bw));
+      setRankTier(getRankResult(sbdPRs, bw));
 
       const { data: volumeData } = await supabase
         .from('workout_sets')
@@ -612,7 +612,7 @@ export default function ProfileScreen() {
     : `${profile?.bodyweight_lbs ?? '—'} lbs`;
 
   const initials = (name: string) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const tierColor = animeTier?.animeTier.color ?? Colors.accent;
+  const tierColor = rankResult?.tier.color ?? Colors.accent;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -784,8 +784,8 @@ export default function ProfileScreen() {
           {/* ── WEEKLY ACTIVITY CHART ────────────────────────────────────────── */}
           {weeklyData.length > 0 && <WeeklyChart weeklyData={weeklyData} />}
 
-          {/* ── ANIME TIER CARD ──────────────────────────────────────────────── */}
-          {animeTier && (
+          {/* ── RANK CARD ──────────────────────────────────────────────── */}
+          {rankResult && (
             <TouchableOpacity
               onPress={() => setShowTierLadder(true)}
               activeOpacity={0.85}
@@ -824,11 +824,11 @@ export default function ProfileScreen() {
                     textShadowOffset: { width: 0, height: 0 },
                     textShadowRadius: 6,
                   }}>
-                    {animeTier.animeTier.label} {ROMAN[animeTier.subTier]}
+                    {rankResult.tier.label} {ROMAN[rankResult.subTier]}
                   </Text>
                 </View>
                 <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                  {animeTier.avgScore > 0 ? `${animeTier.avgScore.toFixed(1)} / 5.0` : 'Set SBD to rank'}
+                  {rankResult.avgScore > 0 ? `${rankResult.avgScore.toFixed(1)} / 5.0` : 'Set SBD to rank'}
                 </Text>
               </View>
 
@@ -840,7 +840,7 @@ export default function ProfileScreen() {
                 lineHeight: 20,
                 paddingHorizontal: 8,
               }}>
-                "{animeTier.animeTier.tagline}"
+                "{rankResult.tier.tagline}"
               </Text>
 
               <View style={{
@@ -867,7 +867,7 @@ export default function ProfileScreen() {
                   }}
                 >
                   <Text style={{ color: tierColor, fontSize: 11, fontWeight: '800' }}>
-                    {animeTier.lifts.some(l => l.weight > 0) ? 'Update SBD' : 'Set SBD →'}
+                    {rankResult.lifts.some(l => l.weight > 0) ? 'Update SBD' : 'Set SBD →'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -914,12 +914,12 @@ export default function ProfileScreen() {
           )}
 
           {/* ── SBD TIERS ───────────────────────────────────────────────────── */}
-          {animeTier && animeTier.lifts.some(l => l.weight > 0) && (
+          {rankResult && rankResult.lifts.some(l => l.weight > 0) && (
             <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
               <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
                 SBD Strength
               </Text>
-              {animeTier.lifts.map((lift, i) => {
+              {rankResult.lifts.map((lift, i) => {
                 const pct = Math.min(lift.tierScore / 5, 1);
                 const hasData = lift.weight > 0;
                 return (
@@ -1243,7 +1243,7 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Tier Ladder Modal */}
-      <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={animeTier} bodyweightLbs={profile?.bodyweight_lbs ?? 185} gender={profile?.gender} />
+      <TierLadderModal visible={showTierLadder} onClose={() => setShowTierLadder(false)} result={rankResult} bodyweightLbs={profile?.bodyweight_lbs ?? 185} gender={profile?.gender} />
 
       {/* Paywall */}
       <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} reason="Unlock unlimited AI Coach, full workout history, and more." />
@@ -1255,8 +1255,8 @@ export default function ProfileScreen() {
           userId={user.id}
           username={profile?.username ?? undefined}
           displayName={profile?.display_name ?? 'Athlete'}
-          tierLabel={animeTier?.animeTier.label}
-          tierColor={animeTier?.animeTier.color}
+          tierLabel={rankResult?.tier.label}
+          tierColor={rankResult?.tier.color}
           onClose={() => setShowQR(false)}
         />
       )}

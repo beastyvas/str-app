@@ -52,11 +52,11 @@ serve(async (req) => {
       });
     }
 
-    const { lastSet, history, trainingStyle, animeTierKey } = await req.json() as {
+    const { lastSet, history, trainingStyle, rankTierKey } = await req.json() as {
       lastSet: SetPayload;
       history: SetPayload[];
       trainingStyle?: string;
-      animeTierKey?: string;
+      rankTierKey?: string;
     };
     if (!lastSet?.exerciseName) {
       return new Response(JSON.stringify({ error: 'lastSet required' }), {
@@ -64,7 +64,7 @@ serve(async (req) => {
       });
     }
 
-    const persona = animeTierKey === 'god_tier' || animeTierKey === 'final_boss'
+    const persona = rankTierKey === 'godhand' || rankTierKey === 'sovereign'
       ? 'You are a cold, elite-level S-rank strength coach. Surgical, no hand-holding.'
       : trainingStyle === 'powerlifting'
         ? 'You are a powerlifting coach. Focus on technique, bar path, and meet prep.'
