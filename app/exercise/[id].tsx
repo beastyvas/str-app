@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, TierName } from '@/constants/colors';
-import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+import { getTierForWeight, TIER_LABELS, TIER_ORDER, getScaledThresholds } from '@/constants/strengthStandards';
 import { MuscleMap } from '@/components/MuscleMap';
 import { ExerciseAnimation } from '@/components/ExerciseAnimation';
 
@@ -109,8 +109,17 @@ export default function ExerciseDetailScreen() {
   const bw = profile?.bodyweight_lbs ?? 185;
   const prWeight = pr?.weight ?? 0;
   const currentTier = getTierForWeight(exercise.name, prWeight, bw);
-  const standard = STRENGTH_STANDARDS[exercise.name.toLowerCase()];
-  const isBodyweightBased = standard?.type === 'bodyweight_multiplier';
+  // Strength standards exist only for the SBD lifts; thresholds are absolute lbs
+  // scaled to the user's bodyweight via the competition-data lookup.
+  const SBD_LIFT_MAP: Record<string, 'squat' | 'bench' | 'deadlift'> = {
+    'barbell back squats': 'squat',
+    'barbell bench press': 'bench',
+    'deadlifts': 'deadlift',
+  };
+  const sbdLift = SBD_LIFT_MAP[exercise.name.toLowerCase()];
+  const sbdGender: 'male' | 'female' = profile?.gender === 'female' ? 'female' : 'male';
+  // 24-step threshold table → entry weight for each rank is index rank*4
+  const rankThresholds = sbdLift ? getScaledThresholds(sbdLift, bw, sbdGender) : null;
 
   // Group recent sets by workout session
   const byWorkout = recentSets.reduce<Record<string, any[]>>((acc, s) => {
@@ -186,8 +195,8 @@ export default function ExerciseDetailScreen() {
           </View>
         )}
 
-        {/* Strength Tier Ladder */}
-        {standard && (
+        {/* Strength Tier Ladder — SBD lifts only */}
+        {rankThresholds && (
           <View style={{
             backgroundColor: Colors.surface,
             borderRadius: 16,
@@ -197,13 +206,12 @@ export default function ExerciseDetailScreen() {
             borderColor: Colors.border,
           }}>
             <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-              Strength Standards {isBodyweightBased ? `(${bw}lb BW)` : ''}
+              Strength Standards (at {bw} lbs)
             </Text>
-            {TIER_ORDER.slice(1).reverse().map((tier) => {
-              const threshold = standard.thresholds[tier];
-              const displayVal = isBodyweightBased
-                ? `${(threshold * bw).toFixed(0)} lbs (${threshold}× BW)`
-                : `${threshold} lbs`;
+            {[...TIER_ORDER].reverse().map((tier) => {
+              const rankIndex = TIER_ORDER.indexOf(tier);
+              const threshold = rankThresholds[rankIndex * 4];
+              const displayVal = `${threshold} lbs`;
               const isCurrentOrBelow = TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(currentTier);
               return (
                 <View key={tier} style={{

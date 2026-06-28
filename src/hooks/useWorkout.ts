@@ -337,11 +337,16 @@ export const useWorkoutStore = create<WorkoutStore>()(
   discardWorkout: async () => {
     const { activeWorkout, newPRs } = get();
     if (activeWorkout?.id) {
+      // Need the owner id to correctly upsert/restore PRs (the conflict target
+      // is user_id,exercise_id — without user_id the restore silently fails).
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user?.id;
+
       // Delete the workout (cascades to workout_sets via FK)
       await supabase.from('workouts').delete().eq('id', activeWorkout.id);
 
       // Roll back any PRs that were set during this workout
-      if (newPRs.length > 0) {
+      if (uid && newPRs.length > 0) {
         for (const pr of newPRs) {
           // Get the exercise ID
           const { data: ex } = await supabase
@@ -366,6 +371,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
             }, prevSets[0]);
             // Restore previous PR
             await supabase.from('personal_records').upsert({
+              user_id: uid,
               exercise_id: ex.id,
               weight: best.weight,
               reps: best.reps,
@@ -375,6 +381,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
             // No previous sets — delete the PR entirely
             await supabase.from('personal_records')
               .delete()
+              .eq('user_id', uid)
               .eq('exercise_id', ex.id);
           }
         }
@@ -403,7 +410,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
     // Rebuild exercises + sets from DB
     const exerciseMap: Record<string, WorkoutExercise> = {};
-    for (const s of (workout.workout_sets ?? []) as any[]) {
+    for (const s of ((workout as any).workout_sets ?? []) as any[]) {
       const ex = s.exercises;
       if (!ex) continue;
       if (!exerciseMap[ex.id]) {
