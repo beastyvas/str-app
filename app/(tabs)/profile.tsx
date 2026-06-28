@@ -14,6 +14,7 @@ import { Colors, TierName } from '@/constants/colors';
 import { QRModal } from '@/components/QRModal';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { UserBadges } from '@/components/UserBadges';
+import { MuscleHeatmap } from '@/components/MuscleHeatmap';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
@@ -172,6 +173,7 @@ export default function ProfileScreen() {
   const [animeTier, setAnimeTier] = useState<ReturnType<typeof getAnimeTierResult> | null>(null);
   const [friendCount, setFriendCount] = useState(0);
   const [weeklyData, setWeeklyData] = useState<{ day: string; volume: number; duration: number; sets: number }[]>([]);
+  const [muscleVolume, setMuscleVolume] = useState<Record<string, number>>({});
 
   // Lifter DNA
   const [dnaModalOpen, setDnaModalOpen] = useState(false);
@@ -272,6 +274,31 @@ export default function ProfileScreen() {
         sets: v.sets,
       }));
       setWeeklyData(weekly);
+
+      // ── 30-day muscle heatmap: sets per muscle group ──────────────────────
+      // Count sets (not weight×reps) so bodyweight work still registers — a set
+      // is a set whether it's loaded or not.
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: recentWorkouts } = await supabase
+        .from('workouts')
+        .select('id')
+        .eq('user_id', user.id)
+        .not('ended_at', 'is', null)
+        .gte('started_at', thirtyDaysAgo);
+      const recentIds = (recentWorkouts ?? []).map((w: any) => w.id);
+      const { data: recentSets } = recentIds.length > 0
+        ? await supabase
+            .from('workout_sets')
+            .select('exercises(muscle_group)')
+            .in('workout_id', recentIds)
+        : { data: [] as any[] };
+      const volByGroup: Record<string, number> = {};
+      for (const s of (recentSets ?? []) as any[]) {
+        const mg = s.exercises?.muscle_group;
+        if (!mg) continue;
+        volByGroup[mg] = (volByGroup[mg] ?? 0) + 1;
+      }
+      setMuscleVolume(volByGroup);
 
       // Streak calculation
       const daySet = new Set((workouts ?? []).map(w => new Date(w.started_at).toDateString()));
@@ -951,6 +978,22 @@ export default function ProfileScreen() {
                   );
                 })}
               </View>
+            </View>
+          )}
+
+          {/* ── 30-DAY MUSCLE HEATMAP ───────────────────────────────────────── */}
+          {!loadingStats && Object.keys(muscleVolume).length > 0 && (
+            <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  Last 30 Days
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 10 }}>volume by muscle</Text>
+              </View>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+                Where your work went — spot what's overcooked and what's getting skipped.
+              </Text>
+              <MuscleHeatmap volumeByGroup={muscleVolume} />
             </View>
           )}
 
