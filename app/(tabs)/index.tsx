@@ -108,16 +108,12 @@ export default function HomeScreen() {
   } | null>(null);
   const [workoutDays, setWorkoutDays] = useState<Record<number, {
     sessionType: string;
-    grade: string | null;
-    summary: string | null;
     name: string;
     durationMins: number;
   }>>({});
   const [selectedDayWorkout, setSelectedDayWorkout] = useState<{
     dow: number;
     sessionType: string;
-    grade: string | null;
-    summary: string | null;
     name: string;
     durationMins: number;
   } | null>(null);
@@ -334,13 +330,12 @@ export default function HomeScreen() {
       weekStart.setHours(0, 0, 0, 0);
       const { data: weekData } = await supabase
         .from('workouts')
-        .select('id, name, started_at, ended_at, ai_grade, ai_summary, workout_sets(exercises(name))')
+        .select('id, name, started_at, ended_at, workout_sets(exercises(name))')
         .eq('user_id', uid)
         .not('ended_at', 'is', null)
         .gte('started_at', weekStart.toISOString());
       if (weekData) {
-        const days: Record<number, { sessionType: string; grade: string | null; summary: string | null; name: string; durationMins: number; }> = {};
-        const ungraded: { dow: number; id: string }[] = [];
+        const days: Record<number, { sessionType: string; name: string; durationMins: number; }> = {};
         (weekData as any[]).forEach(w => {
           const dow = new Date(w.started_at).getDay();
           const exs = (w.workout_sets ?? []).map((s: any) => s.exercises?.name).filter(Boolean);
@@ -349,28 +344,11 @@ export default function HomeScreen() {
             : 0;
           days[dow] = {
             sessionType: classifySession(exs) ?? 'Training',
-            grade: w.ai_grade ?? null,
-            summary: w.ai_summary ?? null,
             name: w.name ?? 'Workout',
             durationMins,
           };
-          if (!w.ai_grade) ungraded.push({ dow, id: w.id });
         });
         setWorkoutDays(days);
-
-        // Backfill — grade any finished workout this week that never got
-        // graded (e.g. the fire-and-forget call at finish time failed).
-        ungraded.forEach(({ dow, id }) => {
-          supabase.functions.invoke('grade-workout', { body: { workoutId: id } }).then(({ data }) => {
-            if (data?.grade) {
-              setWorkoutDays(prev => {
-                const existing = prev[dow];
-                if (!existing) return prev;
-                return { ...prev, [dow]: { ...existing, grade: data.grade, summary: data.summary ?? existing.summary } };
-              });
-            }
-          }).catch(() => {});
-        });
       }
     } catch (e) {
       // silence
@@ -655,7 +633,7 @@ export default function HomeScreen() {
                 const color = dayData ? (SESSION_COLORS[dayData.sessionType] ?? '#888') : null;
                 const isPlanned = isToday && todaySession && !dayData;
                 const plannedColor = isPlanned ? (SESSION_COLORS[todaySession!] ?? Colors.accent) : null;
-                const displayEmoji = dayData?.grade ?? (dayData ? (SESSION_EMOJI[dayData.sessionType] ?? '🏋️') : null);
+                const displayEmoji = dayData ? (SESSION_EMOJI[dayData.sessionType] ?? '🏋️') : null;
 
                 return (
                   <TouchableOpacity
@@ -1329,24 +1307,13 @@ export default function HomeScreen() {
           </KeyboardAvoidingView>
         </Modal>
 
-        {/* Day workout grade modal */}
+        {/* Day workout detail modal */}
         <Modal visible={!!selectedDayWorkout} transparent animationType="slide" onRequestClose={() => setSelectedDayWorkout(null)}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setSelectedDayWorkout(null)}>
             <TouchableOpacity activeOpacity={1} onPress={() => {}}>
               {selectedDayWorkout && (() => {
                 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                const CANNED: Record<string, string> = {
-                  '💀': 'You went full beast mode. Every set was a war and you won.',
-                  '🔥': 'A great session. You showed up and put in real work.',
-                  '✅': 'Solid training day. Consistent effort, consistent progress.',
-                  '😐': 'Not every day is a banger. You still showed up — that matters.',
-                  '🤕': 'Rough one. Rest up and come back stronger.',
-                };
-                const grade = selectedDayWorkout.grade;
-                const summaryText = isPro && selectedDayWorkout.summary
-                  ? selectedDayWorkout.summary
-                  : grade ? CANNED[grade] : null;
-                const gradeDisplay = grade ?? SESSION_EMOJI[selectedDayWorkout.sessionType] ?? '🏋️';
+                const dayEmoji = SESSION_EMOJI[selectedDayWorkout.sessionType] ?? '🏋️';
 
                 return (
                   <View style={{
@@ -1360,8 +1327,8 @@ export default function HomeScreen() {
                   }}>
                     <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 24 }} />
 
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-                      <Text style={{ fontSize: 48 }}>{gradeDisplay}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                      <Text style={{ fontSize: 48 }}>{dayEmoji}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 }}>
                           {DAY_LABELS[selectedDayWorkout.dow]}
@@ -1377,29 +1344,6 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
-
-                    {summaryText ? (
-                      <View style={{
-                        backgroundColor: Colors.surface2,
-                        borderRadius: 12,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: Colors.border,
-                      }}>
-                        <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22 }}>
-                          {summaryText}
-                        </Text>
-                        {!isPro && grade && (
-                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 8 }}>
-                            Upgrade to Pro for your personalized session breakdown.
-                          </Text>
-                        )}
-                      </View>
-                    ) : (
-                      <View style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
-                        <Text style={{ color: Colors.textMuted, fontSize: 14 }}>AI grade loading…</Text>
-                      </View>
-                    )}
                   </View>
                 );
               })()}
