@@ -177,7 +177,13 @@ export default function HomeScreen() {
       ]);
       const hasWorkout = (workoutCount ?? 0) > 0;
       const hasFriend = (friendCount ?? 0) > 0;
-      const hasCoach = weeklyPlanDone === 'true';
+      // Durable server flag is the source of truth; fall back to the legacy
+      // local flag and backfill it server-side so it survives re-login/reinstall.
+      const serverPlanDone = (profile as any)?.weekly_plan_done === true;
+      const hasCoach = serverPlanDone || weeklyPlanDone === 'true';
+      if (hasCoach && !serverPlanDone) {
+        supabase.from('users').update({ weekly_plan_done: true }).eq('id', uid).then(() => {});
+      }
       if (creator?.id) setCreatorId(creator.id);
       const allDone = hasWorkout && hasFriend && hasCoach;
       const newSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
@@ -1039,6 +1045,8 @@ export default function HomeScreen() {
                   if (user) {
                     await AsyncStorage.setItem(`weekly_plan_done_${user.id}`, 'true');
                     await AsyncStorage.setItem(`celebrated_plan_${user.id}`, 'pending');
+                    // Durable server flag so the task doesn't reset on re-login/reinstall
+                    await supabase.from('users').update({ weekly_plan_done: true }).eq('id', user.id);
                   }
                   setFirstSteps(prev => prev ? { ...prev, hasCoach: true } : null);
                   const msg = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;

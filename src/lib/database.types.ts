@@ -35,6 +35,7 @@ export interface Database {
           monthly_analysis_last_run: string | null;
           monthly_analysis_last_report: string | null;
           eula_accepted_at: string | null;
+          weekly_plan_done: boolean;
         };
         Insert: {
           id: string;
@@ -67,6 +68,7 @@ export interface Database {
           monthly_analysis_last_run?: string | null;
           monthly_analysis_last_report?: string | null;
           eula_accepted_at?: string | null;
+          weekly_plan_done?: boolean;
         };
         Update: {
           id?: string;
@@ -99,6 +101,7 @@ export interface Database {
           monthly_analysis_last_run?: string | null;
           monthly_analysis_last_report?: string | null;
           eula_accepted_at?: string | null;
+          weekly_plan_done?: boolean;
         };
         Relationships: [];
       };
