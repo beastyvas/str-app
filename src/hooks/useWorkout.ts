@@ -34,6 +34,7 @@ export interface ActiveWorkout {
 interface WorkoutStore {
   activeWorkout: ActiveWorkout | null;
   lastSetLoggedAt: Date | null;       // drives rest timer
+  lastSetWasWarmup: boolean;          // picks warmup vs working rest duration
   newPRs: { exerciseName: string; weight: number; reps: number }[];
 
   startWorkout: (name: string, userId: string) => Promise<void>;
@@ -65,6 +66,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
     (set, get) => ({
   activeWorkout: null,
   lastSetLoggedAt: null,
+  lastSetWasWarmup: false,
   newPRs: [],
 
   startWorkout: async (name, userId) => {
@@ -84,6 +86,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
         exercises: [],
       },
       lastSetLoggedAt: null,
+      lastSetWasWarmup: false,
       newPRs: [],
     });
   },
@@ -189,6 +192,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       };
       set(state => ({
         lastSetLoggedAt: new Date(),
+        lastSetWasWarmup: true,
         activeWorkout: state.activeWorkout ? {
           ...state.activeWorkout,
           exercises: state.activeWorkout.exercises.map(e =>
@@ -255,6 +259,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
     set(state => ({
       lastSetLoggedAt: new Date(),
+      lastSetWasWarmup: false,
       activeWorkout: state.activeWorkout
         ? {
             ...state.activeWorkout,
@@ -434,6 +439,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       partialize: (state) => ({
         activeWorkout: state.activeWorkout,
         lastSetLoggedAt: state.lastSetLoggedAt,
+        lastSetWasWarmup: state.lastSetWasWarmup,
       }),
       // Dates come back from JSON as strings — convert them back
       onRehydrateStorage: () => (state) => {

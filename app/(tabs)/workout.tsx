@@ -50,6 +50,7 @@ export default function WorkoutTab() {
   const {
     activeWorkout,
     lastSetLoggedAt,
+    lastSetWasWarmup,
     newPRs,
     startWorkout,
     addExercise,
@@ -1273,7 +1274,7 @@ export default function WorkoutTab() {
       </View>
 
       {/* Rest timer — appears after first set */}
-      <RestTimer lastSetLoggedAt={lastSetLoggedAt} />
+      <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
       <WorkoutCoach
         lastSet={coachLastSet}
         allSetsThisExercise={coachHistory}
