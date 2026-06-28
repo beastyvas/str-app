@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, TierName } from '@/constants/colors';
 import { UserBadges } from './UserBadges';
 import { supabase } from '@/lib/supabase';
-import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
 import { useModeration } from '@/hooks/useModeration';
 import { useAuth } from '@/hooks/useAuth';
@@ -261,8 +261,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
     for (const pr of prs) {
       const name = pr.exercises?.name ?? '';
       const mg = pr.exercises?.muscle_group ?? 'Overall';
-      const standard = STRENGTH_STANDARDS[name.toLowerCase()];
-      if (!standard) continue;
+      // Only ranked lifts (the SBD lifts) return a non-beginner tier.
       const tier = getTierForWeight(name, pr.weight, bw);
       if (tier === 'beginner') continue;
       if (!groupMap[mg] || TIER_ORDER.indexOf(tier) > TIER_ORDER.indexOf(groupMap[mg].tier)) {

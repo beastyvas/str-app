@@ -19,7 +19,7 @@ import { SbdStrengthCard, BodyPartRanksCard } from '@/components/profile/RankCar
 import { screenText } from '@/lib/contentFilter';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
-import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
+import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -341,8 +341,9 @@ export default function ProfileScreen() {
 
       const groupMap: Record<string, { tier: TierName; bestLift: string; weight: number }> = {};
       for (const pr of allPRs) {
-        const standard = STRENGTH_STANDARDS[pr.exerciseName.toLowerCase()];
-        if (!standard || pr.tier === 'beginner') continue;
+        // pr.tier comes from getTierForWeight (above); only ranked lifts (the
+        // SBD lifts) return a non-beginner tier, so that gate is sufficient.
+        if (pr.tier === 'beginner') continue;
         const prRow = (prs ?? []).find((p: any) => p.exercises?.name === pr.exerciseName) as any;
         const mg = prRow?.exercises?.muscle_group ?? 'Overall';
         if (!groupMap[mg] || TIER_ORDER.indexOf(pr.tier) > TIER_ORDER.indexOf(groupMap[mg].tier)) {
