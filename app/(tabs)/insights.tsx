@@ -27,7 +27,7 @@ const STARTER_PROMPTS = [
   "Any signs of overtraining in my recent logs?",
 ];
 
-type Tab = 'coach' | 'import';
+type Tab = 'coach' | 'analysis' | 'import';
 
 export default function InsightsTab() {
   const { user, profile, refreshProfile } = useAuth();
@@ -71,6 +71,70 @@ export default function InsightsTab() {
 
   // Chat lives in memory for the current app session only (clears on restart)
   const { messages, addMessage } = useChatStore();
+
+  // ── Monthly Analysis (premium deep-dive) ───────────────────────────────────
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisReport, setAnalysisReport] = useState<string | null>(null);
+  const [analysisLastRun, setAnalysisLastRun] = useState<string | null>(null);
+
+  // Hydrate the last saved report from the profile (persisted server-side)
+  useEffect(() => {
+    const p = profile as any;
+    if (p?.monthly_analysis_last_report && analysisReport === null) {
+      setAnalysisReport(p.monthly_analysis_last_report);
+      setAnalysisLastRun(p.monthly_analysis_last_run ?? null);
+    }
+  }, [profile]);
+
+  // Free users get 1 run per calendar month — mirror the server check so the UI
+  // shows the upsell without needing a round-trip.
+  const analysisUsedThisMonth = (() => {
+    const p = profile as any;
+    if (!p?.monthly_analysis_month_start) return false;
+    const d = new Date(p.monthly_analysis_month_start);
+    const now = new Date();
+    const sameMonth = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
+    return sameMonth && (p.monthly_analysis_count ?? 0) >= 1;
+  })();
+  const canRunAnalysis = isPro || !analysisUsedThisMonth;
+
+  const generateAnalysis = async () => {
+    if (!user || analysisLoading) return;
+    if (!canRunAnalysis) { setShowPaywall(true); return; }
+    setAnalysisLoading(true);
+    try {
+      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['civilian'];
+      const { data, error } = await supabase.functions.invoke('monthly-analysis', {
+        body: { coachName, tierPersonality, animeTierKey: coachTierKey, trainingStyle: profile?.training_style },
+      });
+      if (error) {
+        // Non-2xx — pull the structured payload out of the response if we can
+        const ctx = (error as any).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const payload = await ctx.json();
+            if (payload?.error === 'limit') { setShowPaywall(true); return; }
+            Alert.alert('Monthly Analysis', payload?.message ?? 'Could not generate your analysis.');
+            return;
+          } catch {}
+        }
+        Alert.alert('Monthly Analysis', 'Could not generate your analysis. Try again.');
+        return;
+      }
+      if (data?.error) {
+        if (data.error === 'limit') { setShowPaywall(true); return; }
+        Alert.alert('Monthly Analysis', data.message ?? 'Could not generate your analysis.');
+        return;
+      }
+      setAnalysisReport(data.report);
+      setAnalysisLastRun(data.lastRun);
+      refreshProfile();
+    } catch (e) {
+      Alert.alert('Monthly Analysis', 'Could not reach the analyzer. Check your connection.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   // Import tab state
   const [importText, setImportText] = useState('');
@@ -403,7 +467,8 @@ ${context}`;
         <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 2 }}>
           {([
             { key: 'coach', label: 'Chat' },
-            { key: 'import', label: 'Import Workout' },
+            { key: 'analysis', label: 'Monthly' },
+            { key: 'import', label: 'Import' },
           ] as { key: Tab; label: string }[]).map(t => (
             <TouchableOpacity
               key={t.key}
@@ -636,6 +701,102 @@ ${context}`;
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      )}
+
+      {/* ── MONTHLY ANALYSIS TAB ── */}
+      {tab === 'analysis' && (
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          {/* Intro */}
+          <View style={{ alignItems: 'center', paddingVertical: 16, gap: 10 }}>
+            <View style={{
+              width: 72, height: 72, borderRadius: 36,
+              backgroundColor: coachTierColor + '18',
+              borderWidth: 2, borderColor: coachTierColor + '70',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 32 }}>📈</Text>
+            </View>
+            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 }}>
+              Monthly Analysis
+            </Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+              A deep-dive into your last 30 days — volume balance, RPE creep, stalled lifts,
+              and recurring themes in your notes. {coachName} reads your actual numbers.
+            </Text>
+            {!isPro && (
+              <View style={{
+                backgroundColor: Colors.surface, borderRadius: 10,
+                paddingHorizontal: 14, paddingVertical: 8,
+                borderWidth: 1, borderColor: Colors.border,
+              }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+                  {analysisUsedThisMonth ? "You've used your free analysis this month" : 'Free plan: 1 analysis per month'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Saved / generated report */}
+          {analysisReport && (
+            <View style={{
+              backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
+              borderWidth: 1, borderColor: coachTierColor + '35', marginTop: 8,
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ color: coachTierColor, fontSize: 11, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  Your Report
+                </Text>
+                {analysisLastRun && (
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
+                    {new Date(analysisLastRun).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                )}
+              </View>
+              <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 22 }}>
+                {analysisReport}
+              </Text>
+            </View>
+          )}
+
+          {/* Action */}
+          <View style={{ marginTop: 16 }}>
+            {analysisLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
+                <ActivityIndicator color={coachTierColor} />
+                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Reading your last 30 days…</Text>
+              </View>
+            ) : canRunAnalysis ? (
+              <TouchableOpacity
+                onPress={generateAnalysis}
+                style={{
+                  backgroundColor: coachTierColor, borderRadius: 14,
+                  paddingVertical: 16, alignItems: 'center',
+                  shadowColor: coachTierColor, shadowOpacity: 0.4, shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 4 }, elevation: 6,
+                }}
+              >
+                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>
+                  {analysisReport ? 'Run New Analysis' : 'Generate Analysis'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowPaywall(true)}
+                style={{
+                  backgroundColor: Colors.accentDim, borderRadius: 14, padding: 16,
+                  borderWidth: 1, borderColor: Colors.accent + '45', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Text style={{ color: Colors.accent, fontWeight: '900', fontSize: 14 }}>
+                  Go Pro for unlimited analyses ⚡
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 17 }}>
+                  You'll get a fresh free one next month, or upgrade for unlimited deep-dives anytime.
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
       )}
 
       {/* ── IMPORT TAB ── */}
