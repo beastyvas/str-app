@@ -83,8 +83,9 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
 
-  const { user: me } = useAuth();
+  const { user: me, profile: myProfile } = useAuth();
   const { reportContent, blockUser } = useModeration();
+  const [myRank, setMyRank] = useState<ReturnType<typeof getRankResult> | null>(null);
 
   // Safety menu — report objectionable content or block an abusive user.
   const openSafetyMenu = () => {
@@ -199,6 +200,18 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         if (friendship?.status === 'accepted') setFriendStatus('friends');
         else if (friendship?.status === 'pending') setFriendStatus('pending');
         else setFriendStatus('none');
+
+        // The viewer's own SBD rank, for the head-to-head comparison strip
+        if (me.id !== userId) {
+          const { data: myPrData } = await supabase
+            .from('personal_records')
+            .select('weight, reps, exercises(name)')
+            .eq('user_id', me.id);
+          const mySbd = (myPrData ?? [])
+            .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
+            .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
+          setMyRank(getRankResult(mySbd, myProfile?.bodyweight_lbs ?? 185));
+        }
       }
 
       setLoading(false);
@@ -314,6 +327,72 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
           <ActivityIndicator color={Colors.accent} style={{ marginTop: 60 }} />
         ) : profile ? (
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 16 }}>
+
+            {/* ── HEAD-TO-HEAD ──────────────────────────────────────────── */}
+            {myRank && rankResult && me?.id !== userId && (() => {
+              const them = profile?.display_name?.split(' ')[0] || 'Them';
+              const liftWeight = (r: typeof myRank, key: string) =>
+                r?.lifts.find(l => l.label === key)?.weight ?? 0;
+              const rows: { label: string; mine: string; theirs: string; mineWins: boolean | null }[] = [
+                {
+                  label: 'Rank',
+                  mine: `${myRank.tier.label} ${ROMAN[myRank.subTier]}`,
+                  theirs: `${rankResult.tier.label} ${ROMAN[rankResult.subTier]}`,
+                  mineWins: myRank.avgScore === rankResult.avgScore ? null : myRank.avgScore > rankResult.avgScore,
+                },
+                ...(['SQ', 'BP', 'DL'] as const).map(k => {
+                  const mine = liftWeight(myRank, k);
+                  const theirs = liftWeight(rankResult, k);
+                  return {
+                    label: k === 'SQ' ? 'Squat' : k === 'BP' ? 'Bench' : 'Deadlift',
+                    mine: mine > 0 ? `${mine}` : '—',
+                    theirs: theirs > 0 ? `${theirs}` : '—',
+                    mineWins: mine === theirs ? null : mine > theirs,
+                  };
+                }),
+              ];
+              return (
+                <View style={{
+                  backgroundColor: Colors.surface, borderRadius: 16, padding: 14,
+                  borderWidth: 1, borderColor: Colors.border,
+                }}>
+                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                    <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>
+                      Head to Head
+                    </Text>
+                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }}>YOU</Text>
+                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.textSecondary, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }} numberOfLines={1}>
+                      {them.toUpperCase()}
+                    </Text>
+                  </View>
+                  {rows.map((row, i) => (
+                    <View key={i} style={{
+                      flexDirection: 'row', alignItems: 'center', paddingVertical: 6,
+                      borderTopWidth: i === 0 ? 0 : 1, borderTopColor: Colors.border,
+                    }}>
+                      <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 12 }}>{row.label}</Text>
+                      <Text style={{
+                        flex: 1, textAlign: 'center', fontSize: 13,
+                        fontWeight: row.mineWins === true ? '900' : '600',
+                        color: row.mineWins === true ? Colors.accent : Colors.textSecondary,
+                      }}>
+                        {row.mine}
+                      </Text>
+                      <Text style={{
+                        flex: 1, textAlign: 'center', fontSize: 13,
+                        fontWeight: row.mineWins === false ? '900' : '600',
+                        color: row.mineWins === false ? tierColor : Colors.textSecondary,
+                      }}>
+                        {row.theirs}
+                      </Text>
+                    </View>
+                  ))}
+                  <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 6, textAlign: 'center' }}>
+                    Lifts in lbs · bold = stronger
+                  </Text>
+                </View>
+              );
+            })()}
 
             {/* ── HERO ──────────────────────────────────────────────────── */}
             <View style={{ alignItems: 'center', gap: 12 }}>
