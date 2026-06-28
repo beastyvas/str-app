@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 import { getRankResult, RANK_TIERS, ROMAN } from '@/constants/ranks';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
+import { screenText } from '@/lib/contentFilter';
 
 type Step = 'welcome' | 'identity' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
 const STEPS: Step[] = ['welcome', 'identity', 'gender', 'bodyweight', 'goals', 'sbd', 'dna', 'done'];
@@ -85,6 +86,8 @@ export default function OnboardingScreen() {
   const handleFinish = async () => {
     const bw = parseFloat(bodyweight);
     if (!bw) { Alert.alert('Enter your bodyweight to continue'); return; }
+    const nameIssue = screenText(displayName, 'display name') || screenText(username, 'username');
+    if (nameIssue) { Alert.alert('Not allowed', nameIssue); return; }
     setSaving(true);
     try {
       const bwLbs = unit === 'kg' ? bw * 2.205 : bw;

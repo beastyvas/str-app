@@ -34,6 +34,7 @@ export interface Database {
           monthly_analysis_month_start: string | null;
           monthly_analysis_last_run: string | null;
           monthly_analysis_last_report: string | null;
+          eula_accepted_at: string | null;
         };
         Insert: {
           id: string;
@@ -65,6 +66,7 @@ export interface Database {
           monthly_analysis_month_start?: string | null;
           monthly_analysis_last_run?: string | null;
           monthly_analysis_last_report?: string | null;
+          eula_accepted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -96,6 +98,7 @@ export interface Database {
           monthly_analysis_month_start?: string | null;
           monthly_analysis_last_run?: string | null;
           monthly_analysis_last_report?: string | null;
+          eula_accepted_at?: string | null;
         };
         Relationships: [];
       };
@@ -365,6 +368,57 @@ export interface Database {
           workout_id?: string;
           user_id?: string;
           photo_url?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      content_reports: {
+        Row: {
+          id: string;
+          reporter_id: string;
+          reported_user_id: string | null;
+          content_type: string;
+          content_id: string | null;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          reporter_id: string;
+          reported_user_id?: string | null;
+          content_type: string;
+          content_id?: string | null;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          reporter_id?: string;
+          reported_user_id?: string | null;
+          content_type?: string;
+          content_id?: string | null;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      blocked_users: {
+        Row: {
+          id: string;
+          blocker_id: string;
+          blocked_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          blocker_id: string;
+          blocked_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          blocker_id?: string;
+          blocked_id?: string;
           created_at?: string;
         };
         Relationships: [];

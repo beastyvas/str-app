@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 let AppleAuthentication: any = null; try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+import { EulaModal } from '@/components/EulaModal';
 
 const IS_DEV = __DEV__;
 
@@ -16,7 +18,26 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // App Store Guideline 1.2 — the user must accept the Terms of Use (EULA)
+  // BEFORE an account is created. All sign-in paths are gated on this.
+  const [agreed, setAgreed] = useState(false);
+  const [showEula, setShowEula] = useState(false);
+
+  // Returns true if the user has agreed; otherwise nudges them and blocks.
+  const requireAgreement = (): boolean => {
+    if (agreed) return true;
+    Alert.alert('Agree to continue', 'Please accept the Terms of Use to create your account.');
+    return false;
+  };
+
+  const acceptEula = () => {
+    setAgreed(true);
+    setShowEula(false);
+    AsyncStorage.setItem('eula_accepted', 'true').catch(() => {});
+  };
+
   const handleGoogle = async () => {
+    if (!requireAgreement()) return;
     try {
       setLoading(true);
       await signInWithGoogle();
@@ -28,6 +49,7 @@ export default function LoginScreen() {
   };
 
   const handleApple = async () => {
+    if (!requireAgreement()) return;
     try {
       setAppleLoading(true);
       const credential = await AppleAuthentication.signInAsync({
@@ -51,6 +73,7 @@ export default function LoginScreen() {
   };
 
   const handleDevLogin = async () => {
+    if (!requireAgreement()) return;
     if (!email || !password) { Alert.alert('Enter email and password'); return; }
     setLoading(true);
     try {
@@ -129,9 +152,33 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={{ color: Colors.textMuted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
-            By continuing you agree to our Terms of Service and Privacy Policy.
-          </Text>
+          {/* EULA acceptance — required before account creation (Guideline 1.2) */}
+          <TouchableOpacity
+            onPress={() => setAgreed(a => !a)}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 4 }}
+          >
+            <View style={{
+              width: 22, height: 22, borderRadius: 6, marginTop: 1,
+              borderWidth: 1.5,
+              borderColor: agreed ? Colors.accent : Colors.border,
+              backgroundColor: agreed ? Colors.accent : 'transparent',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              {agreed && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
+            </View>
+            <Text style={{ color: Colors.textMuted, fontSize: 12, flex: 1, lineHeight: 17 }}>
+              I agree to the{' '}
+              <Text
+                style={{ color: Colors.accent, fontWeight: '700' }}
+                onPress={() => setShowEula(true)}
+              >
+                Terms of Use (EULA)
+              </Text>
+              {' '}and Privacy Policy. I understand STR has zero tolerance for objectionable
+              content and abusive users.
+            </Text>
+          </TouchableOpacity>
 
           {/* Dev-only email login */}
           {IS_DEV && (
@@ -189,6 +236,8 @@ export default function LoginScreen() {
           )}
         </View>
       </View>
+
+      <EulaModal visible={showEula} onClose={() => setShowEula(false)} onAgree={acceptEula} />
     </SafeAreaView>
   );
 }

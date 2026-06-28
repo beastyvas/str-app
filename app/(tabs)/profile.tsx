@@ -15,6 +15,7 @@ import { QRModal } from '@/components/QRModal';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { UserBadges } from '@/components/UserBadges';
 import { MuscleHeatmap } from '@/components/MuscleHeatmap';
+import { screenText } from '@/lib/contentFilter';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
@@ -375,6 +376,10 @@ export default function ProfileScreen() {
     if (username.trim() && uname.length < 3) { setUsernameError('Username must be at least 3 characters'); return; }
     setUsernameError('');
 
+    // Objectionable-content screen (Guideline 1.2)
+    const nameIssue = screenText(displayName, 'display name') || screenText(uname, 'username');
+    if (nameIssue) { Alert.alert('Not allowed', nameIssue); return; }
+
     if (uname && uname !== profile?.username) {
       const { data: existing } = await supabase.from('public_profiles').select('id').eq('username', uname).neq('id', user!.id).maybeSingle();
       if (existing) { setUsernameError('That username is already taken'); return; }
@@ -452,6 +457,8 @@ export default function ProfileScreen() {
 
   const saveBio = async () => {
     if (!user) return;
+    const bioIssue = screenText(bio, 'bio');
+    if (bioIssue) { Alert.alert('Not allowed', bioIssue); return; }
     await supabase.from('users').update({ bio: bio.trim() || null }).eq('id', user.id);
     await refreshProfile();
     setBioEditing(false);

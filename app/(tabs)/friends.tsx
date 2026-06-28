@@ -13,6 +13,8 @@ import { Colors } from '@/constants/colors';
 import { getRankResult } from '@/constants/ranks';
 import { FriendProfileModal } from '@/components/FriendProfileModal';
 import { UserBadges } from '@/components/UserBadges';
+import { useModeration } from '@/hooks/useModeration';
+import { screenText } from '@/lib/contentFilter';
 
 type SubTab = 'feed' | 'people';
 
@@ -120,6 +122,7 @@ function formatDuration(start: string, end: string) {
 
 export default function SocialScreen() {
   const { user, profile } = useAuth();
+  const { reportContent, blockUser } = useModeration();
   const [subTab, setSubTab] = useState<SubTab>('feed');
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -150,9 +153,20 @@ export default function SocialScreen() {
         .select('id, status, requester_id, addressee_id')
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
+      // Blocked users are hidden everywhere (Guideline 1.2)
+      const { data: blockedRows } = await supabase
+        .from('blocked_users')
+        .select('blocked_id')
+        .eq('blocker_id', user.id);
+      const blockedSet = new Set((blockedRows ?? []).map((b: any) => b.blocked_id));
+
       console.log('[Friends] total friendships:', friendships?.length ?? 0);
-      const accepted = (friendships ?? []).filter(f => f.status === 'accepted');
-      const incoming = (friendships ?? []).filter(f => f.status === 'pending' && f.addressee_id === user.id);
+      const otherId = (f: any) => (f.requester_id === user.id ? f.addressee_id : f.requester_id);
+      const accepted = (friendships ?? [])
+        .filter(f => f.status === 'accepted')
+        .filter(f => !blockedSet.has(otherId(f)));
+      const incoming = (friendships ?? [])
+        .filter(f => f.status === 'pending' && f.addressee_id === user.id && !blockedSet.has(f.requester_id));
       const friendIds = accepted.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
       console.log('[Friends] accepted:', accepted.length, 'friendIds:', friendIds);
 
@@ -298,7 +312,9 @@ export default function SocialScreen() {
             ]);
             const myId = user!.id;
             const enriched = posts.map(p => {
-              const postComments = (commentsRes.data ?? []).filter((c: any) => c.workout_id === p.workoutId);
+              const postComments = (commentsRes.data ?? [])
+                .filter((c: any) => c.workout_id === p.workoutId)
+                .filter((c: any) => !blockedSet.has(c.user_id)); // hide blocked users' comments
               return {
                 ...p,
                 likeCount: (likesRes.data ?? []).filter((l: any) => l.workout_id === p.workoutId).length,
@@ -369,6 +385,45 @@ export default function SocialScreen() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Report / block a feed post's author (Guideline 1.2)
+  const openPostSafetyMenu = (post: FeedPost) => {
+    if (post.userId === user?.id) return;
+    Alert.alert(post.displayName, 'Keep STR safe', [
+      {
+        text: 'Report post',
+        onPress: async () => {
+          const ok = await reportContent({
+            reportedUserId: post.userId,
+            contentType: 'workout',
+            contentId: post.workoutId,
+          });
+          Alert.alert(ok ? 'Reported' : 'Error', ok
+            ? 'Thanks — our team will review this within 24 hours.'
+            : 'Could not file the report. Please try again.');
+        },
+      },
+      {
+        text: `Block ${post.displayName}`,
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert('Block user', `Block ${post.displayName}? Their posts will be removed from your feed.`, [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Block',
+              style: 'destructive',
+              onPress: async () => {
+                const ok = await blockUser(post.userId);
+                if (ok) { setFeed(prev => prev.filter(p => p.userId !== post.userId)); loadData(); }
+                else Alert.alert('Error', 'Could not block this user. Please try again.');
+              },
+            },
+          ]);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   // Auto-open creator profile if navigated from First Steps on home
   useFocusEffect(useCallback(() => {
@@ -478,6 +533,8 @@ export default function SocialScreen() {
 
   const sendComment = async () => {
     if (!commentText.trim() || !user || !commentWorkoutId) return;
+    const commentIssue = screenText(commentText, 'comment');
+    if (commentIssue) { Alert.alert('Not allowed', commentIssue); return; }
     setSendingComment(true);
     const { data } = await supabase
       .from('workout_comments')
@@ -664,35 +721,47 @@ export default function SocialScreen() {
                 )}
 
                 {/* Post header */}
-                <TouchableOpacity
-                  onPress={() => setSelectedFriendId(post.userId)}
-                  activeOpacity={0.8}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}
-                >
-                  <Avatar url={post.avatarUrl} name={post.displayName} color={post.rankTierColor ?? Colors.accent} size={42} />
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
-                        {post.displayName}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedFriendId(post.userId)}
+                    activeOpacity={0.8}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}
+                  >
+                    <Avatar url={post.avatarUrl} name={post.displayName} color={post.rankTierColor ?? Colors.accent} size={42} />
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>
+                          {post.displayName}
+                        </Text>
+                        <UserBadges isOwner={post.isOwner} isOg={post.isOg} isPro={post.isPro} size="sm" />
+                        {post.rankTierLabel && (
+                          <View style={{
+                            backgroundColor: (post.rankTierColor ?? Colors.accent) + '20',
+                            borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+                            borderWidth: 1, borderColor: (post.rankTierColor ?? Colors.accent) + '40',
+                          }}>
+                            <Text style={{ color: post.rankTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
+                              {post.rankTierLabel}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                        {timeAgo(post.endedAt)}
                       </Text>
-                      <UserBadges isOwner={post.isOwner} isOg={post.isOg} isPro={post.isPro} size="sm" />
-                      {post.rankTierLabel && (
-                        <View style={{
-                          backgroundColor: (post.rankTierColor ?? Colors.accent) + '20',
-                          borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
-                          borderWidth: 1, borderColor: (post.rankTierColor ?? Colors.accent) + '40',
-                        }}>
-                          <Text style={{ color: post.rankTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
-                            {post.rankTierLabel}
-                          </Text>
-                        </View>
-                      )}
                     </View>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                      {timeAgo(post.endedAt)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  {/* Report / block — only on other users' posts */}
+                  {post.userId !== user?.id && (
+                    <TouchableOpacity
+                      onPress={() => openPostSafetyMenu(post)}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      style={{ paddingHorizontal: 8, paddingVertical: 8 }}
+                    >
+                      <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '900' }}>⋯</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
                 {/* Workout name + stat chips */}
                 <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>

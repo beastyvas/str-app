@@ -37,6 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) console.error('[useAuth] fetchProfile error:', error.message, error.code);
     if (data) setProfile(data);
 
+    // Record EULA acceptance server-side once (the login screen gates account
+    // creation on agreement and sets this local flag) — Guideline 1.2.
+    if (data && !(data as any).eula_accepted_at) {
+      try {
+        const AS = (await import('@react-native-async-storage/async-storage')).default;
+        if ((await AS.getItem('eula_accepted')) === 'true') {
+          await supabase.from('users').update({ eula_accepted_at: new Date().toISOString() }).eq('id', userId);
+        }
+      } catch {}
+    }
+
     // Identify user in RevenueCat (skip in Expo Go)
     try {
       const Constants = require('expo-constants').default;

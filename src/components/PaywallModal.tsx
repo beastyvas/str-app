@@ -61,8 +61,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
     if (!rcAvailable) {
       // In Expo Go — show setup instructions
       Alert.alert(
-        'Subscription',
-        'In-app purchases require the full app build. Build with EAS and configure RevenueCat to enable subscriptions.',
+        'Pro',
+        'In-app purchases require the full app build. Build with EAS and configure RevenueCat to enable purchases.',
         [{ text: 'OK' }]
       );
       return;
@@ -95,31 +95,6 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
       if (!e.userCancelled) {
         Alert.alert('Purchase failed', e.message);
       }
-    } finally {
-      setPurchasing(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    if (!rcAvailable || !user) return;
-    setPurchasing(true);
-    try {
-      const Purchases = require('react-native-purchases').default;
-      const customerInfo = await Purchases.restorePurchases();
-      const isProNow = customerInfo.entitlements.active['pro'] !== undefined;
-      if (isProNow) {
-        const { error: fnErr } = await supabase.functions.invoke('verify-subscription');
-        if (fnErr) {
-          await supabase.from('users').update({ is_pro: true }).eq('id', user.id);
-        }
-        await refreshProfile();
-        Alert.alert('Restored!', 'Your Pro subscription is active.');
-        onClose();
-      } else {
-        Alert.alert('No subscription found', 'No active Pro subscription on this Apple ID.');
-      }
-    } catch (e: any) {
-      Alert.alert('Restore failed', e.message);
     } finally {
       setPurchasing(false);
     }
@@ -243,7 +218,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
                   color: billingPeriod === period ? Colors.text : Colors.textMuted,
                   fontSize: 11, marginTop: 1,
                 }}>
-                  {period === 'annual' ? '$59.99 / yr' : '$7.99 / mo'}
+                  {period === 'annual' ? '$59.99 once' : '$7.99 once'}
                 </Text>
                 {period === 'annual' && (
                   <View style={{
@@ -261,8 +236,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           <View style={{ alignItems: 'center', marginBottom: 20 }}>
             <Text style={{ color: Colors.textMuted, fontSize: 13 }}>
               {billingPeriod === 'annual'
-                ? '$4.99/month, billed annually'
-                : '$7.99/month, cancel anytime'}
+                ? '$59.99 — one-time purchase, 1 year of Pro'
+                : '$7.99 — one-time purchase, 1 month of Pro'}
             </Text>
           </View>
 
@@ -286,11 +261,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             }
           </TouchableOpacity>
 
-          {/* Restore + Redeem + legal */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
-            <TouchableOpacity onPress={handleRestore}>
-              <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Restore purchases</Text>
-            </TouchableOpacity>
+          {/* Redeem + legal */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16 }}>
             <TouchableOpacity onPress={async () => {
               try {
                 const Purchases = require('react-native-purchases').default;
@@ -301,8 +273,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             </TouchableOpacity>
           </View>
           <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', lineHeight: 15 }}>
-            Subscription auto-renews. Cancel anytime in App Store settings.
-            Payment charged to your Apple ID.
+            One-time purchase, billed once to your Apple ID. This is not a
+            subscription and does not auto-renew.
           </Text>
         </ScrollView>
       </SafeAreaView>

@@ -6,6 +6,8 @@ import { UserBadges } from './UserBadges';
 import { supabase } from '@/lib/supabase';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, STRENGTH_STANDARDS } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
+import { useModeration } from '@/hooks/useModeration';
+import { useAuth } from '@/hooks/useAuth';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
@@ -80,6 +82,62 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(null);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
+
+  const { user: me } = useAuth();
+  const { reportContent, blockUser } = useModeration();
+
+  // Safety menu — report objectionable content or block an abusive user.
+  const openSafetyMenu = () => {
+    if (!userId || userId === me?.id) return;
+    const name = profile?.display_name ?? 'this user';
+    Alert.alert(name, 'Keep STR safe', [
+      {
+        text: 'Report user',
+        onPress: () => {
+          Alert.alert(
+            'Report user',
+            `Report ${name} for objectionable content or abusive behavior? Our team reviews reports within 24 hours.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Report',
+                style: 'destructive',
+                onPress: async () => {
+                  const ok = await reportContent({ reportedUserId: userId, contentType: 'profile', contentId: userId });
+                  Alert.alert(ok ? 'Reported' : 'Error', ok
+                    ? 'Thanks — our team will review this within 24 hours.'
+                    : 'Could not file the report. Please try again.');
+                },
+              },
+            ],
+          );
+        },
+      },
+      {
+        text: 'Block user',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert(
+            'Block user',
+            `Block ${name}? You won't see their posts or profile, and they'll be removed from your feed.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Block',
+                style: 'destructive',
+                onPress: async () => {
+                  const ok = await blockUser(userId);
+                  if (ok) { Alert.alert('Blocked', `${name} has been blocked.`); onClose(); }
+                  else Alert.alert('Error', 'Could not block this user. Please try again.');
+                },
+              },
+            ],
+          );
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   useEffect(() => {
     if (!visible || !userId) return;
@@ -237,10 +295,19 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
           )}
           {loading && <View />}
 
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, textAlign: 'center' }}>×</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Safety — report / block (Guideline 1.2) */}
+            {!loading && userId && userId !== me?.id && (
+              <TouchableOpacity onPress={openSafetyMenu} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, textAlign: 'center' }}>⋯</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 20, textAlign: 'center' }}>×</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (

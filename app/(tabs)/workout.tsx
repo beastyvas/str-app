@@ -21,6 +21,7 @@ import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getRankResult, RankTier } from '@/constants/ranks';
+import { screenText } from '@/lib/contentFilter';
 import {
   requestNotificationPermissions,
   setupNotificationChannels,
@@ -595,6 +596,11 @@ export default function WorkoutTab() {
   };
 
   const handleFinishConfirm = async (quick = false) => {
+    // Screen the shared workout note for objectionable content (Guideline 1.2)
+    if (!quick) {
+      const noteIssue = screenText(finishNotes, 'workout note');
+      if (noteIssue) { Alert.alert('Not allowed', noteIssue); return; }
+    }
     setFinishing(true);
     setShowFinishModal(false);
     try {
