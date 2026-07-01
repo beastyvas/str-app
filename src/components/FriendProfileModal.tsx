@@ -240,6 +240,11 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
 
   const tierColor = rankResult?.tier.color ?? Colors.accent;
 
+  const isSelf = !!me?.id && me.id === userId;
+  // PRs are gated behind an accepted friendship (except the creator, whose PRs
+  // are public). If we're not friends and got no PRs back, they're hidden.
+  const prsHidden = !isSelf && friendStatus !== 'friends' && !profile?.is_owner && prs.length === 0;
+
   const formatDuration = (start: string, end: string) => {
     const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
     return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
@@ -327,8 +332,24 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         ) : profile ? (
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 16 }}>
 
+            {/* ── PRs LOCKED (non-friend) ───────────────────────────────── */}
+            {prsHidden && (
+              <View style={{
+                backgroundColor: Colors.surface, borderRadius: 16, padding: 18,
+                borderWidth: 1, borderColor: Colors.accent + '35', alignItems: 'center', gap: 6,
+              }}>
+                <Text style={{ fontSize: 22 }}>🔒</Text>
+                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center' }}>
+                  Add friend to see their PRs
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 17 }}>
+                  Their lifts, rank, and head-to-head unlock once you're friends.
+                </Text>
+              </View>
+            )}
+
             {/* ── HEAD-TO-HEAD ──────────────────────────────────────────── */}
-            {myRank && rankResult && me?.id !== userId && (() => {
+            {!prsHidden && myRank && rankResult && me?.id !== userId && (() => {
               const them = profile?.display_name?.split(' ')[0] || 'Them';
               const liftWeight = (r: typeof myRank, key: string) =>
                 r?.lifts.find(l => l.label === key)?.weight ?? 0;
@@ -442,7 +463,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
             </View>
 
             {/* ── RANK CARD ─────────────────────────────────────────────── */}
-            {rankResult && (
+            {!prsHidden && rankResult && (
               <View style={{
                 backgroundColor: tierColor + '10',
                 borderRadius: 16, padding: 18,
