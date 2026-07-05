@@ -90,8 +90,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 80,
-        system: `${persona} Give ONE short coaching cue (1-2 sentences max, no filler). Be specific to the set data.`,
+        max_tokens: 60,
+        system: `${persona} Give ONE short coaching cue — a single sentence, 20 words max, no filler, no preamble. Be specific to the set data.`,
         messages: [{ role: 'user', content: `${context}${setDesc} Quick coaching note?` }],
       }),
     });
