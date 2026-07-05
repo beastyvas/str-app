@@ -1243,6 +1243,9 @@ export default function WorkoutTab() {
   const pendingSyncCount = activeWorkout.exercises
     .flatMap(e => e.sets)
     .filter(s => !s.id).length;
+  // Progressive disclosure: supersets are an intermediate+ tool. Day-one
+  // lifters get a clean card — no chain icons to decode.
+  const showSupersetControls = !!profile?.experience_level && profile.experience_level !== 'beginner';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }} edges={['top']}>
@@ -1460,7 +1463,7 @@ export default function WorkoutTab() {
               onEditSet={updateSet}
               onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
               supersetRole={pairedWithNext ? 'first' : pairedWithPrev ? 'second' : null}
-              canToggleSuperset={pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId)}
+              canToggleSuperset={showSupersetControls && (pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId))}
               onToggleSuperset={toggleSupersetWithNext}
             />
           );

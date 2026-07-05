@@ -60,8 +60,14 @@ export default function OnboardingScreen() {
   const [showTierReveal, setShowTierReveal] = useState(false);
   const [revealTier, setRevealTier] = useState<any>(null);
 
-  const stepIndex = STEPS.indexOf(step);
-  const progress = stepIndex / (STEPS.length - 1);
+  // Beginners skip the "what are your best lifts?" step — a day-one lifter
+  // doesn't know their 1RMs, and asking is exactly the overwhelm we're
+  // trying to remove. Their rank starts at Mortal and grows from real logs.
+  const activeSteps = experience === 'beginner' ? STEPS.filter(s => s !== 'sbd') : STEPS;
+  const stepIndex = activeSteps.indexOf(step);
+  const progress = stepIndex / (activeSteps.length - 1);
+  const totalLabeled = activeSteps.length - 2; // exclude welcome + done
+  const stepLabel = `Step ${stepIndex} of ${totalLabeled}`;
 
   const animateNext = (nextStep: Step) => {
     // Fade to 0.15 not 0 — prevents black flash
@@ -72,12 +78,12 @@ export default function OnboardingScreen() {
   };
 
   const next = () => {
-    const nextStep = STEPS[stepIndex + 1];
+    const nextStep = activeSteps[stepIndex + 1];
     if (nextStep) animateNext(nextStep);
   };
 
   const back = () => {
-    const prevStep = STEPS[stepIndex - 1];
+    const prevStep = activeSteps[stepIndex - 1];
     if (prevStep) animateNext(prevStep);
   };
 
@@ -131,12 +137,16 @@ export default function OnboardingScreen() {
           if (!ex) continue;
           await supabase.from('personal_records').upsert({
             user_id: user!.id, exercise_id: ex.id,
-            weight: parseFloat(entry.val), reps: 1,
+            // Typed in the chosen unit — stored canonical lbs
+            weight: unit === 'kg' ? Math.round(parseFloat(entry.val) * 2.2046226218 * 100) / 100 : parseFloat(entry.val),
+            reps: 1,
             achieved_at: new Date().toISOString(),
           }, { onConflict: 'user_id,exercise_id' });
         }
         const prs = sbdEntries.map(e => ({
-          exerciseName: e.name, weight: parseFloat(e.val), reps: 1,
+          exerciseName: e.name,
+          weight: unit === 'kg' ? parseFloat(e.val) * 2.2046226218 : parseFloat(e.val),
+          reps: 1,
         }));
         const result = getRankResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
         setRevealTier(result.tier);
@@ -237,7 +247,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 1 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What do we call you?
@@ -306,7 +316,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 2 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Who's training?
@@ -363,7 +373,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 3 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Your bodyweight.
@@ -425,7 +435,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 20 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 4 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What are you training for?
@@ -525,7 +535,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 5 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What are your{'\n'}best lifts?
@@ -608,7 +618,7 @@ export default function OnboardingScreen() {
               <View style={{ gap: 24 }}>
                 <View>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    Step 6 of 6
+                    {stepLabel}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Your Lifter DNA.
@@ -627,7 +637,9 @@ export default function OnboardingScreen() {
                     EXAMPLE
                   </Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
-                    "3 years training, mostly bodybuilding. Left shoulder impingement — flat pressing hurts at the bottom. Bench has always been behind. Goal is to compete in 2 years. Sleep is inconsistent..."
+                    {experience === 'beginner'
+                      ? '"Brand new to this — honestly a little nervous. Desk job, knees feel stiff. Can realistically train 3 days a week. Main thing is building the habit without hurting myself."'
+                      : '"3 years training, mostly bodybuilding. Left shoulder impingement — flat pressing hurts at the bottom. Bench has always been behind. Goal is to compete in 2 years. Sleep is inconsistent..."'}
                   </Text>
                 </View>
 
@@ -705,9 +717,26 @@ export default function OnboardingScreen() {
                     </View>
                   )}
 
-                  <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                    Log workouts to earn PRs.{'\n'}Every lift moves your rank. Every rank is earned.
-                  </Text>
+                  {experience === 'beginner' ? (
+                    <View style={{
+                      backgroundColor: Colors.accentDim, borderRadius: 14, padding: 16,
+                      width: '100%', gap: 4,
+                    }}>
+                      <Text style={{ color: Colors.accent, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: '800' }}>
+                        Your path is ready
+                      </Text>
+                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
+                        Full Body Starter · 3 days a week
+                      </Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
+                        It's waiting in your Workout tab — exercises picked, sets and reps suggested. Just show up. Your coach handles the rest.
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                      Log workouts to earn PRs.{'\n'}Every lift moves your rank. Every rank is earned.
+                    </Text>
+                  )}
                 </View>
 
                 <View style={{ width: '100%', gap: 12 }}>
