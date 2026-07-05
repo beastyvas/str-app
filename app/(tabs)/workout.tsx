@@ -92,6 +92,7 @@ export default function WorkoutTab() {
     clearPRs,
     restoreWorkout,
     syncPending,
+    syncFailed,
   } = useWorkoutStore();
 
   // Restore any in-progress workout from Supabase when the app reopens
@@ -1342,8 +1343,9 @@ export default function WorkoutTab() {
         </TouchableOpacity>
       </View>
 
-      {/* Offline queue banner — anything logged without signal is safe on-device */}
-      {pendingSyncCount > 0 && (
+      {/* Offline queue banner — only after a sync attempt actually failed,
+          never during the normal in-flight moment of an online log */}
+      {syncFailed && pendingSyncCount > 0 && (
         <TouchableOpacity
           onPress={() => syncPending()}
           activeOpacity={0.8}

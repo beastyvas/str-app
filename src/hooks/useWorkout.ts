@@ -40,6 +40,10 @@ interface WorkoutStore {
   activeWorkout: ActiveWorkout | null;
   lastSetLoggedAt: Date | null;       // drives rest timer
   lastSetWasWarmup: boolean;          // picks warmup vs working rest duration
+  // True only after a sync attempt actually failed — the offline banner keys
+  // off this, not off "something is in flight", so it never flashes on a
+  // normal online log.
+  syncFailed: boolean;
   newPRs: { exerciseName: string; weight: number; reps: number }[];
 
   startWorkout: (name: string, userId: string) => Promise<void>;
@@ -107,6 +111,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
   activeWorkout: null,
   lastSetLoggedAt: null,
   lastSetWasWarmup: false,
+  syncFailed: false,
   newPRs: [],
 
   startWorkout: async (name, userId) => {
@@ -310,9 +315,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
           }
         }
       }
+      set({ syncFailed: false });
       return { ok: true, prLocalIds };
     } catch {
       // Still offline — everything without a DB id stays queued on-device.
+      set({ syncFailed: true });
       return { ok: false, prLocalIds };
     }
   },

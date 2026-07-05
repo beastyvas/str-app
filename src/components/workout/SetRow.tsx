@@ -90,8 +90,13 @@ export function SetInputRow({
     try {
       await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined, isWarmup });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // The row stays mounted between sets now — reset the per-set fields but
+      // keep weight/reps, since the next set is usually the same load.
       setNote('');
       setNoteOpen(false);
+      setRpe(undefined);
+      setShowRpe(false);
+      setIsWarmup(false);
     } finally {
       setLogging(false);
     }
