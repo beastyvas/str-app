@@ -95,6 +95,7 @@ export default function WorkoutTab() {
     restoreWorkout,
     syncPending,
     syncFailed,
+    toggleSupersetWithNext,
   } = useWorkoutStore();
 
   // Restore any in-progress workout from Supabase when the app reopens
@@ -1439,22 +1440,31 @@ export default function WorkoutTab() {
           </View>
         )}
 
-        {activeWorkout.exercises.map(exercise => (
-          <ExerciseCard
-            key={exercise.exerciseId}
-            exercise={exercise}
-            prevSets={prevSetsCache[exercise.exerciseId] ?? []}
-            prMap={prMap}
-            workoutId={activeWorkout.id!}
-            userId={user!.id}
-            onLogSet={handleLogSet}
-            onRemove={removeExercise}
-            onReplace={handleReplaceExercise}
-            onDeleteSet={deleteSet}
-            onEditSet={updateSet}
-            onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
-          />
-        ))}
+        {activeWorkout.exercises.map((exercise, exIdx) => {
+          const next = activeWorkout.exercises[exIdx + 1];
+          const prev = activeWorkout.exercises[exIdx - 1];
+          const pairedWithNext = !!exercise.supersetId && exercise.supersetId === next?.supersetId;
+          const pairedWithPrev = !!exercise.supersetId && exercise.supersetId === prev?.supersetId;
+          return (
+            <ExerciseCard
+              key={exercise.exerciseId}
+              exercise={exercise}
+              prevSets={prevSetsCache[exercise.exerciseId] ?? []}
+              prMap={prMap}
+              workoutId={activeWorkout.id!}
+              userId={user!.id}
+              onLogSet={handleLogSet}
+              onRemove={removeExercise}
+              onReplace={handleReplaceExercise}
+              onDeleteSet={deleteSet}
+              onEditSet={updateSet}
+              onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
+              supersetRole={pairedWithNext ? 'first' : pairedWithPrev ? 'second' : null}
+              canToggleSuperset={pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId)}
+              onToggleSuperset={toggleSupersetWithNext}
+            />
+          );
+        })}
       </ScrollView>
 
       {/* First workout tutorial tooltips */}

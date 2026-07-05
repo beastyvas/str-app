@@ -25,6 +25,9 @@ export interface WorkoutExercise {
   exerciseName: string;
   muscleGroup: string;
   equipmentType?: string;
+  // Two adjacent exercises sharing a supersetId alternate as a pair.
+  // Session-local (persisted with the active workout, not written to DB).
+  supersetId?: string;
   sets: LoggedSet[];
 }
 
@@ -53,6 +56,9 @@ interface WorkoutStore {
     exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }
   ) => Promise<void>;
   removeExercise: (exerciseId: string) => void;
+  // Pair this exercise with the NEXT one as a superset (or unpair if already
+  // linked). Returns false when there's no valid partner.
+  toggleSupersetWithNext: (exerciseId: string) => boolean;
   logSet: (
     exerciseId: string,
     set: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean },
@@ -191,12 +197,42 @@ export const useWorkoutStore = create<WorkoutStore>()(
   removeExercise: (exerciseId) => {
     const { activeWorkout } = get();
     if (!activeWorkout) return;
+    // Removing one half of a superset dissolves the pair
+    const removed = activeWorkout.exercises.find(e => e.exerciseId === exerciseId);
     set({
       activeWorkout: {
         ...activeWorkout,
-        exercises: activeWorkout.exercises.filter(e => e.exerciseId !== exerciseId),
+        exercises: activeWorkout.exercises
+          .filter(e => e.exerciseId !== exerciseId)
+          .map(e => removed?.supersetId && e.supersetId === removed.supersetId
+            ? { ...e, supersetId: undefined }
+            : e),
       },
     });
+  },
+
+  toggleSupersetWithNext: (exerciseId) => {
+    const { activeWorkout } = get();
+    if (!activeWorkout) return false;
+    const i = activeWorkout.exercises.findIndex(e => e.exerciseId === exerciseId);
+    const a = activeWorkout.exercises[i];
+    const b = activeWorkout.exercises[i + 1];
+    if (!a || !b) return false;
+
+    const linked = !!a.supersetId && a.supersetId === b.supersetId;
+    // v1 keeps supersets to clean pairs — bail if either is already paired elsewhere
+    if (!linked && (a.supersetId || b.supersetId)) return false;
+
+    const supersetId = linked ? undefined : `ss_${a.exerciseId.slice(0, 8)}`;
+    set({
+      activeWorkout: {
+        ...activeWorkout,
+        exercises: activeWorkout.exercises.map((e, idx) =>
+          idx === i || idx === i + 1 ? { ...e, supersetId } : e
+        ),
+      },
+    });
+    return true;
   },
 
   logSet: async (exerciseId, setData, _workoutId, _userId) => {

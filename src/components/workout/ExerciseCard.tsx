@@ -19,6 +19,11 @@ interface ExerciseCardProps {
   onDeleteSet: (exerciseId: string, localId: string) => void;
   onEditSet: (exerciseId: string, localId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => void;
   onNavigateToDetail: (exerciseId: string) => void;
+  // Superset pairing: 'first' | 'second' when this card is half of a pair
+  supersetRole?: 'first' | 'second' | null;
+  // Show the link button when pairing with the next card is possible (or to unlink)
+  canToggleSuperset?: boolean;
+  onToggleSuperset?: (exerciseId: string) => void;
 }
 
 const MUSCLE_COLORS: Record<string, string> = {
@@ -48,6 +53,9 @@ export function ExerciseCard({
   onReplace,
   onDeleteSet,
   onEditSet,
+  supersetRole = null,
+  canToggleSuperset = false,
+  onToggleSuperset,
   onNavigateToDetail,
 }: ExerciseCardProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -71,7 +79,8 @@ export function ExerciseCard({
       backgroundColor: Colors.surface,
       borderRadius: 18,
       marginHorizontal: 14,
-      marginBottom: 14,
+      // Paired cards sit tight together so the superset reads as one block
+      marginBottom: supersetRole === 'first' ? 4 : 14,
       overflow: 'hidden',
       // Elevation instead of a 1px outline — the accent strip carries the color
       shadowColor: '#000',
@@ -118,8 +127,36 @@ export function ExerciseCard({
                 ? ` · ${exercise.sets.length} set${exercise.sets.length !== 1 ? 's' : ''}`
                 : ''}
             </Text>
+            {supersetRole && (
+              <View style={{
+                backgroundColor: Colors.accentDim, borderRadius: 4,
+                paddingHorizontal: 5, paddingVertical: 1,
+              }}>
+                <Text style={{ color: Colors.accent, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 }}>
+                  SUPERSET {supersetRole === 'first' ? 'A' : 'B'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
+
+        {/* Superset link — pair with the next exercise, alternate sets */}
+        {canToggleSuperset && (
+          <TouchableOpacity
+            onPress={() => onToggleSuperset?.(exercise.exerciseId)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: supersetRole ? Colors.accentDim : Colors.surface2,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: supersetRole ? Colors.accent : Colors.textMuted, fontSize: 13, fontWeight: '800' }}>⛓</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Info button */}
         <TouchableOpacity

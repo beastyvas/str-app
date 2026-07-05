@@ -133,6 +133,20 @@ export function SetInputRow({
 
   return (
     <View>
+      {/* Ghost target — last session's numbers for this set, something to beat */}
+      {prevSet && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.2, fontWeight: '700', textTransform: 'uppercase' }}>
+            Last time
+          </Text>
+          <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
+            {prevSet.weight === 0 ? 'BW' : toDisplay(prevSet.weight, unit)} × {prevSet.reps}{prevSet.rpe ? `  @${prevSet.rpe}` : ''}
+          </Text>
+          <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+            BEAT IT →
+          </Text>
+        </View>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
         <Text style={{ color: Colors.textMuted, fontSize: 13, width: 22, textAlign: 'center', fontWeight: '700' }}>
           {setNumber}
