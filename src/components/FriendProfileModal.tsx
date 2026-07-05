@@ -72,9 +72,16 @@ interface Props {
   visible: boolean;
   userId: string | null;
   onClose: () => void;
+  // Fired the moment a friend request lands as accepted (creator auto-accept)
+  // so the parent can show the new friend instantly — no refetch wait.
+  onFriended?: (friend: {
+    id: string; friendshipId: string; display_name: string;
+    avatar_url?: string; bio?: string; bodyweight_lbs?: number;
+    is_owner?: boolean; is_og?: boolean; is_pro?: boolean;
+  }) => void;
 }
 
-export function FriendProfileModal({ visible, userId, onClose }: Props) {
+export function FriendProfileModal({ visible, userId, onClose, onFriended }: Props) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [prs, setPrs] = useState<any[]>([]);
@@ -85,6 +92,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
   const [showH2H, setShowH2H] = useState(false);
+  const [photosByWorkout, setPhotosByWorkout] = useState<Record<string, string>>({});
 
   const { user: me, profile: myProfile } = useAuth();
   // Friend's numbers shown in MY preferred unit (the viewer's)
@@ -157,7 +165,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
         .order('achieved_at', { ascending: false }),
       supabase
         .from('workouts')
-        .select('id, name, started_at, ended_at, workout_sets(weight, reps, exercises(name, muscle_group))')
+        .select('id, name, started_at, ended_at, notes, workout_sets(weight, reps, exercises(name, muscle_group))')
         .eq('user_id', userId)
         .not('ended_at', 'is', null)
         .or('is_imported.is.null,is_imported.eq.false')
@@ -173,6 +181,21 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
       setPrs(prData ?? []);
       setRecentWorkouts(workouts ?? []);
       setWorkoutCount(count ?? 0);
+
+      // Workout photos make the recent list read like their feed posts
+      const workoutIds = (workouts ?? []).map((w: any) => w.id);
+      if (workoutIds.length > 0) {
+        supabase.from('workout_photos')
+          .select('workout_id, photo_url')
+          .in('workout_id', workoutIds)
+          .then(({ data: photoRows }) => {
+            const map: Record<string, string> = {};
+            (photoRows ?? []).forEach((p: any) => { map[p.workout_id] = p.photo_url; });
+            setPhotosByWorkout(map);
+          });
+      } else {
+        setPhotosByWorkout({});
+      }
 
       // Prefer manually configured split; fall back to auto-detection
       if (prof?.split_type || prof?.split_schedule) {
@@ -233,11 +256,28 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
       if (!me) return;
       const { data: row, error } = await supabase.from('friendships').insert({
         requester_id: me.id, addressee_id: userId,
-      }).select('status').single();
+      }).select('id, status').single();
       if (error) throw error;
       // The creator auto-accepts server-side (migration 012) — reflect it
       // instantly so the first friend-add feels like it just... worked.
-      setFriendStatus(row?.status === 'accepted' ? 'friends' : 'pending');
+      if (row?.status === 'accepted') {
+        setFriendStatus('friends');
+        if (profile) {
+          onFriended?.({
+            id: userId,
+            friendshipId: row.id,
+            display_name: profile.display_name ?? 'Friend',
+            avatar_url: profile.avatar_url,
+            bio: profile.bio,
+            bodyweight_lbs: profile.bodyweight_lbs,
+            is_owner: profile.is_owner,
+            is_og: profile.is_og,
+            is_pro: profile.is_pro,
+          });
+        }
+      } else {
+        setFriendStatus('pending');
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -637,7 +677,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
             {/* ── RECENT SESSIONS ───────────────────────────────────────── */}
             {recentWorkouts.length > 0 && (
               <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Recent Sessions</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Recent Posts</Text>
                 {recentWorkouts.map((w: any, i: number) => {
                   const sets = w.workout_sets ?? [];
                   const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
@@ -667,6 +707,20 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                         <Text style={{ color: Colors.textMuted, fontSize: 11, lineHeight: 17 }} numberOfLines={2}>
                           {exNames.join(' · ')}
                         </Text>
+                      )}
+                      {w.notes ? (
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 6 }} numberOfLines={2}>
+                          "{w.notes}"
+                        </Text>
+                      ) : null}
+                      {photosByWorkout[w.id] && (
+                        <Image
+                          source={{ uri: photosByWorkout[w.id] }}
+                          style={{ width: '100%', height: 170, borderRadius: 12, marginTop: 8 }}
+                          contentFit="cover"
+                          cachePolicy="disk"
+                          transition={150}
+                        />
                       )}
                     </View>
                   );

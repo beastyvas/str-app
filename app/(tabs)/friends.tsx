@@ -1281,10 +1281,23 @@ export default function SocialScreen() {
       <FriendProfileModal
         visible={!!selectedFriendId}
         userId={selectedFriendId}
+        onFriended={(f) => {
+          // Optimistic: the new friend is in the list BEFORE the modal closes.
+          // loadData() on close fills in rank/PR details in the background.
+          setFriends(prev => [
+            {
+              id: f.id, friendshipId: f.friendshipId,
+              display_name: f.display_name, avatar_url: f.avatar_url,
+              bio: f.bio, bodyweight_lbs: f.bodyweight_lbs,
+              is_owner: f.is_owner, is_og: f.is_og, is_pro: f.is_pro,
+            },
+            ...prev.filter(x => x.id !== f.id),
+          ]);
+        }}
         onClose={() => {
           setSelectedFriendId(null);
           // A friendship may have just been created (creator auto-accepts) —
-          // refresh so the new friend is in the list the moment the modal closes
+          // refresh so feed posts + rank details land right behind the optimistic row
           loadData();
         }}
       />
