@@ -22,6 +22,7 @@ import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getRankResult, RankTier } from '@/constants/ranks';
+import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
 import { screenText } from '@/lib/contentFilter';
 import {
   requestNotificationPermissions,
@@ -363,6 +364,25 @@ export default function WorkoutTab() {
     }
   };
 
+  // Start a starter-program day: resolve exercise names to library ids, then
+  // reuse the template start path so the whole flow behaves identically.
+  const startStarterDay = async (day: StarterProgramDay) => {
+    const { data } = await supabase
+      .from('exercises')
+      .select('id, name, muscle_group, equipment_type')
+      .in('name', day.exerciseNames)
+      .eq('is_custom', false);
+    const byName = new Map((data ?? []).map((e: any) => [e.name.toLowerCase(), e]));
+    const resolved = day.exerciseNames
+      .map(n => byName.get(n.toLowerCase()))
+      .filter(Boolean) as { id: string; name: string; muscle_group: string; equipment_type?: string }[];
+    if (resolved.length === 0) {
+      Alert.alert('Error', 'Could not load the program exercises. Check your connection and try again.');
+      return;
+    }
+    await startFromTemplate(day.name, resolved);
+  };
+
   const seedCurrentTier = async () => {
     if (!user) return;
     const { data } = await supabase
@@ -696,6 +716,8 @@ export default function WorkoutTab() {
 
   // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
   const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  // Starter programs are pitched at new lifters (no experience set reads as new)
+  const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
   const MUSCLE_COLORS: Record<string, string> = {
     'Chest': '#C2566B', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
     'Biceps': '#3498DB', 'Mid-Upper Back': '#1ABC9C', 'Lats': '#16A085',
@@ -831,6 +853,66 @@ export default function WorkoutTab() {
               {daySuggestion ? '+ Start blank workout' : 'START WORKOUT'}
             </Text>
           </TouchableOpacity>
+
+          {/* Starter programs — "just tell me what to do" for new lifters */}
+          {isNewLifter && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
+                Starter Programs
+              </Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
+                No guesswork — pick a day, the exercises are loaded, just show up.
+              </Text>
+              <View style={{ gap: 12 }}>
+                {STARTER_PROGRAMS.map(program => (
+                  <View
+                    key={program.key}
+                    style={{
+                      backgroundColor: Colors.surface, borderRadius: 18, padding: 16,
+                      shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                    }}
+                  >
+                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 }}>
+                      {program.title}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2, marginBottom: 4 }}>
+                      {program.schedule}
+                    </Text>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 12 }}>
+                      {program.tagline}
+                    </Text>
+                    <View style={{ gap: 8 }}>
+                      {program.days.map(day => (
+                        <TouchableOpacity
+                          key={day.key}
+                          onPress={() => startStarterDay(day)}
+                          activeOpacity={0.8}
+                          style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 10,
+                            backgroundColor: Colors.surface2, borderRadius: 12,
+                            paddingVertical: 11, paddingHorizontal: 14,
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                              {day.name}
+                            </Text>
+                            <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                              {day.focus} · {day.guidance}
+                            </Text>
+                          </View>
+                          <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '800' }}>
+                            Start →
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Saved templates */}
           {savedTemplates.length > 0 && (
