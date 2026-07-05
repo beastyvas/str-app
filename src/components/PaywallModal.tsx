@@ -26,7 +26,7 @@ const FREE_FEATURES = [
   'PR tracking & strength tiers',
   'Physique rank (SBD)',
   'Unlimited friends & social feed',
-  '3 AI coach messages per week',
+  '5 AI coach messages per week',
   'Workout history (last 90 days)',
 ];
 
@@ -43,7 +43,34 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
   const { user, refreshProfile } = useAuth();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [rcAvailable, setRcAvailable] = useState(false);
+
+  // Our own restore mechanism (3.1.1): RevenueCat re-syncs the receipt, then
+  // the server re-derives is_pro from the entitlement — works for the same
+  // Apple ID on a new device or reinstall.
+  const handleRestore = async () => {
+    if (!rcAvailable || restoring) return;
+    setRestoring(true);
+    try {
+      const Purchases = require('react-native-purchases').default;
+      const customerInfo = await Purchases.restorePurchases();
+      await supabase.functions.invoke('verify-subscription');
+      await refreshProfile();
+      const active = customerInfo.entitlements.active['pro'] !== undefined;
+      Alert.alert(
+        active ? 'Pro restored 🏆' : 'No purchases found',
+        active
+          ? 'Your Pro access is back. Welcome home.'
+          : 'No previous Pro purchase found for this Apple ID.'
+      );
+      if (active) onClose();
+    } catch (e: any) {
+      Alert.alert('Restore failed', e.message ?? 'Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   useEffect(() => {
     // Check if RevenueCat is available (dev build only, not Expo Go)
@@ -82,14 +109,22 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
       const isProNow = customerInfo.entitlements.active['pro'] !== undefined;
 
       if (isProNow) {
-        const { error: fnErr } = await supabase.functions.invoke('verify-subscription');
-        if (fnErr) {
-          // Edge function not deployed yet — fall back to direct write
-          await supabase.from('users').update({ is_pro: true }).eq('id', user.id);
-        }
+        // Server-side verification is the only writer of is_pro (protected by
+        // the 018 trigger — a direct client write would be rejected anyway).
+        // RevenueCat has the purchase either way; retry once, then tell the
+        // user Restore will finish the job if the network hiccuped.
+        let { error: fnErr } = await supabase.functions.invoke('verify-subscription');
+        if (fnErr) ({ error: fnErr } = await supabase.functions.invoke('verify-subscription'));
         await refreshProfile();
-        Alert.alert('Welcome to STR Pro! 🏆', 'You now have unlimited access.');
-        onClose();
+        if (fnErr) {
+          Alert.alert(
+            'Purchase received',
+            'Your purchase went through. If Pro doesn\'t activate in the next minute, tap "Restore Purchases" below.'
+          );
+        } else {
+          Alert.alert('Welcome to STR Pro! 🏆', 'You now have unlimited access.');
+          onClose();
+        }
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -261,8 +296,13 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             }
           </TouchableOpacity>
 
-          {/* Redeem + legal */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16 }}>
+          {/* Restore / Redeem */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
+            <TouchableOpacity onPress={handleRestore} disabled={restoring}>
+              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
+                {restoring ? 'Restoring…' : 'Restore Purchases'}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={async () => {
               try {
                 const Purchases = require('react-native-purchases').default;
