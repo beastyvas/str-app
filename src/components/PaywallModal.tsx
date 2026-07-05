@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-// RevenueCat product IDs — configure these in App Store Connect + RC dashboard
+// RevenueCat product IDs — must be AUTO-RENEWABLE SUBSCRIPTIONS in App Store
+// Connect (one subscription group), attached to RC entitlement "pro" and the
+// current offering's monthly/annual packages.
 const PRODUCT_IDS = {
-  monthly: 'str.pros.monthly',  // $7.99/month
-  annual: 'str.pros.annual',    // $59.99/year
+  monthly: 'str.pros.monthly',  // $7.99/month auto-renewing
+  annual: 'str.pros.annual',    // $59.99/year auto-renewing
 };
+
+// Required functional links on subscription paywalls (Guideline 3.1.2)
+const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+// Set to the same privacy policy URL used in App Store Connect
+const PRIVACY_URL = '';
 
 interface Props {
   visible: boolean;
@@ -253,7 +260,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
                   color: billingPeriod === period ? Colors.text : Colors.textMuted,
                   fontSize: 11, marginTop: 1,
                 }}>
-                  {period === 'annual' ? '$59.99 once' : '$7.99 once'}
+                  {period === 'annual' ? '$59.99 / year' : '$7.99 / month'}
                 </Text>
                 {period === 'annual' && (
                   <View style={{
@@ -271,8 +278,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           <View style={{ alignItems: 'center', marginBottom: 20 }}>
             <Text style={{ color: Colors.textMuted, fontSize: 13 }}>
               {billingPeriod === 'annual'
-                ? '$59.99 — one-time purchase, 1 year of Pro'
-                : '$7.99 — one-time purchase, 1 month of Pro'}
+                ? '$59.99 per year · auto-renews annually'
+                : '$7.99 per month · auto-renews monthly'}
             </Text>
           </View>
 
@@ -313,9 +320,21 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             </TouchableOpacity>
           </View>
           <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', lineHeight: 15 }}>
-            One-time purchase, billed once to your Apple ID. This is not a
-            subscription and does not auto-renew.
+            Payment is charged to your Apple Account at confirmation of purchase.
+            The subscription auto-renews unless canceled at least 24 hours before
+            the end of the current period. Manage or cancel anytime in
+            Settings → Apple Account → Subscriptions.
           </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 }}>
+            <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+              <Text style={{ color: Colors.textMuted, fontSize: 11, textDecorationLine: 'underline' }}>Terms of Use</Text>
+            </TouchableOpacity>
+            {!!PRIVACY_URL && (
+              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, textDecorationLine: 'underline' }}>Privacy Policy</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </Modal>
