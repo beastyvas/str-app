@@ -20,18 +20,63 @@ interface Message {
   timestamp: number;
 }
 
-const STARTER_PROMPTS = [
-  "What muscle groups am I neglecting?",
-  "How's my volume trending this month?",
-  "What's my strongest lift relative to bodyweight?",
-  "Any signs of overtraining in my recent logs?",
-];
+// Starter prompts grow with the lifter's rank — the same tier that picks the
+// coach persona. A nervous day-one Mortal gets "where do I even start?";
+// a Sovereign gets meet-prep energy. Nobody gets questions they can't relate to.
+const STARTER_PROMPTS_BY_TIER: Record<string, { prompts: string[]; emojis: string[] }> = {
+  mortal: {
+    prompts: [
+      "I'm new and honestly a little nervous. Where do I start?",
+      "How do I know if my form is right without a trainer?",
+      "How many days a week should I train?",
+      "What gym etiquette should I know so I fit right in?",
+    ],
+    emojis: ['🙋', '✅', '📅', '🤝'],
+  },
+  awakened: {
+    prompts: [
+      "How do I keep progressing now that newbie gains are slowing?",
+      "Should I add weight or reps first?",
+      "How sore is too sore to train?",
+      "What should I eat to actually build muscle?",
+    ],
+    emojis: ['📈', '🏋️', '😮‍💨', '🍗'],
+  },
+  ascendant: {
+    prompts: [
+      "What muscle groups am I neglecting?",
+      "Teach me how to actually use RPE",
+      "How's my volume trending this month?",
+      "How do I bring up a lagging lift?",
+    ],
+    emojis: ['📊', '🎯', '💪', '🔧'],
+  },
+  phantom: {
+    prompts: [
+      "Any signs of overtraining in my recent logs?",
+      "What's my strongest lift relative to bodyweight?",
+      "How should I structure my next deload?",
+      "Where are my sticking points costing me?",
+    ],
+    emojis: ['🔍', '⚖️', '🔄', '🧱'],
+  },
+  sovereign: {
+    prompts: [
+      "Read my logs — where am I leaving strength on the table?",
+      "Plan the shape of my next peaking block",
+      "Critique my volume distribution like a meet-prep coach",
+      "What is my RPE trend telling you?",
+    ],
+    emojis: ['👑', '🗓️', '🧠', '📉'],
+  },
+};
+STARTER_PROMPTS_BY_TIER.godhand = STARTER_PROMPTS_BY_TIER.sovereign;
 
 type Tab = 'coach' | 'analysis' | 'import';
 
 export default function InsightsTab() {
   const { user, profile, refreshProfile } = useAuth();
-  const { isPro, canAskCoach, aiAsksRemaining, recordAIAsk } = useSubscription();
+  const { isPro, canAskCoach, aiAsksRemaining, aiAsksResetDate, recordAIAsk } = useSubscription();
 
   // Derive coach identity from user's tier
   const [coachTierKey, setCoachTierKey] = useState('mortal');
@@ -63,6 +108,17 @@ export default function InsightsTab() {
     const roman = ROMAN[coachSubTier];
     return roman ? `${base} ${roman}` : base;
   })();
+  // Prompts follow rank tier. One guard: a lifter who told onboarding they're
+  // experienced but hasn't logged PRs yet sits at mortal rank — don't greet
+  // them like it's their first day.
+  const promptTierKey =
+    coachTierKey === 'mortal' &&
+    ['advanced', 'competitive'].includes(profile?.experience_level ?? '')
+      ? 'ascendant'
+      : coachTierKey;
+  const { prompts: starterPrompts, emojis: starterEmojis } =
+    STARTER_PROMPTS_BY_TIER[promptTierKey] ?? STARTER_PROMPTS_BY_TIER.mortal;
+
   const [showPaywall, setShowPaywall] = useState(false);
   const [tab, setTab] = useState<Tab>('coach');
   const [input, setInput] = useState('');
@@ -442,7 +498,7 @@ export default function InsightsTab() {
               }}
             >
               <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>
-                {aiAsksRemaining > 0 ? `${aiAsksRemaining} asks left · Go Pro` : 'Limit reached · Go Pro'}
+                {aiAsksRemaining > 0 ? `${aiAsksRemaining} questions left · Go Pro` : 'Limit reached · Go Pro'}
               </Text>
             </TouchableOpacity>
           )}
@@ -528,7 +584,8 @@ export default function InsightsTab() {
                       borderWidth: 1, borderColor: Colors.border,
                     }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                        {aiAsksRemaining} free ask{aiAsksRemaining !== 1 ? 's' : ''} left this week
+                        {aiAsksRemaining} of 5 coach questions left this week
+                        {aiAsksResetDate ? ` · refills ${aiAsksResetDate.toLocaleDateString('en-US', { weekday: 'long' })}` : ''}
                       </Text>
                     </View>
                   )}
@@ -537,13 +594,13 @@ export default function InsightsTab() {
                 {/* Divider */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Ask something</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Ask your coach anything</Text>
                   <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
                 </View>
 
                 {/* Prompt cards — 2 column grid */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {STARTER_PROMPTS.map((p, i) => (
+                  {starterPrompts.map((p, i) => (
                     <TouchableOpacity
                       key={i}
                       onPress={() => sendMessage(p)}
@@ -570,7 +627,7 @@ export default function InsightsTab() {
                         alignItems: 'center', justifyContent: 'center',
                       }}>
                         <Text style={{ fontSize: 18 }}>
-                          {['📊', '💪', '⚖️', '🔄'][i] ?? '⚡'}
+                          {starterEmojis[i] ?? '⚡'}
                         </Text>
                       </View>
                       <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '600', lineHeight: 18 }}>
@@ -1077,7 +1134,7 @@ export default function InsightsTab() {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         reason={aiAsksRemaining === 0
-          ? `You've used your ${3} free AI messages this week. Go Pro for unlimited coaching.`
+          ? `You've used your 5 free coach questions this week.${aiAsksResetDate ? ` They refill ${aiAsksResetDate.toLocaleDateString('en-US', { weekday: 'long' })}` : ''} — or go Pro for unlimited coaching.`
           : undefined}
       />
     </SafeAreaView>

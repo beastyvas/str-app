@@ -24,6 +24,11 @@ export function useSubscription() {
   const aiAsksRemaining = isPro ? Infinity : Math.max(0, FREE_AI_ASKS_PER_WEEK - aiAsksUsed);
   const canAskCoach = isPro || aiAsksRemaining > 0;
 
+  // When the rolling 7-day window refills (null when Pro or no asks used yet)
+  const aiAsksResetDate = !isPro && !isNewWeek() && profile?.ai_asks_week_start
+    ? new Date(new Date(profile.ai_asks_week_start).getTime() + 7 * 86400000)
+    : null;
+
   // Pre-flight check before sending an AI message — returns false if at limit.
   // The actual count is incremented server-side by the ai-coach edge function
   // (ai_asks_count / ai_asks_week_start are locked to server-only writes —
@@ -46,6 +51,7 @@ export function useSubscription() {
     canAskCoach,
     aiAsksRemaining,
     aiAsksUsed,
+    aiAsksResetDate,
     recordAIAsk,
     historyLimit,
     canImport: isPro || true, // generous on import for now
