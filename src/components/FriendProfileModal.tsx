@@ -84,6 +84,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(null);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [addingFriend, setAddingFriend] = useState(false);
+  const [showH2H, setShowH2H] = useState(false);
 
   const { user: me, profile: myProfile } = useAuth();
   // Friend's numbers shown in MY preferred unit (the viewer's)
@@ -354,72 +355,6 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
               </View>
             )}
 
-            {/* ── HEAD-TO-HEAD ──────────────────────────────────────────── */}
-            {!prsHidden && myRank && rankResult && me?.id !== userId && (() => {
-              const them = profile?.display_name?.split(' ')[0] || 'Them';
-              const liftWeight = (r: typeof myRank, key: string) =>
-                r?.lifts.find(l => l.label === key)?.weight ?? 0;
-              const rows: { label: string; mine: string; theirs: string; mineWins: boolean | null }[] = [
-                {
-                  label: 'Rank',
-                  mine: `${myRank.tier.label} ${ROMAN[myRank.subTier]}`,
-                  theirs: `${rankResult.tier.label} ${ROMAN[rankResult.subTier]}`,
-                  mineWins: myRank.avgScore === rankResult.avgScore ? null : myRank.avgScore > rankResult.avgScore,
-                },
-                ...(['SQ', 'BP', 'DL'] as const).map(k => {
-                  const mine = liftWeight(myRank, k);
-                  const theirs = liftWeight(rankResult, k);
-                  return {
-                    label: k === 'SQ' ? 'Squat' : k === 'BP' ? 'Bench' : 'Deadlift',
-                    mine: mine > 0 ? `${toDisplay(mine, unit)}` : '—',
-                    theirs: theirs > 0 ? `${toDisplay(theirs, unit)}` : '—',
-                    mineWins: mine === theirs ? null : mine > theirs,
-                  };
-                }),
-              ];
-              return (
-                <View style={{
-                  backgroundColor: Colors.surface, borderRadius: 16, padding: 14,
-                  borderWidth: 1, borderColor: Colors.border,
-                }}>
-                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                    <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>
-                      Head to Head
-                    </Text>
-                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>YOU</Text>
-                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }} numberOfLines={1}>
-                      {them.toUpperCase()}
-                    </Text>
-                  </View>
-                  {rows.map((row, i) => (
-                    <View key={i} style={{
-                      flexDirection: 'row', alignItems: 'center', paddingVertical: 6,
-                      borderTopWidth: i === 0 ? 0 : 1, borderTopColor: Colors.border,
-                    }}>
-                      <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 12 }}>{row.label}</Text>
-                      <Text style={{
-                        flex: 1, textAlign: 'center', fontSize: 13,
-                        fontWeight: row.mineWins === true ? '900' : '600',
-                        color: row.mineWins === true ? Colors.accent : Colors.textSecondary,
-                      }}>
-                        {row.mine}
-                      </Text>
-                      <Text style={{
-                        flex: 1, textAlign: 'center', fontSize: 13,
-                        fontWeight: row.mineWins === false ? '900' : '600',
-                        color: row.mineWins === false ? tierColor : Colors.textSecondary,
-                      }}>
-                        {row.theirs}
-                      </Text>
-                    </View>
-                  ))}
-                  <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 6, textAlign: 'center' }}>
-                    Lifts in {unit} · bold = stronger
-                  </Text>
-                </View>
-              );
-            })()}
-
             {/* ── HERO ──────────────────────────────────────────────────── */}
             <View style={{ alignItems: 'center', gap: 12 }}>
               <View style={{
@@ -501,9 +436,90 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
               </View>
             )}
 
+            {/* ── HEAD-TO-HEAD (collapsed dropdown — expands on tap) ─────── */}
+            {!prsHidden && myRank && rankResult && me?.id !== userId && (() => {
+              const them = profile?.display_name?.split(' ')[0] || 'Them';
+              const liftWeight = (r: typeof myRank, key: string) =>
+                r?.lifts.find(l => l.label === key)?.weight ?? 0;
+              const rows: { label: string; mine: string; theirs: string; mineWins: boolean | null }[] = [
+                {
+                  label: 'Rank',
+                  mine: `${myRank.tier.label} ${ROMAN[myRank.subTier]}`,
+                  theirs: `${rankResult.tier.label} ${ROMAN[rankResult.subTier]}`,
+                  mineWins: myRank.avgScore === rankResult.avgScore ? null : myRank.avgScore > rankResult.avgScore,
+                },
+                ...(['SQ', 'BP', 'DL'] as const).map(k => {
+                  const mine = liftWeight(myRank, k);
+                  const theirs = liftWeight(rankResult, k);
+                  return {
+                    label: k === 'SQ' ? 'Squat' : k === 'BP' ? 'Bench' : 'Deadlift',
+                    mine: mine > 0 ? `${toDisplay(mine, unit)}` : '—',
+                    theirs: theirs > 0 ? `${toDisplay(theirs, unit)}` : '—',
+                    mineWins: mine === theirs ? null : mine > theirs,
+                  };
+                }),
+              ];
+              return (
+                <View style={{
+                  backgroundColor: Colors.surface, borderRadius: 14,
+                  shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                  overflow: 'hidden',
+                }}>
+                  <TouchableOpacity
+                    onPress={() => setShowH2H(v => !v)}
+                    activeOpacity={0.8}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}
+                  >
+                    <Text style={{ fontSize: 14 }}>⚔️</Text>
+                    <Text style={{ flex: 1, color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                      Head to Head — you vs {them}
+                    </Text>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>{showH2H ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {showH2H && (
+                    <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
+                      <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                        <View style={{ flex: 1.3 }} />
+                        <Text style={{ flex: 1, textAlign: 'center', color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>YOU</Text>
+                        <Text style={{ flex: 1, textAlign: 'center', color: Colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }} numberOfLines={1}>
+                          {them.toUpperCase()}
+                        </Text>
+                      </View>
+                      {rows.map((row, i) => (
+                        <View key={i} style={{
+                          flexDirection: 'row', alignItems: 'center', paddingVertical: 6,
+                          borderTopWidth: i === 0 ? 0 : 1, borderTopColor: Colors.border,
+                        }}>
+                          <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 12 }}>{row.label}</Text>
+                          <Text style={{
+                            flex: 1, textAlign: 'center', fontSize: 13, fontVariant: ['tabular-nums'],
+                            fontWeight: row.mineWins === true ? '800' : '600',
+                            color: row.mineWins === true ? Colors.accent : Colors.textSecondary,
+                          }}>
+                            {row.mine}
+                          </Text>
+                          <Text style={{
+                            flex: 1, textAlign: 'center', fontSize: 13, fontVariant: ['tabular-nums'],
+                            fontWeight: row.mineWins === false ? '800' : '600',
+                            color: row.mineWins === false ? tierColor : Colors.textSecondary,
+                          }}>
+                            {row.theirs}
+                          </Text>
+                        </View>
+                      ))}
+                      <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 6, textAlign: 'center' }}>
+                        Lifts in {unit} · bold = stronger
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
             {/* ── SBD ───────────────────────────────────────────────────── */}
             {rankResult && rankResult.lifts.some(l => l.weight > 0) && (
-              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, gap: 10 }}>
+              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, gap: 10 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>SBD Strength</Text>
                 {rankResult.lifts.map((lift, i) => {
                   const hasData = lift.weight > 0;
@@ -535,7 +551,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
 
             {/* ── MUSCLE GROUP TIERS ────────────────────────────────────── */}
             {muscleGroupTiers.length > 0 && (
-              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Body Part Ranks</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {muscleGroupTiers.map((mg, i) => {
@@ -565,7 +581,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
 
             {/* ── TRAINING SPLIT ────────────────────────────────────────── */}
             {splitData && (
-              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Training Split</Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
@@ -620,7 +636,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
 
             {/* ── RECENT SESSIONS ───────────────────────────────────────── */}
             {recentWorkouts.length > 0 && (
-              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Recent Sessions</Text>
                 {recentWorkouts.map((w: any, i: number) => {
                   const sets = w.workout_sets ?? [];
