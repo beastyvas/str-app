@@ -1237,8 +1237,6 @@ export default function WorkoutTab() {
             height: 34,
             borderRadius: 10,
             backgroundColor: Colors.surface2,
-            borderWidth: 1,
-            borderColor: Colors.border,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -1254,8 +1252,6 @@ export default function WorkoutTab() {
             paddingVertical: 8,
             borderRadius: 10,
             backgroundColor: Colors.surface2,
-            borderWidth: 1,
-            borderColor: Colors.border,
           }}
         >
           <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '700' }}>Discard</Text>

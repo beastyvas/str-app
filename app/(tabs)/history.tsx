@@ -720,8 +720,11 @@ export default function HistoryScreen() {
                 paddingVertical: 14,
                 paddingHorizontal: 10,
                 alignItems: 'center',
-                borderWidth: 1,
-                borderColor: Colors.border,
+                shadowColor: '#000',
+                shadowOpacity: 0.25,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 3 },
+                elevation: 3,
               }}>
                 <Text style={{
                   color: Colors.textMuted,
@@ -847,13 +850,14 @@ export default function HistoryScreen() {
                       borderRadius: 18,
                       marginHorizontal: 20,
                       marginBottom: 10,
-                      borderWidth: 1,
-                      borderColor: isExpanded ? Colors.accent + '45' : Colors.border,
+                      borderWidth: isExpanded ? 1 : 0,
+                      borderColor: isExpanded ? Colors.accent + '45' : 'transparent',
                       overflow: 'hidden',
-                      shadowColor: isExpanded ? Colors.accent : 'transparent',
-                      shadowOpacity: 0.1,
+                      shadowColor: isExpanded ? Colors.accent : '#000',
+                      shadowOpacity: isExpanded ? 0.1 : 0.25,
                       shadowRadius: 10,
                       shadowOffset: { width: 0, height: 3 },
+                      elevation: 3,
                     }}
                   >
                     {/* Workout header */}

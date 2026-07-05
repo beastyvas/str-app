@@ -99,15 +99,14 @@ export function SetInputRow({
 
   const inputStyle = {
     backgroundColor: Colors.surface2,
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: 10,
     color: Colors.text,
     fontSize: 26,
     fontWeight: '800' as const,
+    fontVariant: ['tabular-nums'] as any,
     textAlign: 'center' as const,
     paddingVertical: 10,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   };
 
   // Mode hint shown below the input row
@@ -174,7 +173,7 @@ export function SetInputRow({
             backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
             borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5,
             borderWidth: 1,
-            borderColor: mode !== 'number' ? Colors.accent + '60' : Colors.border,
+            borderColor: mode !== 'number' ? Colors.accent + '60' : 'transparent',
           }}
         >
           <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '800' }}>
@@ -186,13 +185,13 @@ export function SetInputRow({
         <TouchableOpacity
           onPress={() => setIsWarmup(w => !w)}
           style={{
-            backgroundColor: isWarmup ? '#F97316' + '25' : Colors.surface2,
+            backgroundColor: isWarmup ? '#E0632E' + '25' : Colors.surface2,
             borderRadius: 8, paddingHorizontal: 8, paddingVertical: 10,
-            borderWidth: 1, borderColor: isWarmup ? '#F97316' + '60' : Colors.border,
+            borderWidth: 1, borderColor: isWarmup ? '#E0632E' + '60' : 'transparent',
             minWidth: 32, alignItems: 'center',
           }}
         >
-          <Text style={{ color: isWarmup ? '#F97316' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
+          <Text style={{ color: isWarmup ? '#E0632E' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -442,21 +441,22 @@ export function LoggedSetRow({
           paddingHorizontal: 16,
           paddingVertical: 10,
           gap: 8,
-          backgroundColor: set.isWarmup ? '#F97316' + '08' : isPR ? Colors.gold + '08' : 'transparent',
+          backgroundColor: set.isWarmup ? '#E0632E' + '08' : isPR ? Colors.gold + '08' : 'transparent',
           borderLeftWidth: (set.isWarmup || isPR) ? 3 : 0,
-          borderLeftColor: set.isWarmup ? '#F97316' : isPR ? Colors.gold : 'transparent',
+          borderLeftColor: set.isWarmup ? '#E0632E' : isPR ? Colors.gold : 'transparent',
         }}
       >
         <Text style={{
-          color: set.isWarmup ? '#F97316' + 'CC' : isPR ? Colors.gold + 'CC' : Colors.textMuted,
+          color: set.isWarmup ? '#E0632E' + 'CC' : isPR ? Colors.gold + 'CC' : Colors.textMuted,
           fontSize: 11, width: 22, textAlign: 'center',
-          fontWeight: (set.isWarmup || isPR) ? '900' : '500',
+          fontWeight: (set.isWarmup || isPR) ? '800' : '500',
         }}>
           {set.isWarmup ? 'W' : set.setNumber}
         </Text>
         <Text style={{
           color: set.isWarmup ? Colors.textMuted : Colors.text,
           fontSize: 16, fontWeight: '700', flex: 1, letterSpacing: -0.3,
+          fontVariant: ['tabular-nums'],
           opacity: set.isWarmup ? 0.7 : 1,
         }}>
           {set.weight === 0 ? 'BW' : set.weight} × {set.reps}

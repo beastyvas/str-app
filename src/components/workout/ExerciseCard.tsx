@@ -77,14 +77,13 @@ export function ExerciseCard({
       borderRadius: 18,
       marginHorizontal: 14,
       marginBottom: 14,
-      borderWidth: 1,
-      borderColor: exercise.sets.length > 0 ? accentColor + '35' : Colors.border,
       overflow: 'hidden',
-      shadowColor: exercise.sets.length > 0 ? accentColor : 'transparent',
-      shadowOpacity: exercise.sets.length > 0 ? 0.08 : 0,
-      shadowRadius: 12,
+      // Elevation instead of a 1px outline — the accent strip carries the color
+      shadowColor: '#000',
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
       shadowOffset: { width: 0, height: 4 },
-      elevation: exercise.sets.length > 0 ? 4 : 0,
+      elevation: 3,
     }}>
       {/* Muscle group accent strip */}
       <View style={{ height: 3, backgroundColor: accentColor, opacity: 0.7 }} />
@@ -136,8 +135,6 @@ export function ExerciseCard({
             height: 30,
             borderRadius: 15,
             backgroundColor: Colors.surface2,
-            borderWidth: 1,
-            borderColor: Colors.border,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -154,8 +151,6 @@ export function ExerciseCard({
             height: 30,
             borderRadius: 15,
             backgroundColor: Colors.surface2,
-            borderWidth: 1,
-            borderColor: Colors.border,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -172,8 +167,6 @@ export function ExerciseCard({
             height: 30,
             borderRadius: 15,
             backgroundColor: Colors.surface2,
-            borderWidth: 1,
-            borderColor: Colors.border,
             alignItems: 'center',
             justifyContent: 'center',
           }}
