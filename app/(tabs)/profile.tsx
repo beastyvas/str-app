@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
-  Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Image,
+  Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
@@ -214,17 +215,24 @@ export default function ProfileScreen() {
     try {
       // 8 days for timezone buffer
       const eightDaysAgo = new Date(Date.now() - 8 * 86400000).toISOString();
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
 
       const [
         { data: workouts },
         { data: prs },
         { count: friends },
         { data: weekWorkouts },
+        { data: recentWorkouts },
+        { data: volumeData },
       ] = await Promise.all([
         supabase.from('workouts').select('id, started_at').eq('user_id', user.id).not('ended_at', 'is', null),
         supabase.from('personal_records').select('weight, reps, achieved_at, exercises(name)').eq('user_id', user.id).order('achieved_at', { ascending: false }),
         supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`).eq('status', 'accepted'),
         supabase.from('workouts').select('id, started_at, ended_at').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', eightDaysAgo),
+        // 30-day muscle heatmap base set — independent of the above, batched together
+        supabase.from('workouts').select('id').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', thirtyDaysAgo),
+        // All-time volume/sets — independent of the above, batched together
+        supabase.from('workout_sets').select('weight, reps, workouts!inner(user_id)').eq('workouts.user_id', user.id),
       ]);
 
       setFriendCount(friends ?? 0);
@@ -280,13 +288,6 @@ export default function ProfileScreen() {
       // ── 30-day muscle heatmap: sets per muscle group ──────────────────────
       // Count sets (not weight×reps) so bodyweight work still registers — a set
       // is a set whether it's loaded or not.
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-      const { data: recentWorkouts } = await supabase
-        .from('workouts')
-        .select('id')
-        .eq('user_id', user.id)
-        .not('ended_at', 'is', null)
-        .gte('started_at', thirtyDaysAgo);
       const recentIds = (recentWorkouts ?? []).map((w: any) => w.id);
       const { data: recentSets } = recentIds.length > 0
         ? await supabase
@@ -330,11 +331,6 @@ export default function ProfileScreen() {
         .filter(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName))
         .map(p => ({ exerciseName: p.exerciseName, weight: p.weight, reps: p.reps }));
       setRankTier(getRankResult(sbdPRs, bw));
-
-      const { data: volumeData } = await supabase
-        .from('workout_sets')
-        .select('weight, reps, workouts!inner(user_id)')
-        .eq('workouts.user_id', user.id);
 
       const totalVolume = (volumeData ?? []).reduce((s: number, x: any) => s + x.weight * x.reps, 0);
       const totalSets = (volumeData ?? []).length;
@@ -645,7 +641,7 @@ export default function ProfileScreen() {
                 {uploadingPhoto ? (
                   <ActivityIndicator color={tierColor} />
                 ) : profile?.avatar_url ? (
-                  <Image source={{ uri: profile.avatar_url }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                  <Image source={{ uri: profile.avatar_url }} style={{ width: 80, height: 80, borderRadius: 40 }} cachePolicy="disk" transition={150} />
                 ) : (
                   <Text style={{ color: tierColor, fontWeight: '900', fontSize: 26 }}>
                     {initials(profile?.display_name ?? user?.email ?? '?')}

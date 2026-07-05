@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .from('users')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
     if (error) console.error('[useAuth] fetchProfile error:', error.message, error.code);
     if (data) setProfile(data);
 

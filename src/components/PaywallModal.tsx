@@ -10,8 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 
 // RevenueCat product IDs — configure these in App Store Connect + RC dashboard
 const PRODUCT_IDS = {
-  monthly: 'str.pro.monthly',  // $7.99/month
-  annual: 'str.pro.annual',    // $59.99/year
+  monthly: 'str.pros.monthly',  // $7.99/month
+  annual: 'str.pros.annual',    // $59.99/year
 };
 
 interface Props {

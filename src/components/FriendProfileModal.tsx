@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Modal, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, Modal, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, TierName } from '@/constants/colors';
 import { UserBadges } from './UserBadges';
@@ -425,7 +426,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                 shadowColor: tierColor, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 0 },
               }}>
                 {profile.avatar_url
-                  ? <Image source={{ uri: profile.avatar_url }} style={{ width: 92, height: 92 }} />
+                  ? <Image source={{ uri: profile.avatar_url }} style={{ width: 92, height: 92 }} cachePolicy="disk" transition={150} />
                   : <Text style={{ color: tierColor, fontWeight: '900', fontSize: 32 }}>{initials(profile.display_name ?? '')}</Text>}
               </View>
               <View style={{ alignItems: 'center', gap: 4 }}>

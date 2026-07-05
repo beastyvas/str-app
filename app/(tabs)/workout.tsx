@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Animated, Image,
+  KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -1581,7 +1582,7 @@ export default function WorkoutTab() {
                 }}
               >
                 {finishPhoto ? (
-                  <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                 ) : (
                   <View style={{ alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 28 }}>📸</Text>

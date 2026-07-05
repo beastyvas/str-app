@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, RefreshControl, Image, Modal, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
+  ActivityIndicator, Alert, RefreshControl, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, Camera } from 'expo-camera';
@@ -91,7 +92,7 @@ function Avatar({ url, name, color, size = 44 }: { url?: string; name: string; c
       overflow: 'hidden',
     }}>
       {url
-        ? <Image source={{ uri: url }} style={{ width: size, height: size }} />
+        ? <Image source={{ uri: url }} style={{ width: size, height: size }} cachePolicy="disk" transition={150} />
         : <Text style={{ color, fontWeight: '900', fontSize: size * 0.3 }}>{initials}</Text>
       }
     </View>
@@ -665,13 +666,15 @@ export default function SocialScreen() {
 
       {/* ── FEED ──────────────────────────────────────────────────────────── */}
       {subTab === 'feed' && (
-        <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
-        >
-          {loading ? (
+        loading ? (
+          <View style={{ flex: 1 }}>
             <ActivityIndicator color={Colors.accent} style={{ marginTop: 60 }} />
-          ) : friends.length === 0 ? (
+          </View>
+        ) : friends.length === 0 ? (
+          <ScrollView
+            contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
+          >
             <View style={{ alignItems: 'center', marginTop: 80, gap: 8 }}>
               <Text style={{ color: Colors.textMuted, fontSize: 20 }}>👥</Text>
               <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>No friends yet</Text>
@@ -685,7 +688,12 @@ export default function SocialScreen() {
                 <Text style={{ color: Colors.text, fontWeight: '700' }}>Find Friends →</Text>
               </TouchableOpacity>
             </View>
-          ) : feed.length === 0 ? (
+          </ScrollView>
+        ) : feed.length === 0 ? (
+          <ScrollView
+            contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
+          >
             <View style={{ alignItems: 'center', marginTop: 80, gap: 8 }}>
               <Text style={{ color: Colors.textMuted, fontSize: 20 }}>🏋️</Text>
               <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>No workouts yet</Text>
@@ -693,9 +701,18 @@ export default function SocialScreen() {
                 When your friends finish a workout it shows here. Get them lifting.
               </Text>
             </View>
-          ) : (
-            feed.map(post => (
-              <View key={post.workoutId} style={{
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={feed}
+            keyExtractor={post => post.workoutId}
+            contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
+            initialNumToRender={6}
+            windowSize={7}
+            removeClippedSubviews
+            renderItem={({ item: post }) => (
+              <View style={{
                 backgroundColor: Colors.surface,
                 borderRadius: 18,
                 marginBottom: 16,
@@ -716,7 +733,9 @@ export default function SocialScreen() {
                   <Image
                     source={{ uri: post.photoUrl }}
                     style={{ width: '100%', aspectRatio: 1 }}
-                    resizeMode="cover"
+                    contentFit="cover"
+                    cachePolicy="disk"
+                    transition={150}
                   />
                 )}
 
@@ -911,9 +930,9 @@ export default function SocialScreen() {
                   </View>
                 )}
               </View>
-            ))
-          )}
-        </ScrollView>
+            )}
+          />
+        )
       )}
 
       {/* ── PEOPLE ─────────────────────────────────────────────────────────── */}

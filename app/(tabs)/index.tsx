@@ -80,6 +80,19 @@ interface LastWorkout {
   exercises: string[];
 }
 
+interface TopLift {
+  name: string;
+  weight: number;
+  reps: number;
+}
+
+interface WorkoutDayData {
+  sessionType: string;
+  name: string;
+  durationMins: number;
+  topLifts: TopLift[];
+}
+
 export default function HomeScreen() {
   const { profile, user } = useAuth();
   const { isPro, aiAsksRemaining } = useSubscription();
@@ -106,17 +119,8 @@ export default function HomeScreen() {
     exercises: string[];
     endedAt: string;
   } | null>(null);
-  const [workoutDays, setWorkoutDays] = useState<Record<number, {
-    sessionType: string;
-    name: string;
-    durationMins: number;
-  }>>({});
-  const [selectedDayWorkout, setSelectedDayWorkout] = useState<{
-    dow: number;
-    sessionType: string;
-    name: string;
-    durationMins: number;
-  } | null>(null);
+  const [workoutDays, setWorkoutDays] = useState<Record<number, WorkoutDayData>>({});
+  const [selectedDayWorkout, setSelectedDayWorkout] = useState<(WorkoutDayData & { dow: number }) | null>(null);
 
   const [showTierLadder, setShowTierLadder] = useState(false);
 
@@ -210,7 +214,19 @@ export default function HomeScreen() {
         setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
       }
       setFirstSteps(newSteps);
-      const [prRes, workoutRes, friendRes] = await Promise.all([
+
+      // This calendar week's range (Mon–Sun) — computed up front so the
+      // weekly-strip query can run in the same batch below.
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+      const daysSinceMon = (dayOfWeek + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - daysSinceMon);
+      weekStart.setHours(0, 0, 0, 0);
+
+      // All of these are independent of each other — fire them as one batch
+      // instead of a chain of round trips.
+      const [prRes, workoutRes, friendRes, friendshipsRes, weekRes] = await Promise.all([
         // SBD PRs for rank tier
         supabase
           .from('personal_records')
@@ -236,6 +252,21 @@ export default function HomeScreen() {
           .neq('user_id', uid)
           .order('achieved_at', { ascending: false })
           .limit(8),
+
+        // Friendships — needed below for the crew activity card
+        supabase
+          .from('friendships')
+          .select('requester_id, addressee_id')
+          .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+          .eq('status', 'accepted'),
+
+        // This week's workouts for the weekly strip
+        supabase
+          .from('workouts')
+          .select('name, started_at, ended_at, workout_sets(weight, reps, exercises(name))')
+          .eq('user_id', uid)
+          .not('ended_at', 'is', null)
+          .gte('started_at', weekStart.toISOString()),
       ]);
 
       // Rank tier — only set after fresh fetch, never from stale state
@@ -290,11 +321,7 @@ export default function HomeScreen() {
       }
 
       // Most recent friend workout post for crew activity card
-      const { data: friendships } = await supabase
-        .from('friendships')
-        .select('requester_id, addressee_id')
-        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
-        .eq('status', 'accepted');
+      const friendships = friendshipsRes.data;
       const friendIds = (friendships ?? []).map(f =>
         f.requester_id === uid ? f.addressee_id : f.requester_id
       );
@@ -328,30 +355,37 @@ export default function HomeScreen() {
       }
 
       // This calendar week's workouts for the weekly strip (Mon–Sun)
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
-      const daysSinceMon = (dayOfWeek + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - daysSinceMon);
-      weekStart.setHours(0, 0, 0, 0);
-      const { data: weekData } = await supabase
-        .from('workouts')
-        .select('id, name, started_at, ended_at, workout_sets(exercises(name))')
-        .eq('user_id', uid)
-        .not('ended_at', 'is', null)
-        .gte('started_at', weekStart.toISOString());
+      const weekData = weekRes.data;
       if (weekData) {
-        const days: Record<number, { sessionType: string; name: string; durationMins: number; }> = {};
+        const days: Record<number, WorkoutDayData> = {};
         (weekData as any[]).forEach(w => {
           const dow = new Date(w.started_at).getDay();
-          const exs = (w.workout_sets ?? []).map((s: any) => s.exercises?.name).filter(Boolean);
+          const sets = (w.workout_sets ?? []) as any[];
+          const exs = sets.map((s: any) => s.exercises?.name).filter(Boolean);
           const durationMins = w.ended_at
             ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000)
             : 0;
+
+          // Top lifts — best set per exercise, ranked by volume
+          const byExercise = new Map<string, { weight: number; reps: number }>();
+          sets.forEach((s: any) => {
+            const name = s.exercises?.name;
+            if (!name) return;
+            const cur = byExercise.get(name);
+            if (!cur || s.weight > cur.weight || (s.weight === cur.weight && s.reps > cur.reps)) {
+              byExercise.set(name, { weight: s.weight, reps: s.reps });
+            }
+          });
+          const topLifts = [...byExercise.entries()]
+            .map(([name, best]) => ({ name, weight: best.weight, reps: best.reps }))
+            .sort((a, b) => (b.weight * b.reps) - (a.weight * a.reps))
+            .slice(0, 3);
+
           days[dow] = {
             sessionType: classifySession(exs) ?? 'Training',
             name: w.name ?? 'Workout',
             durationMins,
+            topLifts,
           };
         });
         setWorkoutDays(days);
@@ -430,11 +464,16 @@ export default function HomeScreen() {
     router.push('/(tabs)/insights');
   };
 
-  // Derived — today's planned session from configured split
+  // Derived — today's planned session from configured split.
+  // Once today's workout is already logged, fall through to the weekly
+  // recap view instead of nagging "Today's Mission · Let's go →".
+  const todayDow = new Date().getDay();
+  const todayData = workoutDays[todayDow];
   const todaySession: string | null = (() => {
+    if (todayData) return null;
     const schedule = (profile as any)?.split_schedule as Record<string, string> | null;
     if (!schedule) return null;
-    return schedule[String(new Date().getDay())] ?? null;
+    return schedule[String(todayDow)] ?? null;
   })();
 
   if (loading) {
@@ -1179,6 +1218,33 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
+
+                    {selectedDayWorkout.topLifts.length > 0 && (
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 }}>
+                          Top Lifts
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          {selectedDayWorkout.topLifts.map((lift, i) => (
+                            <View key={i} style={{
+                              backgroundColor: Colors.surface2,
+                              borderRadius: 10,
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderWidth: 1,
+                              borderColor: Colors.border,
+                            }}>
+                              <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                                {lift.name}
+                              </Text>
+                              <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                                {lift.weight}lbs × {lift.reps}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
                   </View>
                 );
               })()}
