@@ -25,7 +25,8 @@ export interface WorkoutExercise {
 }
 
 export interface ActiveWorkout {
-  id?: string;               // set after DB insert
+  id?: string;               // set after DB insert — absent means the row is still queued (started offline)
+  userId?: string;           // owner — needed to create the row later when started offline
   name: string;
   startedAt: Date;
   exercises: WorkoutExercise[];
@@ -47,9 +48,12 @@ interface WorkoutStore {
   logSet: (
     exerciseId: string,
     set: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean },
-    workoutId: string,
+    workoutId: string | undefined,
     userId: string
   ) => Promise<{ isPR: boolean }>;
+  // Pushes everything unsynced (workout row + sets without a DB id) to Supabase.
+  // ok=false means still offline; prLocalIds are sets that turned out to be PRs.
+  syncPending: () => Promise<{ ok: boolean; prLocalIds: string[] }>;
   updateSet: (exerciseId: string, localId: string, updates: Partial<LoggedSet>) => void;
   deleteSet: (exerciseId: string, localId: string) => void;
   finishWorkout: (notes?: string) => Promise<any>;
@@ -61,6 +65,38 @@ interface WorkoutStore {
 let localIdCounter = 0;
 const newLocalId = () => `local_${Date.now()}_${localIdCounter++}`;
 
+// Epley e1RM PR check + upsert. Returns whether this set beat the stored PR.
+// Any fetch error skips the check — never falsely celebrate on flaky signal.
+async function checkAndRecordPR(
+  userId: string,
+  exerciseId: string,
+  weight: number,
+  reps: number,
+  loggedAt: string,
+): Promise<boolean> {
+  const oneRM = weight * (1 + reps / 30);
+  const { data: existingPR, error } = await supabase
+    .from('personal_records')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('exercise_id', exerciseId)
+    .maybeSingle();
+  if (error) {
+    console.warn('[checkAndRecordPR] could not fetch existing PR, skipping:', error.message);
+    return false;
+  }
+  const existingOneRM = existingPR ? existingPR.weight * (1 + existingPR.reps / 30) : 0;
+  if (oneRM <= existingOneRM) return false;
+  await supabase.from('personal_records').upsert({
+    user_id: userId,
+    exercise_id: exerciseId,
+    weight,
+    reps,
+    achieved_at: loggedAt,
+  }, { onConflict: 'user_id,exercise_id' });
+  return true;
+}
+
 export const useWorkoutStore = create<WorkoutStore>()(
   persist(
     (set, get) => ({
@@ -70,21 +106,23 @@ export const useWorkoutStore = create<WorkoutStore>()(
   newPRs: [],
 
   startWorkout: async (name, userId) => {
-    const { data, error } = await supabase
-      .from('workouts')
-      .insert({ user_id: userId, name, started_at: new Date().toISOString() })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const startedAt = new Date();
+    let id: string | undefined;
+    try {
+      const { data, error } = await supabase
+        .from('workouts')
+        .insert({ user_id: userId, name, started_at: startedAt.toISOString() })
+        .select()
+        .single();
+      if (error) throw error;
+      id = data.id;
+    } catch {
+      // Offline — the workout lives on this phone; syncPending() creates the
+      // row (and everything logged into it) once there's a connection.
+    }
 
     set({
-      activeWorkout: {
-        id: data.id,
-        name: data.name,
-        startedAt: new Date(data.started_at),
-        exercises: [],
-      },
+      activeWorkout: { id, userId, name, startedAt, exercises: [] },
       lastSetLoggedAt: null,
       lastSetWasWarmup: false,
       newPRs: [],
@@ -152,7 +190,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
     });
   },
 
-  logSet: async (exerciseId, setData, workoutId, userId) => {
+  logSet: async (exerciseId, setData, _workoutId, _userId) => {
     const { activeWorkout } = get();
     if (!activeWorkout) return { isPR: false };
 
@@ -163,114 +201,108 @@ export const useWorkoutStore = create<WorkoutStore>()(
     const localId = newLocalId();
     const loggedAt = new Date().toISOString();
 
-    // Save to DB
-    const { data: savedSet, error } = await supabase
-      .from('workout_sets')
-      .insert({
-        workout_id: workoutId,
-        exercise_id: exerciseId,
-        set_number: setNumber,
-        weight: setData.weight,
-        reps: setData.reps,
-        rpe: setData.rpe ?? null,
-        note: setData.note ?? null,
-        logged_at: loggedAt,
-        is_warmup: setData.isWarmup ?? false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Warmup sets never count as PRs
-    if (setData.isWarmup) {
-      const newSet: LoggedSet = {
-        id: savedSet.id, localId, exerciseId, setNumber,
-        weight: setData.weight, reps: setData.reps,
-        rpe: setData.rpe, note: setData.note, loggedAt,
-        isWarmup: true,
-      };
-      set(state => ({
-        lastSetLoggedAt: new Date(),
-        lastSetWasWarmup: true,
-        activeWorkout: state.activeWorkout ? {
-          ...state.activeWorkout,
-          exercises: state.activeWorkout.exercises.map(e =>
-            e.exerciseId === exerciseId ? { ...e, sets: [...e.sets, newSet] } : e
-          ),
-        } : null,
-      }));
-      return { isPR: false };
-    }
-
-    // Check PR — estimate 1RM using Epley formula: w * (1 + r/30)
-    const oneRM = setData.weight * (1 + setData.reps / 30);
-    // maybeSingle — zero rows (no PR yet) is a valid, non-error result here.
-    // Using .single() previously meant ANY fetch error (not just "no rows")
-    // fell through the same `: 0` branch below, silently treating every set
-    // as beating a "0" PR and marking it a personal record every time.
-    const { data: existingPR, error: prFetchError } = await supabase
-      .from('personal_records')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('exercise_id', exerciseId)
-      .maybeSingle();
-
-    let isPR = false;
-    if (prFetchError) {
-      console.warn('[logSet] could not fetch existing PR, skipping PR check:', prFetchError.message);
-    } else {
-      const existingOneRM = existingPR
-        ? existingPR.weight * (1 + existingPR.reps / 30)
-        : 0;
-
-      if (oneRM > existingOneRM) {
-        isPR = true;
-        await supabase
-          .from('personal_records')
-          .upsert({
-            user_id: userId,
-            exercise_id: exerciseId,
-            weight: setData.weight,
-            reps: setData.reps,
-            achieved_at: loggedAt,
-          }, { onConflict: 'user_id,exercise_id' });
-
-        set(state => ({
-          newPRs: [
-            ...state.newPRs,
-            { exerciseName: ex.exerciseName, weight: setData.weight, reps: setData.reps },
-          ],
-        }));
-      }
-    }
-
+    // Offline-first: the set exists on this phone the moment it's logged.
+    // No `id` marks it as queued; syncPending() below pushes it (and anything
+    // older that's still queued) to Supabase and does the PR check there.
     const newSet: LoggedSet = {
-      id: savedSet.id,
-      localId,
-      exerciseId,
-      setNumber,
-      weight: setData.weight,
-      reps: setData.reps,
-      rpe: setData.rpe,
-      note: setData.note,
-      loggedAt,
+      localId, exerciseId, setNumber,
+      weight: setData.weight, reps: setData.reps,
+      rpe: setData.rpe, note: setData.note, loggedAt,
+      isWarmup: setData.isWarmup || undefined,
     };
-
     set(state => ({
       lastSetLoggedAt: new Date(),
-      lastSetWasWarmup: false,
-      activeWorkout: state.activeWorkout
-        ? {
-            ...state.activeWorkout,
-            exercises: state.activeWorkout.exercises.map(e =>
-              e.exerciseId === exerciseId ? { ...e, sets: [...e.sets, newSet] } : e
-            ),
-          }
-        : null,
+      lastSetWasWarmup: !!setData.isWarmup,
+      activeWorkout: state.activeWorkout ? {
+        ...state.activeWorkout,
+        exercises: state.activeWorkout.exercises.map(e =>
+          e.exerciseId === exerciseId ? { ...e, sets: [...e.sets, newSet] } : e
+        ),
+      } : null,
     }));
 
-    return { isPR };
+    const { prLocalIds } = await get().syncPending();
+    return { isPR: prLocalIds.includes(localId) };
+  },
+
+  syncPending: async () => {
+    const aw = get().activeWorkout;
+    if (!aw) return { ok: true, prLocalIds: [] };
+    const prLocalIds: string[] = [];
+
+    try {
+      // 1. Create the workout row if the session started offline. Workouts
+      //    persisted before userId existed fall back to the auth session.
+      let workoutId = aw.id;
+      if (!workoutId) {
+        let userId = aw.userId;
+        if (!userId) userId = (await supabase.auth.getUser()).data.user?.id;
+        if (!userId) return { ok: false, prLocalIds };
+        const { data, error } = await supabase
+          .from('workouts')
+          .insert({ user_id: userId, name: aw.name, started_at: aw.startedAt.toISOString() })
+          .select()
+          .single();
+        if (error) throw error;
+        workoutId = data.id;
+        set(state => ({
+          activeWorkout: state.activeWorkout ? { ...state.activeWorkout, id: workoutId, userId } : null,
+        }));
+      }
+
+      // 2. Push queued sets oldest-first so server order matches phone order
+      const pending = (get().activeWorkout?.exercises ?? [])
+        .flatMap(e => e.sets.filter(s => !s.id).map(s => ({ s, exerciseName: e.exerciseName })))
+        .sort((a, b) => a.s.loggedAt.localeCompare(b.s.loggedAt));
+
+      for (const { s, exerciseName } of pending) {
+        const { data: saved, error } = await supabase
+          .from('workout_sets')
+          .insert({
+            workout_id: workoutId,
+            exercise_id: s.exerciseId,
+            set_number: s.setNumber,
+            weight: s.weight,
+            reps: s.reps,
+            rpe: s.rpe ?? null,
+            note: s.note ?? null,
+            logged_at: s.loggedAt,
+            is_warmup: s.isWarmup ?? false,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+
+        set(state => ({
+          activeWorkout: state.activeWorkout ? {
+            ...state.activeWorkout,
+            exercises: state.activeWorkout.exercises.map(e =>
+              e.exerciseId === s.exerciseId
+                ? { ...e, sets: e.sets.map(x => x.localId === s.localId ? { ...x, id: saved.id } : x) }
+                : e
+            ),
+          } : null,
+        }));
+
+        // Warmup sets never count as PRs
+        if (!s.isWarmup) {
+          const uid = get().activeWorkout?.userId;
+          const isPR = uid
+            ? await checkAndRecordPR(uid, s.exerciseId, s.weight, s.reps, s.loggedAt)
+            : false;
+          if (isPR) {
+            prLocalIds.push(s.localId);
+            set(state => ({
+              newPRs: [...state.newPRs, { exerciseName, weight: s.weight, reps: s.reps }],
+            }));
+          }
+        }
+      }
+      return { ok: true, prLocalIds };
+    } catch {
+      // Still offline — everything without a DB id stays queued on-device.
+      return { ok: false, prLocalIds };
+    }
   },
 
   updateSet: (exerciseId, localId, updates) => {
@@ -304,8 +336,16 @@ export const useWorkoutStore = create<WorkoutStore>()(
   },
 
   finishWorkout: async (notes) => {
+    // Everything must be on the server before the workout can close — a
+    // finished workout with phone-only sets would silently lose them.
+    const { ok } = await get().syncPending();
     const { activeWorkout } = get();
-    if (!activeWorkout?.id) throw new Error('No active workout');
+    if (!activeWorkout) throw new Error('No active workout');
+    if (!ok || !activeWorkout.id) {
+      throw new Error(
+        "You're offline. Every set is saved on this phone — finish the workout once you're back online and nothing will be lost."
+      );
+    }
 
     const endedAt = new Date().toISOString();
     await supabase
@@ -430,6 +470,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
     set({
       activeWorkout: {
         id: workout.id,
+        userId,
         name: workout.name,
         startedAt: new Date(workout.started_at),
         exercises: Object.values(exerciseMap),

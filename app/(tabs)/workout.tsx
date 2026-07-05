@@ -65,6 +65,7 @@ export default function WorkoutTab() {
     discardWorkout,
     clearPRs,
     restoreWorkout,
+    syncPending,
   } = useWorkoutStore();
 
   // Restore any in-progress workout from Supabase when the app reopens
@@ -76,6 +77,8 @@ export default function WorkoutTab() {
         const name = useWorkoutStore.getState().activeWorkout?.name ?? 'Workout';
         notifyWorkoutStarted(name);
       }
+      // Push anything logged offline last session now that we may be back online
+      syncPending();
     }).finally(() => setRestoring(false));
   }, [user]);
 
@@ -447,7 +450,7 @@ export default function WorkoutTab() {
     exerciseId: string,
     data: { weight: number; reps: number; rpe?: number; note?: string }
   ) => {
-    if (!activeWorkout?.id || !user) return { isPR: false };
+    if (!activeWorkout || !user) return { isPR: false };
     const result = await logSet(exerciseId, data, activeWorkout.id, user.id);
 
     // Advance first workout tutorial
@@ -1171,6 +1174,10 @@ export default function WorkoutTab() {
   const totalVolume = activeWorkout.exercises
     .flatMap(e => e.sets)
     .reduce((n, s) => n + s.weight * s.reps, 0);
+  // Sets without a DB id are queued on-device (logged offline)
+  const pendingSyncCount = activeWorkout.exercises
+    .flatMap(e => e.sets)
+    .filter(s => !s.id).length;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }} edges={['top']}>
@@ -1277,6 +1284,24 @@ export default function WorkoutTab() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Offline queue banner — anything logged without signal is safe on-device */}
+      {pendingSyncCount > 0 && (
+        <TouchableOpacity
+          onPress={() => syncPending()}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+            backgroundColor: Colors.goldDim, paddingVertical: 8, paddingHorizontal: 16,
+            borderBottomWidth: 1, borderBottomColor: Colors.gold + '30',
+          }}
+        >
+          <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: '700' }}>
+            Offline — {pendingSyncCount === 1 ? '1 set' : `${pendingSyncCount} sets`} saved on this phone
+          </Text>
+          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Tap to retry sync</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Rest timer — appears after first set */}
       <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />

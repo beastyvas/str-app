@@ -32,7 +32,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#101012"
       },
-      "package": "com.nickbuilds.str"
+      "package": "com.nickbuilds.str",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -53,7 +57,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#FF4500",
+          "color": "#D9A441",
           "sounds": [],
           "iosDisplayInForeground": false
         }
@@ -77,13 +81,19 @@
             "WorkoutWidget": {
               "type": "widget",
               "deploymentTarget": "16.2",
-              "frameworks": ["WidgetKit", "SwiftUI", "ActivityKit"],
+              "frameworks": [
+                "WidgetKit",
+                "SwiftUI",
+                "ActivityKit"
+              ],
               "files": [
                 "targets/WorkoutWidget/WorkoutWidget.swift",
                 "targets/WorkoutWidget/WorkoutAttributes.swift"
               ],
               "entitlements": {
-                "com.apple.security.application-groups": ["group.com.nickbuilds.str"]
+                "com.apple.security.application-groups": [
+                  "group.com.nickbuilds.str"
+                ]
               }
             }
           }
@@ -101,6 +111,12 @@
         "projectId": "ac81fe2e-db5d-49c2-8957-428086c1b8fb"
       }
     },
-    "owner": "beastyvass-organization"
+    "owner": "beastyvass-organization",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ac81fe2e-db5d-49c2-8957-428086c1b8fb"
+    }
   }
 }
