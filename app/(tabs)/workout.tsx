@@ -718,6 +718,12 @@ export default function WorkoutTab() {
   const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   // Starter programs are pitched at new lifters (no experience set reads as new)
   const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
+  // One Quick Start list: saved templates first, then recent sessions that
+  // aren't already saved under the same name (capped so the screen stays calm)
+  const savedNames = new Set(savedTemplates.map((t: any) => String(t.name).toLowerCase()));
+  const quickStartRecents = templates
+    .filter(t => !savedNames.has(t.name.toLowerCase()))
+    .slice(0, 3);
   const MUSCLE_COLORS: Record<string, string> = {
     'Chest': '#C2566B', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
     'Biceps': '#3498DB', 'Mid-Upper Back': '#1ABC9C', 'Lats': '#16A085',
@@ -914,12 +920,12 @@ export default function WorkoutTab() {
             </View>
           )}
 
-          {/* Saved templates */}
-          {savedTemplates.length > 0 && (
+          {/* Quick Start — saved templates + recent sessions, one calm list */}
+          {(savedTemplates.length > 0 || quickStartRecents.length > 0) && (
             <View style={{ marginBottom: 24 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
-                  Saved Templates
+                  Quick Start
                 </Text>
               </View>
               <View style={{ gap: 10 }}>
@@ -967,6 +973,53 @@ export default function WorkoutTab() {
                     </Text>
                   </TouchableOpacity>
                 ))}
+
+                {/* Recent sessions not saved as templates — same list, quieter chip */}
+                {quickStartRecents.map(tmpl => {
+                  const daysAgo = Math.floor((Date.now() - new Date(tmpl.lastUsed).getTime()) / 86400000);
+                  const ageLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
+                  return (
+                    <TouchableOpacity
+                      key={tmpl.id}
+                      onPress={() => startFromTemplate(tmpl.name, tmpl.exercises)}
+                      style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16 }}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <View style={{ flex: 1, marginRight: 10 }}>
+                          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
+                            {tmpl.name}
+                          </Text>
+                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                            Recent session · last done {ageLabel}
+                          </Text>
+                        </View>
+                        <View style={{
+                          backgroundColor: Colors.surface2, borderRadius: 8,
+                          paddingHorizontal: 10, paddingVertical: 6,
+                        }}>
+                          <Text style={{ color: Colors.textSecondary, fontWeight: '800', fontSize: 12 }}>Repeat →</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {tmpl.exercises.map((ex, i) => (
+                          <View key={i} style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 4,
+                            backgroundColor: Colors.surface2, borderRadius: 6,
+                            paddingHorizontal: 8, paddingVertical: 4,
+                          }}>
+                            <View style={{
+                              width: 5, height: 5, borderRadius: 3,
+                              backgroundColor: MUSCLE_COLORS[ex.muscle_group] ?? Colors.textMuted,
+                            }} />
+                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '600' }}>
+                              {ex.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -995,79 +1048,6 @@ export default function WorkoutTab() {
               </Text>
             </View>
           </TouchableOpacity>
-
-          {/* Recent history templates grid */}
-          {templates.length > 0 && (
-            <>
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-                Your templates
-              </Text>
-              <View style={{ gap: 10 }}>
-                {templates.map(tmpl => {
-                  const daysAgo = Math.floor((Date.now() - new Date(tmpl.lastUsed).getTime()) / 86400000);
-                  const ageLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo}d ago`;
-                  return (
-                    <TouchableOpacity
-                      key={tmpl.id}
-                      onPress={() => startFromTemplate(tmpl.name, tmpl.exercises)}
-                      style={{
-                        backgroundColor: Colors.surface,
-                        borderRadius: 14,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: Colors.border,
-                      }}
-                    >
-                      {/* Header */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
-                            {tmpl.name}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                            {tmpl.exercises.length} exercises · {ageLabel}
-                          </Text>
-                        </View>
-                        <View style={{
-                          backgroundColor: Colors.accentDim,
-                          borderRadius: 8,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderWidth: 1,
-                          borderColor: Colors.accent + '40',
-                        }}>
-                          <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>Start →</Text>
-                        </View>
-                      </View>
-
-                      {/* All exercises */}
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                        {tmpl.exercises.map((ex, i) => (
-                          <View key={i} style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
-                            backgroundColor: Colors.surface2,
-                            borderRadius: 6,
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                          }}>
-                            <View style={{
-                              width: 5, height: 5, borderRadius: 3,
-                              backgroundColor: MUSCLE_COLORS[ex.muscle_group] ?? Colors.textMuted,
-                            }} />
-                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '600' }}>
-                              {ex.name}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>
-          )}
 
           {loadingTemplates && (
             <ActivityIndicator color={Colors.textMuted} style={{ marginTop: 40 }} />
