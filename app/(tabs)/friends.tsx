@@ -480,9 +480,16 @@ export default function SocialScreen() {
 
   const sendRequest = async (toId: string) => {
     if (!user) return;
-    await supabase.from('friendships').insert({ requester_id: user.id, addressee_id: toId });
+    const { data: row } = await supabase
+      .from('friendships')
+      .insert({ requester_id: user.id, addressee_id: toId })
+      .select('status')
+      .single();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSearchResults(prev => prev.map(u => u.id === toId ? { ...u, requestSent: true } : u));
+    // Creator requests auto-accept server-side — reload so they appear as a
+    // friend immediately instead of after the next pull-to-refresh
+    if (row?.status === 'accepted') loadData();
   };
 
   const acceptRequest = async (friendshipId: string) => {
@@ -1274,7 +1281,12 @@ export default function SocialScreen() {
       <FriendProfileModal
         visible={!!selectedFriendId}
         userId={selectedFriendId}
-        onClose={() => setSelectedFriendId(null)}
+        onClose={() => {
+          setSelectedFriendId(null);
+          // A friendship may have just been created (creator auto-accepts) —
+          // refresh so the new friend is in the list the moment the modal closes
+          loadData();
+        }}
       />
 
       {/* QR Scanner Modal */}

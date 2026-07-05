@@ -230,11 +230,13 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
     try {
       const { data: { user: me } } = await supabase.auth.getUser();
       if (!me) return;
-      const { error } = await supabase.from('friendships').insert({
+      const { data: row, error } = await supabase.from('friendships').insert({
         requester_id: me.id, addressee_id: userId,
-      });
+      }).select('status').single();
       if (error) throw error;
-      setFriendStatus('pending');
+      // The creator auto-accepts server-side (migration 012) — reflect it
+      // instantly so the first friend-add feels like it just... worked.
+      setFriendStatus(row?.status === 'accepted' ? 'friends' : 'pending');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {

@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
-import { getRankResult, RANK_TIERS, ROMAN } from '@/constants/ranks';
+import { getRankResult, ROMAN } from '@/constants/ranks';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { screenText } from '@/lib/contentFilter';
 
@@ -150,14 +150,14 @@ export default function OnboardingScreen() {
         }));
         const result = getRankResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
         setRevealTier(result.tier);
+        setShowTierReveal(true);
+        // Note: refreshProfile() is called on the done screen's "Let's get it →"
+        // so navigation doesn't fire before the tier reveal animates
       } else {
-        // No SBD — show MORTAL as starting rank
-        setRevealTier(RANK_TIERS[0]);
+        // No lifts entered (beginners skip that step) — no rank theater.
+        // Land straight on the done screen, which hands them their path.
+        animateNext('done');
       }
-
-      setShowTierReveal(true);
-      // Note: refreshProfile() is called on the done screen's "Let's get it →"
-      // so navigation doesn't fire before the tier reveal animates
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
