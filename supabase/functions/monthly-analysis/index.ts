@@ -8,6 +8,29 @@ const corsHeaders = {
 
 const FREE_RUNS_PER_MONTH = 1;
 
+// Server-owned coach identity — mirror of src/constants/ranks.ts. The client
+// sends only a validated tier key, never prompt text (see ai-coach for the
+// same pattern).
+const TIER_COACH_NAME: Record<string, string> = {
+  mortal: 'The Mentor',
+  awakened: 'The Trainer',
+  ascendant: 'The Tactician',
+  phantom: 'The Rival',
+  sovereign: 'The Sovereign',
+  godhand: 'The Limitless',
+};
+
+const TIER_COACH_PERSONALITY: Record<string, string> = {
+  mortal: "You're speaking to a lifter at the very start of their journey. Be warm, protective, and foundational — build their confidence, focus on habits and basics, never overwhelm them.",
+  awakened: "This lifter has unlocked something real. Push them harder than they push themselves — direct, motivating, honest.",
+  ascendant: "Technical territory. Speak to programming concepts — RPE, volume landmarks, weak-point training. They want the WHY.",
+  phantom: "This athlete has surpassed most lifters. Cold analysis, no hand-holding, peer-level conversation.",
+  sovereign: "S-rank mentality. Surgical feedback, precise programming. Waste no words.",
+  godhand: "Elite. No basics, no encouragement needed, pure precision. Speak to a force of nature as an equal.",
+};
+
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+
 // First instant of the current calendar month, in UTC.
 function monthStartIso(d: Date): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
@@ -61,8 +84,15 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const coachName: string = body.coachName ?? 'Coach';
-    const tierPersonality: string = body.tierPersonality ?? 'Direct, experienced, no fluff.';
+    // New clients send { tierKey, subTier }; legacy builds sent free-text
+    // coachName/tierPersonality, which we no longer trust — unknown/missing
+    // keys fall back to the default identity.
+    const tierKey: string = typeof body.tierKey === 'string' && body.tierKey in TIER_COACH_NAME
+      ? body.tierKey
+      : (typeof body.rankTierKey === 'string' && body.rankTierKey in TIER_COACH_NAME ? body.rankTierKey : 'mortal');
+    const subTier: number = Number.isInteger(body.subTier) && body.subTier >= 0 && body.subTier <= 5 ? body.subTier : 0;
+    const coachName = `${TIER_COACH_NAME[tierKey]}${ROMAN[subTier] ? ` ${ROMAN[subTier]}` : ''}`;
+    const tierPersonality = TIER_COACH_PERSONALITY[tierKey];
 
     // ── Pull the last 30 days of training ───────────────────────────────────
     const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString();

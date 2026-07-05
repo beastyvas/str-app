@@ -61,7 +61,7 @@ interface ProfileStats {
 type WeeklyMetric = 'Volume' | 'Duration' | 'Sets';
 
 const SESSION_COLORS: Record<string, string> = {
-  Push: '#D4197A', Pull: '#3B82F6', Legs: '#F97316',
+  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
   Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
 };
 const SESSION_TYPES = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Core'];
@@ -643,7 +643,7 @@ export default function ProfileScreen() {
                 ) : profile?.avatar_url ? (
                   <Image source={{ uri: profile.avatar_url }} style={{ width: 80, height: 80, borderRadius: 40 }} cachePolicy="disk" transition={150} />
                 ) : (
-                  <Text style={{ color: tierColor, fontWeight: '900', fontSize: 26 }}>
+                  <Text style={{ color: tierColor, fontWeight: '800', fontSize: 26 }}>
                     {initials(profile?.display_name ?? user?.email ?? '?')}
                   </Text>
                 )}
@@ -660,7 +660,7 @@ export default function ProfileScreen() {
 
             {/* Name / username / badges */}
             <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 2 }}>
+              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.5, marginBottom: 2 }}>
                 {profile?.display_name ?? user?.email}
               </Text>
               {profile?.username && (
@@ -691,7 +691,7 @@ export default function ProfileScreen() {
                 <Text style={{
                   color: Colors.text,
                   fontSize: 18,
-                  fontWeight: '900',
+                  fontWeight: '800',
                   letterSpacing: -0.5,
                 }}>
                   {String(s.value)}
@@ -821,7 +821,7 @@ export default function ProfileScreen() {
                 }}>
                   <Text style={{
                     color: tierColor,
-                    fontWeight: '900',
+                    fontWeight: '800',
                     fontSize: 14,
                     letterSpacing: 2.5,
                     textTransform: 'uppercase',
@@ -908,7 +908,7 @@ export default function ProfileScreen() {
                   <Text style={{
                     color: s.color ?? Colors.text,
                     fontSize: 20,
-                    fontWeight: '900',
+                    fontWeight: '800',
                     letterSpacing: -0.5,
                   }}>
                     {s.value}
@@ -970,7 +970,7 @@ export default function ProfileScreen() {
 
                 {hasSplit ? (
                   <>
-                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 14 }}>
+                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.5, marginBottom: 14 }}>
                       {splitLabel}
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 5 }}>
@@ -985,7 +985,7 @@ export default function ProfileScreen() {
                               alignItems: 'center', justifyContent: 'center',
                             }}>
                               {session && (
-                                <Text style={{ color: session.color, fontSize: 7, fontWeight: '900', letterSpacing: 0.3, textAlign: 'center' }}>
+                                <Text style={{ color: session.color, fontSize: 7, fontWeight: '800', letterSpacing: 0.3, textAlign: 'center' }}>
                                   {session.type === 'Full Body' ? 'FB' : session.type === 'Upper' ? 'UP' : session.type === 'Lower' ? 'LO' : session.type.slice(0, 2).toUpperCase()}
                                 </Text>
                               )}
@@ -1061,7 +1061,7 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 20 }}>{isPro ? '⚡' : '🔓'}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '900' }}>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
                 {isPro ? 'STR Pro' : 'Free Plan'}
               </Text>
               <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
@@ -1075,7 +1075,7 @@ export default function ProfileScreen() {
                 backgroundColor: Colors.accent + '25', borderRadius: 8,
                 paddingHorizontal: 10, paddingVertical: 4,
               }}>
-                <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>ACTIVE</Text>
+                <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>ACTIVE</Text>
               </View>
             ) : (
               <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '800' }}>Upgrade →</Text>
@@ -1213,7 +1213,7 @@ export default function ProfileScreen() {
             padding: 24, borderTopWidth: 1, borderTopColor: Colors.border, gap: 16,
           }}>
             <View>
-              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Your SBD Maxes</Text>
+              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>Your SBD Maxes</Text>
               <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 4 }}>
                 Best single or heavy working set. Updates your rank instantly.
               </Text>
@@ -1247,7 +1247,7 @@ export default function ProfileScreen() {
               disabled={sbdSaving}
               style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 }}
             >
-              {sbdSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE & UPDATE RANK</Text>}
+              {sbdSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>SAVE & UPDATE RANK</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -1262,7 +1262,7 @@ export default function ProfileScreen() {
               paddingHorizontal: 20, paddingVertical: 16,
               borderBottomWidth: 1, borderBottomColor: Colors.border,
             }}>
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Edit Profile</Text>
+              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setEditing(false)}>
                 <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
@@ -1324,7 +1324,7 @@ export default function ProfileScreen() {
                 disabled={saving}
                 style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 }}
               >
-                {saving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>Save</Text>}
+                {saving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>Save</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -1343,7 +1343,7 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={() => setShowSplitEditor(false)}>
               <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>My Split</Text>
+            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>My Split</Text>
             <TouchableOpacity onPress={saveSplit} disabled={splitSaving}>
               {splitSaving
                 ? <ActivityIndicator color={Colors.accent} size="small" />
@@ -1362,7 +1362,7 @@ export default function ProfileScreen() {
                 backgroundColor: Colors.accentDim, borderRadius: 12, padding: 14,
                 borderWidth: 1, borderColor: Colors.accent + '40', alignItems: 'center',
               }}>
-                <Text style={{ color: Colors.accent, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 }}>
+                <Text style={{ color: Colors.accent, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 }}>
                   {splitLabelFromSchedule(editSplitSchedule)}
                 </Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 4 }}>
@@ -1396,7 +1396,7 @@ export default function ProfileScreen() {
                       alignItems: 'center', justifyContent: 'center',
                     }}>
                       {type ? (
-                        <Text style={{ color, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' }}>
+                        <Text style={{ color, fontSize: 9, fontWeight: '800', letterSpacing: 0.5, textAlign: 'center' }}>
                           {type === 'Full Body' ? 'FB' : type === 'Upper' ? 'UP' : type === 'Lower' ? 'LO' : type.slice(0, 2).toUpperCase()}
                         </Text>
                       ) : (
@@ -1529,7 +1529,7 @@ export default function ProfileScreen() {
               borderBottomWidth: 1, borderBottomColor: Colors.border,
             }}>
               <View>
-                <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Lifter DNA</Text>
+                <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Lifter DNA</Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>Coach reads this before every response</Text>
               </View>
               <TouchableOpacity onPress={() => setDnaModalOpen(false)}>
@@ -1559,7 +1559,7 @@ export default function ProfileScreen() {
                 disabled={dnaSaving}
                 style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 16, alignItems: 'center' }}
               >
-                {dnaSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>Save</Text>}
+                {dnaSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Save</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>

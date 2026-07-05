@@ -12,12 +12,12 @@ import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore } from '@/hooks/useChatStore';
-import { getRankResult, TIER_COACH_NAME, TIER_COACH_PERSONALITY, ROMAN } from '@/constants/ranks';
+import { getRankResult, TIER_COACH_NAME, ROMAN } from '@/constants/ranks';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  timestamp?: number;
+  timestamp: number;
 }
 
 const STARTER_PROMPTS = [
@@ -103,9 +103,8 @@ export default function InsightsTab() {
     if (!canRunAnalysis) { setShowPaywall(true); return; }
     setAnalysisLoading(true);
     try {
-      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['mortal'];
       const { data, error } = await supabase.functions.invoke('monthly-analysis', {
-        body: { coachName, tierPersonality, rankTierKey: coachTierKey, trainingStyle: profile?.training_style },
+        body: { tierKey: coachTierKey, subTier: coachSubTier },
       });
       if (error) {
         // Non-2xx — pull the structured payload out of the response if we can
@@ -274,26 +273,16 @@ export default function InsightsTab() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
+      // The instruction skeleton + tier personality live server-side in the
+      // ai-coach edge function — the client only ships athlete data and a
+      // tier key, so the function can't be repurposed as an open Claude proxy.
       const context = await buildContext();
-      const tierPersonality = TIER_COACH_PERSONALITY[coachTierKey] ?? TIER_COACH_PERSONALITY['mortal'];
-      const systemPrompt = `You are ${coachName}, a strength and physique coach identity tied to the user's current rank in the STR app.
-
-Tier-specific energy: ${tierPersonality}
-
-Core coaching style (always):
-- Direct. No fluff. No corporate wellness speak.
-- You've been under the bar. You talk like it.
-- Call out specific patterns — RPE trends, recurring notes, recovery signals.
-- Real advice only. Never generic filler.
-- Know both worlds: powerlifting (SBD, peaking, periodization) AND bodybuilding (hypertrophy, weak points, aesthetics).
-- 2-4 short paragraphs max. No bullet lists. No headers. Just talk.
-
-User data:
-${context}`;
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke('ai-coach', {
         body: {
-          systemPrompt,
+          context,
+          tierKey: coachTierKey,
+          subTier: coachSubTier,
           messages: [
             ...messages.map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: text.trim() },
@@ -440,7 +429,7 @@ ${context}`;
         borderBottomColor: Colors.border,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Text style={{ color: coachTierColor, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
+          <Text style={{ color: coachTierColor, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 }}>
             {coachName}
           </Text>
           {!isPro && (
@@ -459,7 +448,7 @@ ${context}`;
           )}
           {isPro && (
             <View style={{ backgroundColor: Colors.accent + '20', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-              <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>PRO</Text>
+              <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>PRO</Text>
             </View>
           )}
         </View>
@@ -523,7 +512,7 @@ ${context}`;
                   </View>
                   <View style={{ alignItems: 'center', gap: 6 }}>
                     <Text style={{
-                      color: coachTierColor, fontSize: 22, fontWeight: '900', letterSpacing: -0.5,
+                      color: coachTierColor, fontSize: 22, fontWeight: '800', letterSpacing: -0.5,
                       textShadowColor: coachTierColor, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8,
                     }}>
                       {coachName}
@@ -716,7 +705,7 @@ ${context}`;
             }}>
               <Text style={{ fontSize: 32 }}>📈</Text>
             </View>
-            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 }}>
+            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 }}>
               Monthly Analysis
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
@@ -743,7 +732,7 @@ ${context}`;
               borderWidth: 1, borderColor: coachTierColor + '35', marginTop: 8,
             }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ color: coachTierColor, fontSize: 11, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                <Text style={{ color: coachTierColor, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                   Your Report
                 </Text>
                 {analysisLastRun && (
@@ -775,7 +764,7 @@ ${context}`;
                   shadowOffset: { width: 0, height: 4 }, elevation: 6,
                 }}
               >
-                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>
+                <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
                   {analysisReport ? 'Run New Analysis' : 'Generate Analysis'}
                 </Text>
               </TouchableOpacity>
@@ -787,7 +776,7 @@ ${context}`;
                   borderWidth: 1, borderColor: Colors.accent + '45', alignItems: 'center', gap: 4,
                 }}
               >
-                <Text style={{ color: Colors.accent, fontWeight: '900', fontSize: 14 }}>
+                <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 14 }}>
                   Go Pro for unlimited analyses ⚡
                 </Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 17 }}>
@@ -1034,7 +1023,7 @@ ${context}`;
                 >
                   {saving
                     ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>
+                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
                         Save {parsedWorkouts.length} Workout{parsedWorkouts.length !== 1 ? 's' : ''} to STR
                       </Text>
                   }

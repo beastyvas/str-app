@@ -21,7 +21,7 @@ export function SetInputRow({
   setNumber: number;
   prevSet?: LoggedSet;
   equipmentType?: string;
-  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => Promise<void>;
+  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => Promise<{ isPR: boolean } | void>;
 }) {
   const defaultMode = prevSet?.weight === 0
     ? 'bw'
@@ -130,11 +130,11 @@ export function SetInputRow({
         <View style={{ flex: 1.6 }}>
           {mode === 'bw' ? (
             <View style={[inputStyle, { justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: Colors.success, fontSize: 22, fontWeight: '900' }}>BW</Text>
+              <Text style={{ color: Colors.success, fontSize: 22, fontWeight: '800' }}>BW</Text>
             </View>
           ) : mode === 'plates' ? (
             <View style={[inputStyle, { justifyContent: 'center', alignItems: 'center', paddingVertical: 6 }]}>
-              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -1 }}>
+              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -1 }}>
                 {plateWeight}
               </Text>
               <Text style={{ color: Colors.textMuted, fontSize: 9 }}>{cfg.label}</Text>
@@ -177,7 +177,7 @@ export function SetInputRow({
             borderColor: mode !== 'number' ? Colors.accent + '60' : Colors.border,
           }}
         >
-          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '900' }}>
+          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '800' }}>
             {mode === 'number' ? 'lbs' : mode === 'bw' ? 'BW' : '🏋️'}
           </Text>
         </TouchableOpacity>
@@ -192,7 +192,7 @@ export function SetInputRow({
             minWidth: 32, alignItems: 'center',
           }}
         >
-          <Text style={{ color: isWarmup ? '#F97316' : Colors.textMuted, fontSize: 11, fontWeight: '900' }}>W</Text>
+          <Text style={{ color: isWarmup ? '#F97316' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -214,7 +214,7 @@ export function SetInputRow({
         >
           <Text style={{
             color: canLog() && !logging ? Colors.text : Colors.textMuted,
-            fontWeight: '900',
+            fontWeight: '800',
             fontSize: 12,
             letterSpacing: 0.5,
           }}>
@@ -486,7 +486,7 @@ export function LoggedSetRow({
             gap: 3,
           }}>
             <Text style={{ fontSize: 9 }}>🏆</Text>
-            <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }}>PR</Text>
+            <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>PR</Text>
           </View>
         )}
         {set.note && (

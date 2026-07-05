@@ -25,7 +25,7 @@ const TIER_COLORS: Record<TierName, string> = {
 };
 
 const SESSION_COLORS: Record<string, string> = {
-  Push: '#D4197A',
+  Push: '#C2566B',
   Pull: '#3B82F6',
   Legs: '#F97316',
   Upper: '#A855F7',
@@ -509,7 +509,7 @@ export default function HomeScreen() {
           <Text style={{
             color: Colors.text,
             fontSize: 32,
-            fontWeight: '900',
+            fontWeight: '800',
             letterSpacing: -1.5,
             marginTop: 4,
             lineHeight: 36,
@@ -537,7 +537,7 @@ export default function HomeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={{
                     color: rankResult.tier.color,
-                    fontSize: 13, fontWeight: '900', letterSpacing: 2.5, textTransform: 'uppercase',
+                    fontSize: 13, fontWeight: '800', letterSpacing: 2.5, textTransform: 'uppercase',
                   }}>
                     {rankResult.tier.label} {ROMAN[rankResult.subTier]}
                   </Text>
@@ -571,7 +571,7 @@ export default function HomeScreen() {
                           borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
                         }}
                       >
-                        <Text style={{ color: rankResult.tier.color, fontSize: 10, fontWeight: '900' }}>
+                        <Text style={{ color: rankResult.tier.color, fontSize: 10, fontWeight: '800' }}>
                           Ask Coach ⚡
                         </Text>
                       </TouchableOpacity>
@@ -579,7 +579,7 @@ export default function HomeScreen() {
                   )}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                  <Text style={{ color: rankResult.tier.color, fontSize: 18, fontWeight: '900' }}>
+                  <Text style={{ color: rankResult.tier.color, fontSize: 18, fontWeight: '800' }}>
                     {rankResult.avgScore.toFixed(1)}
                   </Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1 }}>/ 5.0</Text>
@@ -628,7 +628,7 @@ export default function HomeScreen() {
                     <Text style={{
                       color: SESSION_COLORS[todaySession] ?? Colors.accent,
                       fontSize: 22,
-                      fontWeight: '900',
+                      fontWeight: '800',
                       letterSpacing: -0.5,
                     }}>
                       {todaySession}
@@ -884,7 +884,7 @@ export default function HomeScreen() {
             <Text style={{
               color: Colors.text,
               fontSize: 24,
-              fontWeight: '900',
+              fontWeight: '800',
               letterSpacing: -0.5,
             }}>
               Start Workout →
@@ -991,7 +991,7 @@ export default function HomeScreen() {
                   borderWidth: 1, borderColor: Colors.accent + '40',
                   alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '900' }}>
+                  <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '800' }}>
                     {recentFriendPost.displayName.charAt(0).toUpperCase()}
                   </Text>
                 </View>
@@ -1052,7 +1052,7 @@ export default function HomeScreen() {
               padding: 24, borderTopWidth: 1, borderTopColor: Colors.border, gap: 16,
             }}>
               <View>
-                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Build your weekly plan</Text>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>Build your weekly plan</Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 6, lineHeight: 19 }}>
                   Coach will build you a full week of training based on your goals. This uses one of your free Coach asks.
                 </Text>
@@ -1094,7 +1094,7 @@ export default function HomeScreen() {
                 }}
                 style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
               >
-                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>Build My Plan → (uses 1 ask)</Text>
+                <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Build My Plan → (uses 1 ask)</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -1124,7 +1124,7 @@ export default function HomeScreen() {
               gap: 16,
             }}>
               <View>
-                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Your SBD Maxes</Text>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>Your SBD Maxes</Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 4 }}>
                   Enter your best single or a heavy set of 3-5. We'll use this to calculate your tier.
                 </Text>
@@ -1174,7 +1174,7 @@ export default function HomeScreen() {
               >
                 {sbdSaving
                   ? <ActivityIndicator color={Colors.text} />
-                  : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>SAVE & CALCULATE TIER</Text>
+                  : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>SAVE & CALCULATE TIER</Text>
                 }
               </TouchableOpacity>
             </View>

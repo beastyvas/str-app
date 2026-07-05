@@ -146,7 +146,7 @@ export function RestTimer({ lastSetLoggedAt, lastSetWasWarmup = false }: RestTim
           {lastSetWasWarmup ? 'Warmup Rest' : 'Rest'}
         </Text>
         <Text style={{
-          color: timerColor, fontSize: 18, fontWeight: '900',
+          color: timerColor, fontSize: 18, fontWeight: '800',
           fontVariant: ['tabular-nums'], letterSpacing: 1.5,
           textShadowColor: timerColor, textShadowOffset: { width: 0, height: 0 },
           textShadowRadius: done ? 8 : 0,

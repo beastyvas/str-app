@@ -20,7 +20,7 @@ export function EulaModal({ visible, onClose, onAgree }: Props) {
           paddingHorizontal: 20, paddingVertical: 16,
           borderBottomWidth: 1, borderBottomColor: Colors.border,
         }}>
-          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>Terms of Use</Text>
+          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Terms of Use</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
             <Text style={{ color: Colors.textMuted, fontSize: 22 }}>×</Text>
           </TouchableOpacity>
@@ -79,7 +79,7 @@ export function EulaModal({ visible, onClose, onAgree }: Props) {
                 paddingVertical: 16, alignItems: 'center', marginTop: 8,
               }}
             >
-              <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>I Agree</Text>
+              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>I Agree</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

@@ -1,20 +1,23 @@
+// Iron & Brass — warm graphite ground, bone text, single brass accent.
+// All color tokens MUST stay 6-digit hex: call sites concat alpha suffixes
+// (e.g. Colors.accent + '40'), which breaks on rgba() strings.
 export const Colors = {
-  bg: '#0C0C0C',
-  surface: '#161616',
-  surface2: '#1E1E1E',
-  surface3: '#252525',
-  border: '#2A2A2A',
-  borderLight: '#383838',
+  bg: '#101012',
+  surface: '#1A191C',
+  surface2: '#232125',
+  surface3: '#2B292E',
+  border: '#26242A',
+  borderLight: '#37343C',
 
-  text: '#FFFFFF',
-  textSecondary: '#888888',
-  textMuted: '#555555',
+  text: '#F4F1EC',
+  textSecondary: '#A09B93',
+  textMuted: '#6D6862',
 
-  accent: '#D4197A',
-  accentDim: 'rgba(212, 25, 122, 0.12)',
+  accent: '#D9A441',
+  accentDim: 'rgba(217, 164, 65, 0.12)',
 
-  gold: '#FFB800',
-  goldDim: 'rgba(255, 184, 0, 0.12)',
+  gold: '#E3B341',
+  goldDim: 'rgba(227, 179, 65, 0.12)',
 
   success: '#22C55E',
   successDim: 'rgba(34, 197, 94, 0.12)',
@@ -24,10 +27,10 @@ export const Colors = {
 
   // Strength tier colors
   tiers: {
-    beginner: '#555555',
+    beginner: '#6D6862',
     bronze: '#CD7F32',
     silver: '#A8A9AD',
-    gold: '#FFB800',
+    gold: '#E3B341',
     platinum: '#E5E4E2',
     diamond: '#B9F2FF',
   },

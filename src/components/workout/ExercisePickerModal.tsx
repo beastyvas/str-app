@@ -16,6 +16,19 @@ interface Exercise {
   equipment_type?: string;
 }
 
+// DB rows use `null` for absent fields; the local Exercise type uses
+// `undefined` — normalize at the boundary.
+const toExercise = (r: {
+  id: string; name: string; muscle_group: string;
+  secondary_muscle?: string | null; equipment_type?: string | null;
+}): Exercise => ({
+  id: r.id,
+  name: r.name,
+  muscle_group: r.muscle_group,
+  secondary_muscle: r.secondary_muscle ?? undefined,
+  equipment_type: r.equipment_type ?? undefined,
+});
+
 interface Props {
   visible: boolean;
   alreadyAdded: string[];
@@ -71,7 +84,7 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
       .order('muscle_group')
       .order('name')
       .then(({ data }) => {
-        setExercises(data ?? []);
+        setExercises((data ?? []).map(toExercise));
         setLoading(false);
       });
   }, [visible]);
@@ -126,8 +139,9 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
 
       if (error) throw error;
       // Add to local list and select it
-      setExercises(prev => [...prev, data]);
-      onSelect(data);
+      const created = toExercise(data);
+      setExercises(prev => [...prev, created]);
+      onSelect(created);
       setShowCreate(false);
       setNewName('');
       handleClose();
@@ -363,7 +377,7 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
                 <TouchableOpacity onPress={() => setShowCreate(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                   <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>← Back</Text>
                 </TouchableOpacity>
-                <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900' }}>New Exercise</Text>
+                <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>New Exercise</Text>
                 <View style={{ width: 60 }} />
               </View>
 
@@ -453,7 +467,7 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
                 >
                   {creating
                     ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>Create & Add →</Text>
+                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>Create & Add →</Text>
                   }
                 </TouchableOpacity>
               </ScrollView>

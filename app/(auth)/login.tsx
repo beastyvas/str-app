@@ -94,7 +94,7 @@ export default function LoginScreen() {
       <View className="flex-1 px-8 justify-between py-12">
         {/* Brand */}
         <View className="mt-16">
-          <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 72, letterSpacing: -4 }}>
+          <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 72, letterSpacing: -4 }}>
             STR
           </Text>
           <Text style={{ color: Colors.textMuted, fontSize: 14, marginTop: 4, letterSpacing: 2 }}>
@@ -165,7 +165,7 @@ export default function LoginScreen() {
               backgroundColor: agreed ? Colors.accent : 'transparent',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              {agreed && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
+              {agreed && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>✓</Text>}
             </View>
             <Text style={{ color: Colors.textMuted, fontSize: 12, flex: 1, lineHeight: 17 }}>
               I agree to the{' '}

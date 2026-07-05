@@ -193,7 +193,7 @@ export default function OnboardingScreen() {
               <View style={{ flex: 1, justifyContent: 'space-between' }}>
                 <View style={{ gap: 12 }}>
                   <Text style={{
-                    color: Colors.accent, fontSize: 72, fontWeight: '900',
+                    color: Colors.accent, fontSize: 72, fontWeight: '800',
                     letterSpacing: -4, lineHeight: 72,
                   }}>
                     STR
@@ -204,7 +204,7 @@ export default function OnboardingScreen() {
                 </View>
 
                 <View style={{ gap: 8, paddingVertical: 40 }}>
-                  <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -1, lineHeight: 38 }}>
+                  <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '800', letterSpacing: -1, lineHeight: 38 }}>
                     Your arc{'\n'}starts now.
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: 8 }}>
@@ -221,7 +221,7 @@ export default function OnboardingScreen() {
                       shadowOffset: { width: 0, height: 6 }, elevation: 10,
                     }}
                   >
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.5 }}>
                       Let's go →
                     </Text>
                   </TouchableOpacity>
@@ -239,7 +239,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 1 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What do we call you?
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
@@ -293,7 +293,7 @@ export default function OnboardingScreen() {
                     shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: displayName.trim() ? 7 : 0,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={next} style={{ alignItems: 'center' }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Set later in profile</Text>
@@ -308,7 +308,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 2 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Who's training?
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
@@ -350,7 +350,7 @@ export default function OnboardingScreen() {
                     shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: gender ? 7 : 0,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip</Text>
@@ -365,7 +365,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 3 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Your bodyweight.
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
@@ -415,7 +415,7 @@ export default function OnboardingScreen() {
                     shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: bodyweight ? 7 : 0,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -427,7 +427,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 4 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What are you training for?
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8 }}>
@@ -512,7 +512,7 @@ export default function OnboardingScreen() {
                     shadowOffset: { width: 0, height: 5 }, elevation: 7,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
@@ -527,7 +527,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 5 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     What are your{'\n'}best lifts?
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
@@ -552,7 +552,7 @@ export default function OnboardingScreen() {
                       borderWidth: 1, borderColor: result.tier.color + '40',
                       alignItems: 'center', gap: 4,
                     }}>
-                      <Text style={{ color: result.tier.color, fontSize: 22, fontWeight: '900', letterSpacing: 1.5 }}>
+                      <Text style={{ color: result.tier.color, fontSize: 22, fontWeight: '800', letterSpacing: 1.5 }}>
                         {result.tier.label} {ROMAN[result.subTier]}
                       </Text>
                       <Text style={{ color: Colors.textMuted, fontSize: 12, fontStyle: 'italic' }}>
@@ -595,7 +595,7 @@ export default function OnboardingScreen() {
                     shadowOffset: { width: 0, height: 5 }, elevation: 7,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Continue →</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip — I'll set this later</Text>
@@ -610,7 +610,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                     Step 6 of 6
                   </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 }}>
+                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
                     Your Lifter DNA.
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
@@ -656,7 +656,7 @@ export default function OnboardingScreen() {
                 >
                   {saving
                     ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Let's go 🏋️</Text>
+                    : <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Let's go 🏋️</Text>
                   }
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleFinish} disabled={saving} style={{ alignItems: 'center' }}>
@@ -673,7 +673,7 @@ export default function OnboardingScreen() {
                   <Text style={{ fontSize: 72 }}>🏆</Text>
 
                   <View style={{ alignItems: 'center', gap: 8 }}>
-                    <Text style={{ color: Colors.text, fontSize: 34, fontWeight: '900', textAlign: 'center', letterSpacing: -1 }}>
+                    <Text style={{ color: Colors.text, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -1 }}>
                       You're in.
                     </Text>
                     <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '700', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -694,7 +694,7 @@ export default function OnboardingScreen() {
                     }}>
                       <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Your Starting Rank</Text>
                       <Text style={{
-                        color: revealTier.color, fontSize: 28, fontWeight: '900', letterSpacing: 2,
+                        color: revealTier.color, fontSize: 28, fontWeight: '800', letterSpacing: 2,
                         textShadowColor: revealTier.color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10,
                       }}>
                         {revealTier.label} I
@@ -753,7 +753,7 @@ export default function OnboardingScreen() {
                       shadowOffset: { width: 0, height: 7 }, elevation: 12,
                     }}
                   >
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.3 }}>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.3 }}>
                       Let's get it →
                     </Text>
                   </TouchableOpacity>

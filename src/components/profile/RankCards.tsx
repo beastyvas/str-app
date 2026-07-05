@@ -77,7 +77,7 @@ export function BodyPartRanksCard({ tiers }: { tiers: MuscleGroupTier[] }) {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>{mg.group}</Text>
                 <View style={{ backgroundColor: tc + '25', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-                  <Text style={{ color: tc, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>{TIER_LABELS[mg.tier].toUpperCase()}</Text>
+                  <Text style={{ color: tc, fontSize: 9, fontWeight: '800', letterSpacing: 1 }}>{TIER_LABELS[mg.tier].toUpperCase()}</Text>
                 </View>
               </View>
               <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={1}>{mg.bestLift}</Text>

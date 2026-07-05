@@ -39,7 +39,7 @@ export function QRModal({ visible, userId, username, displayName, tierLabel, tie
           paddingHorizontal: 20, paddingVertical: 16,
           borderBottomWidth: 1, borderBottomColor: Colors.border,
         }}>
-          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>My QR Code</Text>
+          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>My QR Code</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
@@ -54,13 +54,13 @@ export function QRModal({ visible, userId, username, displayName, tierLabel, tie
               borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6,
               borderWidth: 1, borderColor: (tierColor ?? Colors.accent) + '40',
             }}>
-              <Text style={{ color: tierColor ?? Colors.accent, fontWeight: '900', fontSize: 12, letterSpacing: 2 }}>
+              <Text style={{ color: tierColor ?? Colors.accent, fontWeight: '800', fontSize: 12, letterSpacing: 2 }}>
                 {tierLabel}
               </Text>
             </View>
           )}
 
-          <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.5 }}>
+          <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 }}>
             {displayName}
           </Text>
           {username && (
@@ -96,7 +96,7 @@ export function QRModal({ visible, userId, username, displayName, tierLabel, tie
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15 }}>Share Profile →</Text>
+            <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Share Profile →</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

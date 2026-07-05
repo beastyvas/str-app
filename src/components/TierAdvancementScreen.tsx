@@ -176,7 +176,7 @@ export function TierAdvancementScreen({
           <Animated.Text style={{
             color: activeColor,
             fontSize: 11,
-            fontWeight: '900',
+            fontWeight: '800',
             letterSpacing: 5,
             textTransform: 'uppercase',
             marginBottom: 24,
@@ -189,7 +189,7 @@ export function TierAdvancementScreen({
           <Animated.Text style={{
             color: activeColor,
             fontSize: heroText.length > 12 ? 38 : heroText.length > 8 ? 46 : 58,
-            fontWeight: '900',
+            fontWeight: '800',
             letterSpacing: -2,
             textAlign: 'center',
             marginBottom: 24,

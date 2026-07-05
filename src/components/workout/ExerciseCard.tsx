@@ -22,7 +22,7 @@ interface ExerciseCardProps {
 }
 
 const MUSCLE_COLORS: Record<string, string> = {
-  'Chest': '#E91E8C',
+  'Chest': '#C2566B',
   'Shoulders': '#9B59B6',
   'Triceps': '#8E44AD',
   'Biceps': '#3498DB',
@@ -193,7 +193,7 @@ export function ExerciseCard({
           <Text style={{
             color: collapsed ? Colors.textMuted : Colors.accent,
             fontSize: 9,
-            fontWeight: '900',
+            fontWeight: '800',
           }}>
             {collapsed ? '▼' : '▲'}
           </Text>

@@ -66,7 +66,7 @@ export default function WorkoutSummaryScreen() {
           <Text style={{
             color: Colors.text,
             fontSize: 30,
-            fontWeight: '900',
+            fontWeight: '800',
             letterSpacing: -1.5,
             lineHeight: 34,
           }}>
@@ -103,7 +103,7 @@ export default function WorkoutSummaryScreen() {
               <Text style={{
                 color: Colors.text,
                 fontSize: 22,
-                fontWeight: '900',
+                fontWeight: '800',
                 letterSpacing: -0.5,
               }}>
                 {stat.value}
@@ -132,7 +132,7 @@ export default function WorkoutSummaryScreen() {
               <Text style={{
                 color: Colors.gold,
                 fontSize: 13,
-                fontWeight: '900',
+                fontWeight: '800',
                 letterSpacing: 2,
                 textTransform: 'uppercase',
               }}>
@@ -244,7 +244,7 @@ export default function WorkoutSummaryScreen() {
           >
             <Text style={{
               color: Colors.text,
-              fontWeight: '900',
+              fontWeight: '800',
               fontSize: 16,
               letterSpacing: 1,
             }}>

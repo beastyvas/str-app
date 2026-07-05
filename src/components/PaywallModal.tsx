@@ -124,7 +124,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             <Text style={{ color: Colors.accent, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
               Upgrade
             </Text>
-            <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900', letterSpacing: -1, textAlign: 'center' }}>
+            <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -1, textAlign: 'center' }}>
               STR Pro
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
@@ -156,7 +156,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
                       borderColor: colors[i] + '60',
                       marginBottom: 4,
                     }} />
-                    <Text style={{ color: colors[i], fontSize: 7, fontWeight: '900', textAlign: 'center' }}>
+                    <Text style={{ color: colors[i], fontSize: 7, fontWeight: '800', textAlign: 'center' }}>
                       {tier}
                     </Text>
                   </View>
@@ -255,7 +255,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           >
             {purchasing
               ? <ActivityIndicator color={Colors.text} />
-              : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 17, letterSpacing: 0.3 }}>
+              : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 17, letterSpacing: 0.3 }}>
                   Start Pro →
                 </Text>
             }

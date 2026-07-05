@@ -146,7 +146,7 @@ export function WorkoutCoach({ lastSet, allSetsThisExercise, isPro, enabled = tr
           {loading ? 'Coach...' : message}
         </Text>
         {isPro && !loading && (
-          <Text style={{ color: Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 }}>PRO</Text>
+          <Text style={{ color: Colors.accent, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 }}>PRO</Text>
         )}
         <TouchableOpacity onPress={dismiss} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Text style={{ color: Colors.textMuted, fontSize: 15 }}>×</Text>

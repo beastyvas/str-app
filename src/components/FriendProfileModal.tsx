@@ -17,7 +17,7 @@ const TIER_COLORS: Record<TierName, string> = {
 };
 
 const SESSION_COLORS: Record<string, string> = {
-  Push: '#D4197A', Pull: '#3B82F6', Legs: '#F97316',
+  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
   Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
 };
 
@@ -381,8 +381,8 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                     <Text style={{ flex: 1.3, color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>
                       Head to Head
                     </Text>
-                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }}>YOU</Text>
-                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.textSecondary, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }} numberOfLines={1}>
+                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>YOU</Text>
+                    <Text style={{ flex: 1, textAlign: 'center', color: Colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }} numberOfLines={1}>
                       {them.toUpperCase()}
                     </Text>
                   </View>
@@ -427,10 +427,10 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
               }}>
                 {profile.avatar_url
                   ? <Image source={{ uri: profile.avatar_url }} style={{ width: 92, height: 92 }} cachePolicy="disk" transition={150} />
-                  : <Text style={{ color: tierColor, fontWeight: '900', fontSize: 32 }}>{initials(profile.display_name ?? '')}</Text>}
+                  : <Text style={{ color: tierColor, fontWeight: '800', fontSize: 32 }}>{initials(profile.display_name ?? '')}</Text>}
               </View>
               <View style={{ alignItems: 'center', gap: 4 }}>
-                <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.5 }}>
+                <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 }}>
                   {profile.display_name}
                 </Text>
                 {profile.username && (
@@ -457,7 +457,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                   padding: 12, alignItems: 'center',
                   borderWidth: 1, borderColor: Colors.border,
                 }}>
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900', letterSpacing: -0.5 }}>{s.value}</Text>
+                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}>{s.value}</Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 3, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: '600' }}>{s.label}</Text>
                 </View>
               ))}
@@ -478,7 +478,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                   borderWidth: 1, borderColor: tierColor + '50',
                 }}>
                   <Text style={{
-                    color: tierColor, fontWeight: '900', fontSize: 14,
+                    color: tierColor, fontWeight: '800', fontSize: 14,
                     letterSpacing: 2.5, textTransform: 'uppercase',
                     textShadowColor: tierColor, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6,
                   }}>
@@ -543,7 +543,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>{mg.group}</Text>
                           <View style={{ backgroundColor: tc + '25', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-                            <Text style={{ color: tc, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>{TIER_LABELS[mg.tier].toUpperCase()}</Text>
+                            <Text style={{ color: tc, fontSize: 9, fontWeight: '800', letterSpacing: 1 }}>{TIER_LABELS[mg.tier].toUpperCase()}</Text>
                           </View>
                         </View>
                         <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={1}>{mg.bestLift}</Text>
@@ -567,7 +567,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                     {splitData.sessionsPerWeek}x / week
                   </Text>
                 </View>
-                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, marginBottom: 14 }}>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.5, marginBottom: 14 }}>
                   {splitData.splitLabel}
                 </Text>
                 {/* Typical week grid — Sun=0 … Sat=6, display Mon–Sun */}
@@ -584,7 +584,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                           alignItems: 'center', justifyContent: 'center',
                         }}>
                           {session && (
-                            <Text style={{ color: session.color, fontSize: 7, fontWeight: '900', letterSpacing: 0.3, textAlign: 'center' }}>
+                            <Text style={{ color: session.color, fontSize: 7, fontWeight: '800', letterSpacing: 0.3, textAlign: 'center' }}>
                               {session.type === 'Full Body' ? 'FB' : session.type === 'Upper' ? 'UP' : session.type === 'Lower' ? 'LO' : session.type.slice(0, 2).toUpperCase()}
                             </Text>
                           )}

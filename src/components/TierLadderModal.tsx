@@ -56,7 +56,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
           borderBottomWidth: 1, borderBottomColor: Colors.border,
         }}>
           <View>
-            <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.5 }}>
+            <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 }}>
               Rank System
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
@@ -102,18 +102,18 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                     alignItems: 'center', justifyContent: 'center',
                   }}>
                     {isAchieved && (
-                      <Text style={{ color: tier.color, fontSize: 20, fontWeight: '900' }}>✓</Text>
+                      <Text style={{ color: tier.color, fontSize: 20, fontWeight: '800' }}>✓</Text>
                     )}
                   </View>
 
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ color: tier.color, fontSize: 16, fontWeight: '900', letterSpacing: 1 }}>
+                      <Text style={{ color: tier.color, fontSize: 16, fontWeight: '800', letterSpacing: 1 }}>
                         {tier.label}{isCurrent && result?.subTier ? ` ${ROMAN[result.subTier]}` : ''}
                       </Text>
                       {isCurrent && (
                         <View style={{ backgroundColor: tier.color + '25', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
-                          <Text style={{ color: tier.color, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>YOUR RANK</Text>
+                          <Text style={{ color: tier.color, fontSize: 9, fontWeight: '800', letterSpacing: 1 }}>YOUR RANK</Text>
                         </View>
                       )}
                       {isNext && (
@@ -155,7 +155,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                       </Text>
                       {targets.map(t => (
                         <View key={t.label} style={{ alignItems: 'center', flex: 1 }}>
-                          <Text style={{ color: tier.color, fontSize: 14, fontWeight: '900' }}>{t.lbs}</Text>
+                          <Text style={{ color: tier.color, fontSize: 14, fontWeight: '800' }}>{t.lbs}</Text>
                           <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 1 }}>{t.label}</Text>
                         </View>
                       ))}
@@ -203,7 +203,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                             backgroundColor: tier.color + (isUserHere ? '30' : '15'),
                             alignItems: 'center', justifyContent: 'center',
                           }}>
-                            <Text style={{ color: tier.color, fontSize: 12, fontWeight: '900' }}>
+                            <Text style={{ color: tier.color, fontSize: 12, fontWeight: '800' }}>
                               {ROMAN[sub]}
                             </Text>
                           </View>
@@ -222,7 +222,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                               backgroundColor: tier.color + '25',
                               borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3,
                             }}>
-                              <Text style={{ color: tier.color, fontSize: 9, fontWeight: '900' }}>ACTIVE</Text>
+                              <Text style={{ color: tier.color, fontSize: 9, fontWeight: '800' }}>ACTIVE</Text>
                             </View>
                           )}
                         </View>
@@ -273,7 +273,7 @@ export function TierLadderModal({ visible, onClose, result, bodyweightLbs, gende
                   borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5,
                   borderWidth: 1, borderColor: Colors.accent + '30',
                 }}>
-                  <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '900' }}>{r}</Text>
+                  <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '800' }}>{r}</Text>
                 </View>
               ))}
             </View>

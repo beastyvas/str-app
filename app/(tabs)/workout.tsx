@@ -122,7 +122,10 @@ export default function WorkoutTab() {
   const [isSubTierAdvance, setIsSubTierAdvance] = useState(false);
   const [showTierAdvancement, setShowTierAdvancement] = useState(false);
   // Track { key, subTier, minScore } so we can detect advancement vs regression
-  const currentTierRef = useRef<{ key: string; subTier: number; minScore: number } | null>(null);
+  const currentTierRef = useRef<{
+    key: string; subTier: number; minScore: number;
+    sqTier?: string; bpTier?: string; dlTier?: string;
+  } | null>(null);
 
   // Smart suggestion + templates
   const [daySuggestion, setDaySuggestion] = useState<{
@@ -692,7 +695,7 @@ export default function WorkoutTab() {
   // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
   const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const MUSCLE_COLORS: Record<string, string> = {
-    'Chest': '#E91E8C', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
+    'Chest': '#C2566B', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
     'Biceps': '#3498DB', 'Mid-Upper Back': '#1ABC9C', 'Lats': '#16A085',
     'Quads': '#E67E22', 'Hamstrings': '#D35400', 'Glutes': '#E74C3C',
     'Core': '#F39C12', 'Overall': Colors.textSecondary,
@@ -715,7 +718,7 @@ export default function WorkoutTab() {
             <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
               {todayName}
             </Text>
-            <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 2 }}>
+            <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginTop: 2 }}>
               Your arc continues.
             </Text>
           </View>
@@ -789,7 +792,7 @@ export default function WorkoutTab() {
                     onPress={() => startFromTemplate(daySuggestion.name, daySuggestion.exercises)}
                     style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                   >
-                    <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 15, letterSpacing: 0.3 }}>
+                    <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
                       {daySuggestion.isPinned ? 'Start my plan →' : 'Repeat this session →'}
                     </Text>
                   </TouchableOpacity>
@@ -819,7 +822,7 @@ export default function WorkoutTab() {
           >
             <Text style={{
               color: daySuggestion ? Colors.textSecondary : Colors.text,
-              fontWeight: '900',
+              fontWeight: '800',
               fontSize: daySuggestion ? 14 : 16,
               letterSpacing: daySuggestion ? 0 : 0.5,
             }}>
@@ -995,7 +998,7 @@ export default function WorkoutTab() {
               paddingHorizontal: 20, paddingVertical: 16,
               borderBottomWidth: 1, borderBottomColor: Colors.border,
             }}>
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900' }}>New Template</Text>
+              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>New Template</Text>
               <TouchableOpacity onPress={() => setShowTemplateBuilder(false)}>
                 <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
@@ -1074,7 +1077,7 @@ export default function WorkoutTab() {
                   marginTop: 8,
                 }}
               >
-                <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 16 }}>
+                <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
                   Save Template ({builderExercises.length} exercises)
                 </Text>
               </TouchableOpacity>
@@ -1270,7 +1273,7 @@ export default function WorkoutTab() {
           {finishing ? (
             <ActivityIndicator color={Colors.text} size="small" />
           ) : (
-            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>FINISH</Text>
+            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -1319,7 +1322,7 @@ export default function WorkoutTab() {
             <Text style={{
               color: Colors.gold,
               fontSize: 11,
-              fontWeight: '900',
+              fontWeight: '800',
               letterSpacing: 2,
               textTransform: 'uppercase',
             }}>
@@ -1456,7 +1459,7 @@ export default function WorkoutTab() {
             paddingHorizontal: 20, paddingVertical: 16,
             borderBottomWidth: 1, borderBottomColor: Colors.border,
           }}>
-            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Your Templates</Text>
+            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Your Templates</Text>
             <TouchableOpacity onPress={() => setShowMidWorkoutTemplates(false)}>
               <Text style={{ color: Colors.accent, fontWeight: '700' }}>Done</Text>
             </TouchableOpacity>
@@ -1519,7 +1522,7 @@ export default function WorkoutTab() {
               <TouchableOpacity onPress={() => setShowFinishModal(false)}>
                 <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>Finish Workout</Text>
+              <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Finish Workout</Text>
               <TouchableOpacity onPress={() => handleFinishConfirm(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 13 }}>Quick Save</Text>
               </TouchableOpacity>
@@ -1527,7 +1530,7 @@ export default function WorkoutTab() {
 
             <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
               {/* Workout name */}
-              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 }}>
+              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.8 }}>
                 {activeWorkout?.name}
               </Text>
 
@@ -1543,7 +1546,7 @@ export default function WorkoutTab() {
                     alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
                   }}>
                     <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                    <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900' }}>{s.value}</Text>
+                    <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>{s.value}</Text>
                   </View>
                 ))}
               </View>
@@ -1557,7 +1560,7 @@ export default function WorkoutTab() {
                 }}>
                   <Text style={{ fontSize: 26 }}>🏆</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.gold, fontWeight: '900', fontSize: 14 }}>
+                    <Text style={{ color: Colors.gold, fontWeight: '800', fontSize: 14 }}>
                       {newPRs.length === 1 ? 'New Personal Record!' : `${newPRs.length} New PRs!`}
                     </Text>
                     <Text style={{ color: Colors.gold, fontSize: 12, opacity: 0.8, marginTop: 2 }}>
@@ -1632,7 +1635,7 @@ export default function WorkoutTab() {
                   borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent : Colors.border,
                   alignItems: 'center', justifyContent: 'center',
                 }}>
-                  {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '900' }}>✓</Text>}
+                  {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>✓</Text>}
                 </View>
                 <Text style={{ color: saveAsTemplate ? Colors.text : Colors.textMuted, fontWeight: '600', flex: 1 }}>
                   Save as template
@@ -1666,7 +1669,7 @@ export default function WorkoutTab() {
               >
                 {finishing
                   ? <ActivityIndicator color={Colors.text} />
-                  : <Text style={{ color: Colors.text, fontWeight: '900', fontSize: 17, letterSpacing: 0.3 }}>
+                  : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 17, letterSpacing: 0.3 }}>
                       Post Workout →
                     </Text>
                 }

@@ -173,7 +173,7 @@ export default function ExerciseDetailScreen() {
               Personal Record
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <Text style={{ color: Colors.gold, fontSize: 42, fontWeight: '900', letterSpacing: -2 }}>
+              <Text style={{ color: Colors.gold, fontSize: 42, fontWeight: '800', letterSpacing: -2 }}>
                 {pr.weight}
               </Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 16, fontWeight: '600', marginBottom: 6 }}>

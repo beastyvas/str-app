@@ -93,7 +93,7 @@ function Avatar({ url, name, color, size = 44 }: { url?: string; name: string; c
     }}>
       {url
         ? <Image source={{ uri: url }} style={{ width: size, height: size }} cachePolicy="disk" transition={150} />
-        : <Text style={{ color, fontWeight: '900', fontSize: size * 0.3 }}>{initials}</Text>
+        : <Text style={{ color, fontWeight: '800', fontSize: size * 0.3 }}>{initials}</Text>
       }
     </View>
   );
@@ -477,7 +477,8 @@ export default function SocialScreen() {
   };
 
   const sendRequest = async (toId: string) => {
-    await supabase.from('friendships').insert({ requester_id: user?.id, addressee_id: toId });
+    if (!user) return;
+    await supabase.from('friendships').insert({ requester_id: user.id, addressee_id: toId });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSearchResults(prev => prev.map(u => u.id === toId ? { ...u, requestSent: true } : u));
   };
@@ -634,7 +635,7 @@ export default function SocialScreen() {
         paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
         borderBottomWidth: 1, borderBottomColor: Colors.border,
       }}>
-        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginBottom: 14 }}>
+        <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginBottom: 14 }}>
           Social
         </Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -759,7 +760,7 @@ export default function SocialScreen() {
                             borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
                             borderWidth: 1, borderColor: (post.rankTierColor ?? Colors.accent) + '40',
                           }}>
-                            <Text style={{ color: post.rankTierColor ?? Colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 1.5 }}>
+                            <Text style={{ color: post.rankTierColor ?? Colors.accent, fontSize: 8, fontWeight: '800', letterSpacing: 1.5 }}>
                               {post.rankTierLabel}
                             </Text>
                           </View>
@@ -777,14 +778,14 @@ export default function SocialScreen() {
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       style={{ paddingHorizontal: 8, paddingVertical: 8 }}
                     >
-                      <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '900' }}>⋯</Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '800' }}>⋯</Text>
                     </TouchableOpacity>
                   )}
                 </View>
 
                 {/* Workout name + stat chips */}
                 <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-                  <Text style={{ color: Colors.text, fontSize: 19, fontWeight: '900', letterSpacing: -0.6, lineHeight: 23, marginBottom: 10 }}>
+                  <Text style={{ color: Colors.text, fontSize: 19, fontWeight: '800', letterSpacing: -0.6, lineHeight: 23, marginBottom: 10 }}>
                     {post.workoutName}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -1108,7 +1109,7 @@ export default function SocialScreen() {
                     <Avatar url={f.avatar_url} name={f.display_name} color={f.rankTierColor ?? Colors.accent} size={56} />
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>
+                        <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.3 }}>
                           {f.display_name}
                         </Text>
                         <UserBadges isOwner={f.is_owner} isOg={f.is_og} isPro={f.is_pro} size="sm" />
@@ -1141,7 +1142,7 @@ export default function SocialScreen() {
                         backgroundColor: (f.rankTierColor ?? Colors.accent) + '25',
                         borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4,
                       }}>
-                        <Text style={{ color: f.rankTierColor ?? Colors.accent, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 }}>
+                        <Text style={{ color: f.rankTierColor ?? Colors.accent, fontWeight: '800', fontSize: 11, letterSpacing: 1.5 }}>
                           {f.rankTierLabel}
                         </Text>
                       </View>

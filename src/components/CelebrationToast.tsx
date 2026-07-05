@@ -106,7 +106,7 @@ export function CelebrationToast({ visible, emoji, title, sub, onDone }: Props) 
           <Text style={{
             color: Colors.text,
             fontSize: 15,
-            fontWeight: '900',
+            fontWeight: '800',
             letterSpacing: -0.3,
           }}>
             {title}
@@ -130,7 +130,7 @@ export function CelebrationToast({ visible, emoji, title, sub, onDone }: Props) 
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '900' }}>✓</Text>
+          <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '800' }}>✓</Text>
         </View>
       </View>
     </Animated.View>

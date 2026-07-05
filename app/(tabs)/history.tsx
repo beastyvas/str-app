@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator,
   Modal, Dimensions, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,7 +46,7 @@ interface Insight {
 
 // ─── Muscle group color tags ───────────────────────────────────────────────
 const MUSCLE_COLORS: Record<string, string> = {
-  'Chest': '#E91E8C',
+  'Chest': '#C2566B',
   'Shoulders': '#9B59B6',
   'Triceps': '#8E44AD',
   'Biceps': '#3498DB',
@@ -272,7 +272,7 @@ function WorkoutBottomSheet({ workout, onClose }: { workout: WorkoutData; onClos
         }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 }}>{workout.name}</Text>
+              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 }}>{workout.name}</Text>
               <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>{formatDate(workout.started_at)}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={{
@@ -424,7 +424,7 @@ function ExerciseProgressModal({
           paddingHorizontal: 20, paddingVertical: 16,
           borderBottomWidth: 1, borderBottomColor: Colors.border,
         }}>
-          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', flex: 1, marginRight: 12 }} numberOfLines={1}>
+          <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', flex: 1, marginRight: 12 }} numberOfLines={1}>
             {exerciseName}
           </Text>
           <TouchableOpacity
@@ -520,7 +520,7 @@ function ExerciseProgressModal({
             ].map((s, i) => (
               <View key={i} style={{ flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                <Text style={{ color: i === 0 ? Colors.gold : Colors.text, fontSize: 15, fontWeight: '900' }}>{s.value}</Text>
+                <Text style={{ color: i === 0 ? Colors.gold : Colors.text, fontSize: 15, fontWeight: '800' }}>{s.value}</Text>
               </View>
             ))}
           </View>
@@ -661,8 +661,12 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView
+      <FlatList
+        data={viewMode === 'list' ? workouts : []}
+        keyExtractor={w => w.id}
         contentContainerStyle={{ paddingBottom: 48 }}
+        initialNumToRender={8}
+        windowSize={9}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -670,10 +674,11 @@ export default function HistoryScreen() {
             tintColor={Colors.accent}
           />
         }
-      >
+        ListHeaderComponent={
+        <>
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
-          <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -1 }}>
+          <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1 }}>
             History
           </Text>
         </View>
@@ -731,7 +736,7 @@ export default function HistoryScreen() {
                 <Text style={{
                   color: Colors.text,
                   fontSize: 22,
-                  fontWeight: '900',
+                  fontWeight: '800',
                   letterSpacing: -0.5,
                 }}>
                   {s.value}
@@ -789,7 +794,7 @@ export default function HistoryScreen() {
                   <Text style={{
                     color: ins.color ?? Colors.text,
                     fontSize: 24,
-                    fontWeight: '900',
+                    fontWeight: '800',
                     letterSpacing: -1,
                   }}>
                     {ins.value}
@@ -815,15 +820,15 @@ export default function HistoryScreen() {
           />
         )}
 
-        {/* List view */}
-        {viewMode === 'list' && (
-          <View style={{ paddingHorizontal: 20 }}>
-            {workouts.length === 0 ? (
-              <View style={{ alignItems: 'center', marginTop: 60 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 15 }}>No workouts yet. Start lifting.</Text>
-              </View>
-            ) : (
-              workouts.map(workout => {
+        {/* List view empty state (cards themselves render as FlatList items) */}
+        {viewMode === 'list' && workouts.length === 0 && (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 15 }}>No workouts yet. Start lifting.</Text>
+          </View>
+        )}
+        </>
+        }
+        renderItem={({ item: workout }) => {
                 const isExpanded = expandedId === workout.id;
                 const byExercise = workout._sets.reduce<Record<string, { sets: WorkoutSet[]; muscleGroup?: string }>>((acc, s: any) => {
                   const name = s.exercises?.name ?? 'Unknown';
@@ -840,6 +845,7 @@ export default function HistoryScreen() {
                     style={{
                       backgroundColor: Colors.surface,
                       borderRadius: 18,
+                      marginHorizontal: 20,
                       marginBottom: 10,
                       borderWidth: 1,
                       borderColor: isExpanded ? Colors.accent + '45' : Colors.border,
@@ -1027,25 +1033,22 @@ export default function HistoryScreen() {
                     )}
                   </TouchableOpacity>
                 );
-              })
-            )}
-
-            {/* Free tier history limit banner */}
-            {!isPro && workouts.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setShowPaywall(true)}
-                style={{
-                  backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginTop: 8,
-                  borderWidth: 1, borderColor: Colors.accent + '40', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>Showing last 90 days</Text>
-                <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '600' }}>Upgrade to Pro for full history →</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </ScrollView>
+        }}
+        ListFooterComponent={
+          viewMode === 'list' && !isPro && workouts.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => setShowPaywall(true)}
+              style={{
+                backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginTop: 8, marginHorizontal: 20,
+                borderWidth: 1, borderColor: Colors.accent + '40', alignItems: 'center', gap: 4,
+              }}
+            >
+              <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>Showing last 90 days</Text>
+              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '600' }}>Upgrade to Pro for full history →</Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      />
 
       {/* Calendar bottom sheet */}
       {selectedWorkout && (

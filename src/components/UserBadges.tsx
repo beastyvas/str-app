@@ -21,7 +21,7 @@ export function UserBadges({ isOwner, isOg, isPro, size = 'md', onPressPro }: Pr
       borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
       borderWidth: 1, borderColor: '#818CF860',
     }}>
-      <Text style={{ color: '#818CF8', fontSize, fontWeight: '900', letterSpacing: 0.3 }}>
+      <Text style={{ color: '#818CF8', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
         ⚡ PRO
       </Text>
     </View>
@@ -40,29 +40,29 @@ export function UserBadges({ isOwner, isOg, isPro, size = 'md', onPressPro }: Pr
           borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
           borderWidth: 1, borderColor: Colors.gold + '50',
         }}>
-          <Text style={{ color: Colors.gold, fontSize, fontWeight: '900', letterSpacing: 0.3 }}>
+          <Text style={{ color: Colors.gold, fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
             👑 CREATOR
           </Text>
         </View>
       )}
       {isOg && !isOwner && (
         <View style={{
-          backgroundColor: '#FF6B0025',
+          backgroundColor: '#D9A44125',
           borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-          borderWidth: 1, borderColor: '#FF6B0060',
+          borderWidth: 1, borderColor: '#D9A44160',
         }}>
-          <Text style={{ color: '#FF6B00', fontSize, fontWeight: '900', letterSpacing: 0.3 }}>
+          <Text style={{ color: '#D9A441', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
             ⚡ OG
           </Text>
         </View>
       )}
       {isOg && isOwner && (
         <View style={{
-          backgroundColor: '#FF6B0025',
+          backgroundColor: '#D9A44125',
           borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-          borderWidth: 1, borderColor: '#FF6B0060',
+          borderWidth: 1, borderColor: '#D9A44160',
         }}>
-          <Text style={{ color: '#FF6B00', fontSize, fontWeight: '900', letterSpacing: 0.3 }}>
+          <Text style={{ color: '#D9A441', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
             ⚡ OG
           </Text>
         </View>
