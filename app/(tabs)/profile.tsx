@@ -106,8 +106,9 @@ function WeeklyChart({
 
   return (
     <View style={{
-      backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
-      borderWidth: 1, borderColor: Colors.border, marginBottom: 0,
+      backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 0,
+      shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 }, elevation: 3,
     }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>This Week</Text>
@@ -926,7 +927,11 @@ export default function ProfileScreen() {
 
           {/* ── 30-DAY MUSCLE HEATMAP ───────────────────────────────────────── */}
           {!loadingStats && Object.keys(muscleVolume).length > 0 && (
-            <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+            <View style={{
+              backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
+              shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 }, elevation: 3,
+            }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
                   Last 30 Days

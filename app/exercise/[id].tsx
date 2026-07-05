@@ -34,11 +34,14 @@ function WeightChart({ data }: { data: { value: number }[] }) {
       borderRadius: 16,
       padding: 16,
       marginBottom: 16,
-      borderWidth: 1,
-      borderColor: Colors.border,
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
     }}>
       <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
-        Top Set — Last {data.length} Sessions
+        Est. 1RM — Last {data.length} Sessions
       </Text>
       <View style={{ height: chartHeight + 24, position: 'relative' }}>
         {/* Bars */}
@@ -129,17 +132,30 @@ export default function ExerciseDetailScreen() {
     return acc;
   }, {});
 
-  // Build chart data — max weight per session, chronological
+  // Build chart data — top estimated 1RM (Epley) per session, chronological.
+  // e1RM beats raw top-set weight as a trend signal: 225×5 improving to
+  // 225×8 is real progress a weight-only chart would hide.
   const chartData = Object.entries(byWorkout)
     .map(([name, sets]) => ({
       name,
       date: sets[0]?.workouts?.started_at ?? '',
-      maxWeight: Math.max(...(sets as any[]).map((s: any) => s.weight)),
+      topE1rm: Math.round(Math.max(
+        ...(sets as any[]).map((s: any) => (s.weight ?? 0) * (1 + (s.reps ?? 0) / 30))
+      )),
     }))
     .filter(d => d.date)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(-10)
-    .map(d => ({ value: d.maxWeight }));
+    .map(d => ({ value: d.topE1rm }));
+
+  // Loading guide off the current PR's e1RM, rounded to the nearest 5
+  const prE1rm = pr && pr.weight > 0 ? pr.weight * (1 + pr.reps / 30) : 0;
+  const loadingGuide = prE1rm > 0 ? [
+    { pct: 65, use: 'Warm-up · speed work' },
+    { pct: 75, use: 'Volume · 8–10 reps' },
+    { pct: 85, use: 'Strength · 4–6 reps' },
+    { pct: 95, use: 'Peaking · 1–2 reps' },
+  ].map(r => ({ ...r, weight: Math.round((prE1rm * r.pct) / 100 / 5) * 5 })) : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -316,6 +332,52 @@ export default function ExerciseDetailScreen() {
         {/* Progress Chart */}
         {chartData.length >= 2 && (
           <WeightChart data={chartData} />
+        )}
+
+        {/* Loading guide — % of estimated 1RM, rounded to workable plates */}
+        {loadingGuide && (
+          <View style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 3,
+          }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
+              Loading Guide
+            </Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 12 }}>
+              % of your estimated 1RM ({Math.round(prE1rm)} lbs), rounded to 5
+            </Text>
+            {loadingGuide.map((row, i) => (
+              <View key={row.pct} style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 9,
+                borderTopWidth: i > 0 ? 1 : 0,
+                borderTopColor: Colors.border,
+              }}>
+                <Text style={{
+                  color: Colors.accent, fontSize: 13, fontWeight: '800',
+                  width: 44, fontVariant: ['tabular-nums'],
+                }}>
+                  {row.pct}%
+                </Text>
+                <Text style={{
+                  color: Colors.text, fontSize: 16, fontWeight: '700',
+                  width: 84, fontVariant: ['tabular-nums'], letterSpacing: -0.3,
+                }}>
+                  {row.weight} lbs
+                </Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 12, flex: 1 }}>
+                  {row.use}
+                </Text>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* Recent History */}

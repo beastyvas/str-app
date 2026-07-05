@@ -1,10 +1,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase';
 
 export interface LoggedSet {
   id?: string;
+  // Client-generated UUID used as the DB primary key, so a retried insert
+  // after a lost response is a duplicate-key no-op instead of a double log
+  uuid?: string;
   localId: string;
   exerciseId: string;
   setNumber: number;
@@ -205,6 +209,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
     // No `id` marks it as queued; syncPending() below pushes it (and anything
     // older that's still queued) to Supabase and does the PR check there.
     const newSet: LoggedSet = {
+      uuid: Crypto.randomUUID(),
       localId, exerciseId, setNumber,
       weight: setData.weight, reps: setData.reps,
       rpe: setData.rpe, note: setData.note, loggedAt,
@@ -259,6 +264,8 @@ export const useWorkoutStore = create<WorkoutStore>()(
         const { data: saved, error } = await supabase
           .from('workout_sets')
           .insert({
+            // Client UUID as the pk makes this insert idempotent (see LoggedSet.uuid)
+            ...(s.uuid ? { id: s.uuid } : {}),
             workout_id: workoutId,
             exercise_id: s.exerciseId,
             set_number: s.setNumber,
@@ -271,14 +278,18 @@ export const useWorkoutStore = create<WorkoutStore>()(
           })
           .select()
           .single();
-        if (error) throw error;
+        // 23505 = duplicate key: this exact set already landed on a previous
+        // attempt whose response we lost — treat as synced, don't re-insert.
+        const alreadySynced = error?.code === '23505' && !!s.uuid;
+        if (error && !alreadySynced) throw error;
+        const rowId = alreadySynced ? s.uuid! : saved.id;
 
         set(state => ({
           activeWorkout: state.activeWorkout ? {
             ...state.activeWorkout,
             exercises: state.activeWorkout.exercises.map(e =>
               e.exerciseId === s.exerciseId
-                ? { ...e, sets: e.sets.map(x => x.localId === s.localId ? { ...x, id: saved.id } : x) }
+                ? { ...e, sets: e.sets.map(x => x.localId === s.localId ? { ...x, id: rowId } : x) }
                 : e
             ),
           } : null,
