@@ -1,5 +1,7 @@
 import { View, Text } from 'react-native';
 import { Colors, TierName } from '@/constants/colors';
+import { useAuth } from '@/hooks/useAuth';
+import { toDisplay, unitFromProfile } from '@/lib/units';
 import { TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import type { RankResult } from '@/constants/ranks';
 
@@ -21,6 +23,8 @@ export interface MuscleGroupTier {
 
 // Per-lift SBD strength bars. Renders nothing until at least one lift is logged.
 export function SbdStrengthCard({ result }: { result: RankResult }) {
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   if (!result.lifts.some(l => l.weight > 0)) return null;
   return (
     <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
@@ -35,7 +39,7 @@ export function SbdStrengthCard({ result }: { result: RankResult }) {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '800', width: 24 }}>{lift.label}</Text>
-                {hasData && <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{lift.weight} lbs</Text>}
+                {hasData && <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{toDisplay(lift.weight, unit)} {unit}</Text>}
               </View>
               {hasData ? (
                 <View style={{ backgroundColor: TIER_COLORS[lift.tier] + '20', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
@@ -60,6 +64,8 @@ export function SbdStrengthCard({ result }: { result: RankResult }) {
 
 // Per-muscle-group rank grid. Renders nothing when there are no ranked groups.
 export function BodyPartRanksCard({ tiers }: { tiers: MuscleGroupTier[] }) {
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   if (!tiers || tiers.length === 0) return null;
   return (
     <View style={{ backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
@@ -81,7 +87,7 @@ export function BodyPartRanksCard({ tiers }: { tiers: MuscleGroupTier[] }) {
                 </View>
               </View>
               <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={1}>{mg.bestLift}</Text>
-              <Text style={{ color: tc, fontSize: 13, fontWeight: '800' }}>{mg.weight} lbs</Text>
+              <Text style={{ color: tc, fontSize: 13, fontWeight: '800' }}>{toDisplay(mg.weight, unit)} {unit}</Text>
               <View style={{ height: 3, backgroundColor: Colors.surface2, borderRadius: 2, marginTop: 4 }}>
                 <View style={{ height: '100%', width: `${(TIER_ORDER.indexOf(mg.tier) / 5) * 100}%`, backgroundColor: tc, borderRadius: 2 }} />
               </View>

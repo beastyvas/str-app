@@ -4,10 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { useAuth } from '@/hooks/useAuth';
+import { fmtVolume, toDisplay, unitFromProfile } from '@/lib/units';
 
 export default function WorkoutSummaryScreen() {
   const { data } = useLocalSearchParams<{ data: string }>();
   const router = useRouter();
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
 
   let summary = null;
   try { summary = data ? JSON.parse(data) : null; } catch {}
@@ -93,7 +97,7 @@ export default function WorkoutSummaryScreen() {
           {[
             { label: 'Duration', value: formatDuration(duration) },
             { label: 'Sets', value: String(totalSets) },
-            { label: 'Volume', value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : String(totalVolume) },
+            { label: 'Volume', value: fmtVolume(totalVolume, unit) },
           ].map((stat, i) => (
             <View key={i} style={{
               flex: 1,
@@ -163,7 +167,7 @@ export default function WorkoutSummaryScreen() {
               color: Colors.accent, fontSize: 18, fontWeight: '800',
               fontVariant: ['tabular-nums'], letterSpacing: -0.3,
             }}>
-              {bestLift.weight} × {bestLift.reps}
+              {toDisplay(bestLift.weight, unit)} × {bestLift.reps}
             </Text>
           </Animated.View>
         )}
@@ -218,7 +222,7 @@ export default function WorkoutSummaryScreen() {
                   {pr.exerciseName}
                 </Text>
                 <Text style={{ color: Colors.gold, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
-                  {pr.weight} × {pr.reps}
+                  {toDisplay(pr.weight, unit)} × {pr.reps}
                 </Text>
               </View>
             ))}
@@ -277,7 +281,7 @@ export default function WorkoutSummaryScreen() {
               </View>
               {ex.sets[0] && (
                 <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                  Top set: {ex.sets[0].weight === 0 ? 'BW' : ex.sets[0].weight} × {ex.sets[0].reps}
+                  Top set: {ex.sets[0].weight === 0 ? 'BW' : toDisplay(ex.sets[0].weight, unit)} × {ex.sets[0].reps}
                 </Text>
               )}
             </View>

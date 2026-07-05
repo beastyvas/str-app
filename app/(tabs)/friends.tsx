@@ -16,6 +16,7 @@ import { FriendProfileModal } from '@/components/FriendProfileModal';
 import { UserBadges } from '@/components/UserBadges';
 import { useModeration } from '@/hooks/useModeration';
 import { screenText } from '@/lib/contentFilter';
+import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 
 type SubTab = 'feed' | 'people';
 
@@ -123,6 +124,7 @@ function formatDuration(start: string, end: string) {
 
 export default function SocialScreen() {
   const { user, profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const { reportContent, blockUser } = useModeration();
   const [subTab, setSubTab] = useState<SubTab>('feed');
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -792,7 +794,7 @@ export default function SocialScreen() {
                     {[
                       formatDuration(post.startedAt, post.endedAt),
                       `${post.setsCount} sets`,
-                      `${formatVolume(post.totalVolume)} lbs`,
+                      fmtVolumeUnit(post.totalVolume, unit),
                     ].map((chip, i) => (
                       <View key={i} style={{
                         backgroundColor: Colors.surface2,
@@ -857,7 +859,7 @@ export default function SocialScreen() {
                                 borderWidth: 1, borderColor: Colors.border,
                               }}>
                                 <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
-                                  {s.weight === 0 ? 'BW' : s.weight}×{s.reps}
+                                  {s.weight === 0 ? 'BW' : toDisplay(s.weight, unit)}×{s.reps}
                                 </Text>
                               </View>
                             ))}
@@ -1148,7 +1150,7 @@ export default function SocialScreen() {
                       </View>
                       {f.recentPR && (
                         <Text style={{ color: Colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
-                          🏆 {f.recentPR.exerciseName} — {f.recentPR.weight} lbs
+                          🏆 {f.recentPR.exerciseName} — {toDisplay(f.recentPR.weight, unit)} {unit}
                         </Text>
                       )}
                     </View>

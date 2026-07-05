@@ -9,6 +9,7 @@ import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthS
 import { getRankResult, ROMAN } from '@/constants/ranks';
 import { useModeration } from '@/hooks/useModeration';
 import { useAuth } from '@/hooks/useAuth';
+import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
@@ -85,6 +86,8 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
   const [addingFriend, setAddingFriend] = useState(false);
 
   const { user: me, profile: myProfile } = useAuth();
+  // Friend's numbers shown in MY preferred unit (the viewer's)
+  const unit = unitFromProfile(myProfile?.unit_pref);
   const { reportContent, blockUser } = useModeration();
   const [myRank, setMyRank] = useState<ReturnType<typeof getRankResult> | null>(null);
 
@@ -366,8 +369,8 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                   const theirs = liftWeight(rankResult, k);
                   return {
                     label: k === 'SQ' ? 'Squat' : k === 'BP' ? 'Bench' : 'Deadlift',
-                    mine: mine > 0 ? `${mine}` : '—',
-                    theirs: theirs > 0 ? `${theirs}` : '—',
+                    mine: mine > 0 ? `${toDisplay(mine, unit)}` : '—',
+                    theirs: theirs > 0 ? `${toDisplay(theirs, unit)}` : '—',
                     mineWins: mine === theirs ? null : mine > theirs,
                   };
                 }),
@@ -409,7 +412,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                     </View>
                   ))}
                   <Text style={{ color: Colors.textMuted, fontSize: 9, marginTop: 6, textAlign: 'center' }}>
-                    Lifts in lbs · bold = stronger
+                    Lifts in {unit} · bold = stronger
                   </Text>
                 </View>
               );
@@ -507,7 +510,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '800', width: 24 }}>{lift.label}</Text>
-                          {hasData && <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{lift.weight} lbs</Text>}
+                          {hasData && <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{toDisplay(lift.weight, unit)} {unit}</Text>}
                         </View>
                         {hasData ? (
                           <View style={{ backgroundColor: TIER_COLORS[lift.tier] + '20', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }}>
@@ -547,7 +550,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                           </View>
                         </View>
                         <Text style={{ color: Colors.textMuted, fontSize: 10 }} numberOfLines={1}>{mg.bestLift}</Text>
-                        <Text style={{ color: tc, fontSize: 13, fontWeight: '800' }}>{mg.weight} lbs</Text>
+                        <Text style={{ color: tc, fontSize: 13, fontWeight: '800' }}>{toDisplay(mg.weight, unit)} {unit}</Text>
                         <View style={{ height: 3, backgroundColor: Colors.surface2, borderRadius: 2, marginTop: 2 }}>
                           <View style={{ height: '100%', width: `${(TIER_ORDER.indexOf(mg.tier) / 5) * 100}%`, backgroundColor: tc, borderRadius: 2 }} />
                         </View>
@@ -634,7 +637,7 @@ export function FriendProfileModal({ visible, userId, onClose }: Props) {
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
                         {[
                           `${sets.length} sets`,
-                          `${formatVol(vol)} lbs`,
+                          fmtVolumeUnit(vol, unit),
                           formatDuration(w.started_at, w.ended_at),
                         ].map((chip, ci) => (
                           <View key={ci} style={{ backgroundColor: Colors.surface2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: Colors.border }}>

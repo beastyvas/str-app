@@ -14,6 +14,7 @@ import { getRankResult, getNextTierGap, RankResult, SBD_EXERCISES, ROMAN } from 
 import { CelebrationToast } from '@/components/CelebrationToast';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { useSubscription } from '@/hooks/useSubscription';
+import { toDisplay, toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -95,6 +96,7 @@ interface WorkoutDayData {
 
 export default function HomeScreen() {
   const { profile, user } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const { isPro, aiAsksRemaining } = useSubscription();
   const router = useRouter();
   const [friendPRs, setFriendPRs] = useState<FriendPR[]>([]);
@@ -441,7 +443,8 @@ export default function HomeScreen() {
         await supabase.from('personal_records').upsert({
           user_id: user.id,
           exercise_id: ex.id,
-          weight: parseFloat(entry.val),
+          // Typed in the user's display unit — stored canonical lbs
+          weight: toLbs(parseFloat(entry.val), unit),
           reps: 1,
           achieved_at: new Date().toISOString(),
         }, { onConflict: 'user_id,exercise_id' });
@@ -938,7 +941,7 @@ export default function HomeScreen() {
               {[
                 { label: 'Duration', value: formatDuration(lastWorkout.started_at, lastWorkout.ended_at) },
                 { label: 'Sets', value: String(lastWorkout.sets_count) },
-                { label: 'Volume', value: `${formatVolume(lastWorkout.total_volume)} lbs` },
+                { label: 'Volume', value: fmtVolumeUnit(lastWorkout.total_volume, unit) },
               ].map((s, i) => (
                 <View key={i}>
                   <Text style={{
@@ -1139,7 +1142,7 @@ export default function HomeScreen() {
               ].map(({ label, key, placeholder }) => (
                 <View key={key}>
                   <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
-                    {label} (lbs)
+                    {label} ({unit})
                   </Text>
                   <TextInput
                     value={sbdInputs[key]}
@@ -1237,7 +1240,7 @@ export default function HomeScreen() {
                                 {lift.name}
                               </Text>
                               <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                                {lift.weight}lbs × {lift.reps}
+                                {toDisplay(lift.weight, unit)} {unit} × {lift.reps}
                               </Text>
                             </View>
                           ))}

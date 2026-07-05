@@ -10,6 +10,7 @@ import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useAuth } from '@/hooks/useAuth';
+import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -253,6 +254,8 @@ function WorkoutCalendar({
 
 // ─── WorkoutBottomSheet ────────────────────────────────────────────────────
 function WorkoutBottomSheet({ workout, onClose }: { workout: WorkoutData; onClose: () => void }) {
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const formatDuration = (mins: number) => {
     if (!mins) return '—';
@@ -287,7 +290,7 @@ function WorkoutBottomSheet({ workout, onClose }: { workout: WorkoutData; onClos
           <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
             {[
               { label: 'Duration', value: formatDuration(workout.duration_mins) },
-              { label: 'Volume', value: `${formatVolume(workout.total_volume)} lbs` },
+              { label: 'Volume', value: fmtVolumeUnit(workout.total_volume, unit) },
               { label: 'Sets', value: String(workout.sets_count) },
             ].map((s, i) => (
               <View key={i} style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -341,6 +344,8 @@ function ExerciseProgressModal({
   workouts: WorkoutData[];
   onClose: () => void;
 }) {
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const [mode, setMode] = useState<ChartMode>('Max Weight');
   const insets = useSafeAreaInsets();
 
@@ -514,7 +519,7 @@ function ExerciseProgressModal({
           {/* Stats row */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {[
-              { label: 'All-Time PR', value: mode === 'Volume' ? `${Math.round(allTimePR / 1000 * 10) / 10}k lbs` : `${Math.round(allTimePR)} lbs` },
+              { label: 'All-Time PR', value: mode === 'Volume' ? fmtVolumeUnit(allTimePR, unit) : `${Math.round(toDisplay(allTimePR, unit))} ${unit}` },
               { label: 'Sessions', value: String(byDate.length) },
               { label: 'Total Sets', value: String(totalSets) },
             ].map((s, i) => (
@@ -540,9 +545,9 @@ function ExerciseProgressModal({
                     {d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                   <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
-                    {mode === 'Max Weight' && `${d.maxWeight} lbs`}
-                    {mode === 'Est. 1RM' && `${Math.round(d.est1rm)} lbs e1RM`}
-                    {mode === 'Volume' && `${Math.round(d.volume)} lbs`}
+                    {mode === 'Max Weight' && `${toDisplay(d.maxWeight, unit)} ${unit}`}
+                    {mode === 'Est. 1RM' && `${Math.round(toDisplay(d.est1rm, unit))} ${unit} e1RM`}
+                    {mode === 'Volume' && fmtVolumeUnit(d.volume, unit)}
                   </Text>
                   <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
                     {d.sets.length} set{d.sets.length !== 1 ? 's' : ''}
@@ -560,7 +565,8 @@ function ExerciseProgressModal({
 // ─── Main History Screen ───────────────────────────────────────────────────
 export default function HistoryScreen() {
   const { isPro, historyLimit } = useSubscription();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const [workouts, setWorkouts] = useState<WorkoutData[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -616,7 +622,7 @@ export default function HistoryScreen() {
             total_volume: totalVolume,
             exercises: exerciseNames,
             muscle_groups: muscleGroups,
-            top_set: topSet ? `${topSet.exercises?.name} ${topSet.weight}×${topSet.reps}` : '',
+            top_set: topSet ? `${topSet.exercises?.name} ${toDisplay(topSet.weight, unit)}×${topSet.reps}` : '',
             duration_mins: durMins,
           };
         });
@@ -710,7 +716,7 @@ export default function HistoryScreen() {
           <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 }}>
             {[
               { label: 'This Month', value: String(thisMonthWorkouts), sub: 'sessions' },
-              { label: 'Volume', value: formatVolume(thisMonthVolume), sub: 'lbs' },
+              { label: 'Volume', value: formatVolume(unit === 'kg' ? thisMonthVolume / 2.2046226218 : thisMonthVolume), sub: unit },
               { label: 'All Time', value: String(workouts.length), sub: 'workouts' },
             ].map((s, i) => (
               <View key={i} style={{
@@ -901,7 +907,7 @@ export default function HistoryScreen() {
                       <View style={{ flexDirection: 'row', gap: 20, marginBottom: 10 }}>
                         {[
                           { label: 'Sets', value: String(workout.sets_count) },
-                          { label: 'Volume', value: `${formatVolume(workout.total_volume)} lbs` },
+                          { label: 'Volume', value: fmtVolumeUnit(workout.total_volume, unit) },
                           { label: 'Exercises', value: String(workout.exercises.length) },
                         ].map((s, i) => (
                           <View key={i}>
@@ -976,7 +982,7 @@ export default function HistoryScreen() {
                                 }}>
                                   <Text style={{ color: Colors.textMuted, fontSize: 11, width: 18 }}>{s.set_number}</Text>
                                   <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>
-                                    {s.weight === 0 ? 'BW' : s.weight} × {s.reps}
+                                    {s.weight === 0 ? 'BW' : toDisplay(s.weight, unit)} × {s.reps}
                                   </Text>
                                   {s.rpe && (
                                     <View style={{ backgroundColor: Colors.surface2, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { toDisplay, unitFromProfile, LBS_PER_KG, WeightUnit } from '@/lib/units';
 import { Colors, TierName } from '@/constants/colors';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER, getScaledThresholds } from '@/constants/strengthStandards';
 import { MuscleMap } from '@/components/MuscleMap';
@@ -20,7 +21,7 @@ const TIER_COLORS: Record<TierName, string> = {
   diamond: Colors.tiers.diamond,
 };
 
-function WeightChart({ data }: { data: { value: number }[] }) {
+function WeightChart({ data, unit }: { data: { value: number }[]; unit: WeightUnit }) {
   const chartWidth = SCREEN_WIDTH - 72;
   const chartHeight = 80;
   const min = Math.min(...data.map(d => d.value));
@@ -64,8 +65,8 @@ function WeightChart({ data }: { data: { value: number }[] }) {
         </View>
         {/* Labels: first, last */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{data[0].value} lbs</Text>
-          <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>{data[data.length - 1].value} lbs</Text>
+          <Text style={{ color: Colors.textMuted, fontSize: 10 }}>{data[0].value} {unit}</Text>
+          <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>{data[data.length - 1].value} {unit}</Text>
         </View>
       </View>
     </View>
@@ -110,6 +111,7 @@ export default function ExerciseDetailScreen() {
   if (!exercise) return null;
 
   const bw = profile?.bodyweight_lbs ?? 185;
+  const unit = unitFromProfile(profile?.unit_pref);
   const prWeight = pr?.weight ?? 0;
   const currentTier = getTierForWeight(exercise.name, prWeight, bw);
   // Strength standards exist only for the SBD lifts; thresholds are absolute lbs
@@ -146,16 +148,19 @@ export default function ExerciseDetailScreen() {
     .filter(d => d.date)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(-10)
-    .map(d => ({ value: d.topE1rm }));
+    .map(d => ({ value: Math.round(toDisplay(d.topE1rm, unit)) }));
 
-  // Loading guide off the current PR's e1RM, rounded to the nearest 5
+  // Loading guide off the current PR's e1RM, in the user's unit, rounded to
+  // real plate increments (5 lbs / 2.5 kg)
   const prE1rm = pr && pr.weight > 0 ? pr.weight * (1 + pr.reps / 30) : 0;
+  const prE1rmDisplay = unit === 'kg' ? prE1rm / LBS_PER_KG : prE1rm;
+  const increment = unit === 'kg' ? 2.5 : 5;
   const loadingGuide = prE1rm > 0 ? [
     { pct: 65, use: 'Warm-up · speed work' },
     { pct: 75, use: 'Volume · 8–10 reps' },
     { pct: 85, use: 'Strength · 4–6 reps' },
     { pct: 95, use: 'Peaking · 1–2 reps' },
-  ].map(r => ({ ...r, weight: Math.round((prE1rm * r.pct) / 100 / 5) * 5 })) : null;
+  ].map(r => ({ ...r, weight: Math.round((prE1rmDisplay * r.pct) / 100 / increment) * increment })) : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -189,11 +194,11 @@ export default function ExerciseDetailScreen() {
               Personal Record
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <Text style={{ color: Colors.gold, fontSize: 42, fontWeight: '800', letterSpacing: -2 }}>
-                {pr.weight}
+              <Text style={{ color: Colors.gold, fontSize: 42, fontWeight: '800', letterSpacing: -2, fontVariant: ['tabular-nums'] }}>
+                {toDisplay(pr.weight, unit)}
               </Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 16, fontWeight: '600', marginBottom: 6 }}>
-                lbs × {pr.reps}
+                {unit} × {pr.reps}
               </Text>
             </View>
             <View style={{
@@ -222,12 +227,12 @@ export default function ExerciseDetailScreen() {
             borderColor: Colors.border,
           }}>
             <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-              Strength Standards (at {bw} lbs)
+              Strength Standards (at {toDisplay(bw, unit)} {unit})
             </Text>
             {[...TIER_ORDER].reverse().map((tier) => {
               const rankIndex = TIER_ORDER.indexOf(tier);
               const threshold = rankThresholds[rankIndex * 4];
-              const displayVal = `${threshold} lbs`;
+              const displayVal = `${toDisplay(threshold, unit)} ${unit}`;
               const isCurrentOrBelow = TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(currentTier);
               return (
                 <View key={tier} style={{
@@ -331,7 +336,7 @@ export default function ExerciseDetailScreen() {
 
         {/* Progress Chart */}
         {chartData.length >= 2 && (
-          <WeightChart data={chartData} />
+          <WeightChart data={chartData} unit={unit} />
         )}
 
         {/* Loading guide — % of estimated 1RM, rounded to workable plates */}
@@ -351,7 +356,7 @@ export default function ExerciseDetailScreen() {
               Loading Guide
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 11, marginBottom: 12 }}>
-              % of your estimated 1RM ({Math.round(prE1rm)} lbs), rounded to 5
+              % of your estimated 1RM ({Math.round(prE1rmDisplay)} {unit}), rounded to {increment}
             </Text>
             {loadingGuide.map((row, i) => (
               <View key={row.pct} style={{
@@ -370,7 +375,7 @@ export default function ExerciseDetailScreen() {
                   color: Colors.text, fontSize: 16, fontWeight: '700',
                   width: 84, fontVariant: ['tabular-nums'], letterSpacing: -0.3,
                 }}>
-                  {row.weight} lbs
+                  {row.weight} {unit}
                 </Text>
                 <Text style={{ color: Colors.textMuted, fontSize: 12, flex: 1 }}>
                   {row.use}

@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { useAuth } from '@/hooks/useAuth';
+import { toDisplay, toLbs, unitFromProfile } from '@/lib/units';
 import { LoggedSet } from '@/hooks/useWorkout';
 import {
   WeightMode, PlateSystem, PLATE_CONFIGS, defaultModeForEquipment, describeWeight,
@@ -23,17 +25,21 @@ export function SetInputRow({
   equipmentType?: string;
   onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => Promise<{ isPR: boolean } | void>;
 }) {
+  // Storage is lbs; everything typed/shown here is in the user's unit
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
+
   const defaultMode = prevSet?.weight === 0
     ? 'bw'
     : defaultModeForEquipment(equipmentType);
 
   const [mode, setMode] = useState<WeightMode>(defaultMode);
-  const [plateSystem, setPlateSystem] = useState<PlateSystem>('lbs');
+  const [plateSystem, setPlateSystem] = useState<PlateSystem>(unit);
   // Pre-fill from the last time this set number was logged — editable, just a head start
   const [weight, setWeight] = useState(
     defaultMode === 'bw' ? '' :
-    defaultMode === 'plates' ? String(prevSet?.weight ?? PLATE_CONFIGS.lbs.barWeight) :
-    prevSet ? String(prevSet.weight) : ''
+    defaultMode === 'plates' ? String(prevSet?.weight ? Math.max(PLATE_CONFIGS[unit].barWeight, toDisplay(prevSet.weight, unit)) : PLATE_CONFIGS[unit].barWeight) :
+    prevSet ? String(toDisplay(prevSet.weight, unit)) : ''
   );
   const [reps, setReps] = useState(prevSet ? String(prevSet.reps) : '');
   const [rpe, setRpe] = useState<number | undefined>(undefined);
@@ -84,7 +90,9 @@ export function SetInputRow({
 
   const handleLog = async () => {
     if (!canLog()) return;
-    const w = getWeight();
+    // Plates mode is denominated in the plate system's unit; number mode in
+    // the user's display unit. Either way the store gets lbs.
+    const w = toLbs(getWeight(), mode === 'plates' ? plateSystem : unit);
     const r = parseInt(reps);
     setLogging(true);
     try {
@@ -182,7 +190,7 @@ export function SetInputRow({
           }}
         >
           <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '800' }}>
-            {mode === 'number' ? 'lbs' : mode === 'bw' ? 'BW' : '🏋️'}
+            {mode === 'number' ? unit : mode === 'bw' ? 'BW' : '🏋️'}
           </Text>
         </TouchableOpacity>
 
@@ -404,8 +412,10 @@ export function LoggedSetRow({
   onDelete?: (localId: string) => void;
   onEdit?: (localId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => void;
 }) {
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const [editOpen, setEditOpen] = useState(false);
-  const [weight, setWeight] = useState(set.weight.toString());
+  const [weight, setWeight] = useState(String(toDisplay(set.weight, unit)));
   const [reps, setReps] = useState(set.reps.toString());
   const [rpe, setRpe] = useState<number | undefined>(set.rpe);
   const [note, setNote] = useState(set.note ?? '');
@@ -419,7 +429,7 @@ export function LoggedSetRow({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
       `Delete Set ${set.setNumber}?`,
-      `${set.weight === 0 ? 'BW' : set.weight} × ${set.reps}`,
+      `${set.weight === 0 ? 'BW' : toDisplay(set.weight, unit)} × ${set.reps}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => onDelete?.(set.localId) },
@@ -431,7 +441,7 @@ export function LoggedSetRow({
     const w = parseFloat(weight);
     const r = parseInt(reps);
     if (!w || !r) return;
-    onEdit?.(set.localId, { weight: w, reps: r, rpe, note: note.trim() || undefined });
+    onEdit?.(set.localId, { weight: toLbs(w, unit), reps: r, rpe, note: note.trim() || undefined });
     setEditOpen(false);
   };
 
@@ -464,7 +474,7 @@ export function LoggedSetRow({
           fontVariant: ['tabular-nums'],
           opacity: set.isWarmup ? 0.7 : 1,
         }}>
-          {set.weight === 0 ? 'BW' : set.weight} × {set.reps}
+          {set.weight === 0 ? 'BW' : toDisplay(set.weight, unit)} × {set.reps}
         </Text>
         {set.rpe && (
           <View style={{

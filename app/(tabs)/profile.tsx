@@ -22,6 +22,7 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
+import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -163,6 +164,8 @@ function WeeklyChart({
 
 export default function ProfileScreen() {
   const { profile, user, signOut, refreshProfile } = useAuth();
+  // NB: `unit` state below is the edit-modal picker; this is the live pref
+  const displayUnit = unitFromProfile(profile?.unit_pref);
   const { isPro } = useSubscription();
   const [showPaywall, setShowPaywall] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -479,7 +482,8 @@ export default function ProfileScreen() {
         if (!ex) continue;
         await supabase.from('personal_records').upsert({
           user_id: user.id, exercise_id: ex.id,
-          weight: parseFloat(entry.val), reps: 1,
+          // Typed in the user's display unit — stored canonical lbs
+          weight: toLbs(parseFloat(entry.val), displayUnit), reps: 1,
           achieved_at: new Date().toISOString(),
         }, { onConflict: 'user_id,exercise_id' });
       }
@@ -885,7 +889,7 @@ export default function ProfileScreen() {
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {[
                 { label: 'Workouts', value: String(stats.totalWorkouts), color: null },
-                { label: 'Volume', value: `${formatVolume(stats.totalVolume)} lbs`, color: null },
+                { label: 'Volume', value: fmtVolumeUnit(stats.totalVolume, displayUnit), color: null },
                 { label: 'Streak', value: `${stats.streakDays}d`, color: Colors.gold },
               ].map((s, i) => (
                 <View key={i} style={{
@@ -1230,7 +1234,7 @@ export default function ProfileScreen() {
             ].map(({ label, key, placeholder }) => (
               <View key={key}>
                 <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
-                  {label} (lbs)
+                  {label} ({displayUnit})
                 </Text>
                 <TextInput
                   value={sbdInputs[key]}

@@ -23,6 +23,7 @@ import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getRankResult, RankTier } from '@/constants/ranks';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
+import { fmtVolume, unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
 import {
   requestNotificationPermissions,
@@ -63,6 +64,7 @@ async function uploadWorkoutPhotoInBackground(uri: string, workoutId: string, us
 export default function WorkoutTab() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const { isPro } = useSubscription();
   const [coachLastSet, setCoachLastSet] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string } | null>(null);
   const [coachHistory, setCoachHistory] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string }[]>([]);
@@ -1281,9 +1283,7 @@ export default function WorkoutTab() {
               <>
                 <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
                 <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                  {totalVolume >= 1000
-                    ? `${(totalVolume / 1000).toFixed(1)}k`
-                    : totalVolume} lbs
+                  {fmtVolume(totalVolume, unit)}
                 </Text>
               </>
             )}
@@ -1623,7 +1623,7 @@ export default function WorkoutTab() {
                 {[
                   { label: 'Duration', value: formatElapsed(elapsedSec) },
                   { label: 'Sets', value: String(totalSets) },
-                  { label: 'Volume', value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k lbs` : `${totalVolume} lbs` },
+                  { label: 'Volume', value: fmtVolume(totalVolume, unit) },
                 ].map((s, i) => (
                   <View key={i} style={{
                     flex: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
