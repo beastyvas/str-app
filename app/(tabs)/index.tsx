@@ -902,8 +902,11 @@ export default function HomeScreen() {
               borderRadius: 18,
               padding: 18,
               marginBottom: 14,
-              borderWidth: 1,
-              borderColor: Colors.border,
+              shadowColor: '#000',
+              shadowOpacity: 0.25,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 3,
             }}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -1026,7 +1029,6 @@ export default function HomeScreen() {
               <View style={{
                 width: 52, height: 52, borderRadius: 26,
                 backgroundColor: Colors.surface2,
-                borderWidth: 1, borderColor: Colors.border,
                 alignItems: 'center', justifyContent: 'center',
                 marginBottom: 6,
               }}>
@@ -1153,9 +1155,8 @@ export default function HomeScreen() {
                       color: Colors.text,
                       fontSize: 28,
                       fontWeight: '800',
-                      letterSpacing: -1,
-                      borderWidth: 1,
-                      borderColor: Colors.border,
+                      fontVariant: ['tabular-nums'],
+                      letterSpacing: -0.5,
                     }}
                   />
                 </View>
@@ -1231,8 +1232,6 @@ export default function HomeScreen() {
                               borderRadius: 10,
                               paddingHorizontal: 12,
                               paddingVertical: 8,
-                              borderWidth: 1,
-                              borderColor: Colors.border,
                             }}>
                               <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
                                 {lift.name}
