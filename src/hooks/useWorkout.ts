@@ -282,7 +282,8 @@ export const useWorkoutStore = create<WorkoutStore>()(
         // attempt whose response we lost — treat as synced, don't re-insert.
         const alreadySynced = error?.code === '23505' && !!s.uuid;
         if (error && !alreadySynced) throw error;
-        const rowId = alreadySynced ? s.uuid! : saved.id;
+        const rowId = alreadySynced ? s.uuid! : saved?.id;
+        if (!rowId) throw new Error('insert returned no row');
 
         set(state => ({
           activeWorkout: state.activeWorkout ? {
