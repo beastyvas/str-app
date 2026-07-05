@@ -1141,6 +1141,40 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* ── PUBLIC PROFILE ───────────────────────────────────────────────── */}
+          <TouchableOpacity
+            onPress={async () => {
+              const next = !((profile as any)?.profile_public ?? true);
+              if (user) {
+                await supabase.from('users').update({ profile_public: next } as any).eq('id', user.id);
+                refreshProfile();
+              }
+            }}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+              borderWidth: 1, borderColor: Colors.border,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>Public profile</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                Your posts and PRs appear in the Global feed. Off = friends only.
+              </Text>
+            </View>
+            <View style={{
+              width: 44, height: 26, borderRadius: 13,
+              backgroundColor: ((profile as any)?.profile_public ?? true) ? Colors.accent : Colors.surface2,
+              justifyContent: 'center', paddingHorizontal: 3,
+              borderWidth: 1, borderColor: ((profile as any)?.profile_public ?? true) ? Colors.accent : Colors.border,
+            }}>
+              <View style={{
+                width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.text,
+                transform: [{ translateX: ((profile as any)?.profile_public ?? true) ? 18 : 0 }],
+              }} />
+            </View>
+          </TouchableOpacity>
+
           {/* ── SIGN OUT ─────────────────────────────────────────────────────── */}
           <TouchableOpacity
             onPress={signOut}

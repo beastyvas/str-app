@@ -127,6 +127,10 @@ export default function SocialScreen() {
   const unit = unitFromProfile(profile?.unit_pref);
   const { reportContent, blockUser } = useModeration();
   const [subTab, setSubTab] = useState<SubTab>('feed');
+  // Feed scope: friends-only or the global (public-profiles) feed.
+  // Ref mirrors state so loadData reads the current scope without re-binding.
+  const [feedScope, setFeedScope] = useState<'friends' | 'global'>('friends');
+  const feedScopeRef = useRef<'friends' | 'global'>('friends');
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pending, setPending] = useState<PendingRequest[]>([]);
@@ -218,17 +222,21 @@ export default function SocialScreen() {
         });
       }
 
-      // Load feed — your workouts + friends' workouts
+      // Load feed — friends scope: you + friends. Global scope: no user
+      // filter; RLS returns exactly what the viewer may see (own, friends',
+      // public profiles', creator showcase) — privacy enforced server-side.
+      const global = feedScopeRef.current === 'global';
       const feedUserIds = [user.id, ...friendIds];
       if (feedUserIds.length > 0) {
         // Wrap feed separately so errors don't kill the friends list
-        const { data: workouts, error: feedErr } = await supabase
+        let feedQuery = supabase
           .from('workouts')
           .select(`
             id, user_id, name, started_at, ended_at, notes, is_imported,
             workout_sets(weight, reps, set_number, exercises(name))
-          `)
-          .in('user_id', feedUserIds)
+          `);
+        if (!global) feedQuery = feedQuery.in('user_id', feedUserIds);
+        const { data: workouts, error: feedErr } = await feedQuery
           .not('ended_at', 'is', null)
           .or('is_imported.is.null,is_imported.eq.false')
           .order('ended_at', { ascending: false })
@@ -238,9 +246,24 @@ export default function SocialScreen() {
           console.log('[Feed] error (non-fatal):', feedErr.message);
         }
 
+        // Global scope: resolve display profiles for lifters outside the
+        // friend circle, and drop anyone the viewer has blocked
+        if (global) {
+          const missingIds = [...new Set((workouts ?? []).map((w: any) => w.user_id))]
+            .filter(id => !profilesById[id] && !blockedSet.has(id));
+          if (missingIds.length > 0) {
+            const { data: moreProfiles } = await supabase
+              .from('public_profiles')
+              .select('id, display_name, avatar_url, bodyweight_lbs, is_owner, is_og, is_pro')
+              .in('id', missingIds);
+            (moreProfiles ?? []).forEach((p: any) => { profilesById[p.id] = p; });
+          }
+        }
+
         // Filter out imported workouts client-side (is_imported might not exist yet)
         const posts: FeedPost[] = (workouts ?? [])
           .filter((w: any) => !w.is_imported)
+          .filter((w: any) => !blockedSet.has(w.user_id))
           .map((w: any) => {
             const isOwn = w.user_id === user.id;
             const other = profilesById[w.user_id] ?? null;
@@ -674,13 +697,40 @@ export default function SocialScreen() {
         </View>
       </View>
 
+      {/* Feed scope switch — your circle vs the whole gym */}
+      {subTab === 'feed' && (
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 }}>
+          {(['friends', 'global'] as const).map(scope => (
+            <TouchableOpacity
+              key={scope}
+              onPress={() => {
+                if (feedScope === scope) return;
+                setFeedScope(scope);
+                feedScopeRef.current = scope;
+                setRefreshing(true);
+                loadData();
+              }}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14,
+                backgroundColor: feedScope === scope ? Colors.accentDim : Colors.surface,
+                borderWidth: 1, borderColor: feedScope === scope ? Colors.accent + '50' : 'transparent',
+              }}
+            >
+              <Text style={{ color: feedScope === scope ? Colors.accent : Colors.textMuted, fontWeight: '700', fontSize: 12 }}>
+                {scope === 'friends' ? 'Friends' : '🌍 Global'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* ── FEED ──────────────────────────────────────────────────────────── */}
       {subTab === 'feed' && (
         loading ? (
           <View style={{ flex: 1 }}>
             <ActivityIndicator color={Colors.accent} style={{ marginTop: 60 }} />
           </View>
-        ) : friends.length === 0 ? (
+        ) : friends.length === 0 && feedScope === 'friends' ? (
           <ScrollView
             contentContainerStyle={{ padding: 16, flexGrow: 1 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}

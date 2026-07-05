@@ -97,6 +97,7 @@ interface WorkoutDayData {
 export default function HomeScreen() {
   const { profile, user } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
+  const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
   const { isPro, aiAsksRemaining } = useSubscription();
   const router = useRouter();
   const [friendPRs, setFriendPRs] = useState<FriendPR[]>([]);
@@ -787,9 +788,24 @@ export default function HomeScreen() {
               {!firstSteps.hasWorkout && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
             </TouchableOpacity>
 
-            {/* Task 2 — Ask Coach to build weekly plan */}
+            {/* Task 2 — meet the coach. Beginners already have a 3-day starter
+                plan, so their step is simply asking Coach a first question;
+                experienced lifters still get the weekly-plan builder. */}
             <TouchableOpacity
-              onPress={() => !firstSteps?.hasCoach && setWeeklyPlanModal(true)}
+              onPress={() => {
+                if (firstSteps?.hasCoach) return;
+                if (isNewLifter) {
+                  if (user) {
+                    import('@react-native-async-storage/async-storage')
+                      .then(({ default: AS }) => AS.setItem(`weekly_plan_done_${user.id}`, 'true'));
+                    supabase.from('users').update({ weekly_plan_done: true }).eq('id', user.id).then(() => {});
+                  }
+                  setFirstSteps(prev => (prev ? { ...prev, hasCoach: true } : prev));
+                  router.push('/(tabs)/insights');
+                } else {
+                  setWeeklyPlanModal(true);
+                }
+              }}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
@@ -806,9 +822,11 @@ export default function HomeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700', textDecorationLine: firstSteps.hasCoach ? 'line-through' : 'none' }}>
-                  Get your weekly plan from Coach
+                  {isNewLifter ? 'Ask your coach anything' : 'Get your weekly plan from Coach'}
                 </Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>AI builds a program around your goals</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                  {isNewLifter ? 'Nervous questions welcome — 5 free a week' : 'AI builds a program around your goals'}
+                </Text>
               </View>
               {!firstSteps.hasCoach && <Text style={{ color: Colors.accent, fontSize: 13 }}>→</Text>}
             </TouchableOpacity>
