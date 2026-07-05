@@ -20,6 +20,20 @@ export default function WorkoutSummaryScreen() {
   const { name, duration, totalSets, totalVolume, prs, exercises } = summary;
   const hasPRs = prs?.length > 0;
 
+  // Best lift of the session by estimated 1RM (bodyweight sets excluded —
+  // "top lift" is about load on the bar)
+  const bestLift = (() => {
+    let best: { name: string; weight: number; reps: number; e1rm: number } | null = null;
+    for (const ex of exercises ?? []) {
+      for (const s of ex.sets ?? []) {
+        if (!s.weight) continue;
+        const e1rm = s.weight * (1 + s.reps / 30);
+        if (!best || e1rm > best.e1rm) best = { name: ex.name, weight: s.weight, reps: s.reps, e1rm };
+      }
+    }
+    return best;
+  })();
+
   const headerAnim = useRef(new Animated.Value(0)).current;
   const statsAnim = useRef(new Animated.Value(0)).current;
   const prAnim = useRef(new Animated.Value(0)).current;
@@ -86,9 +100,12 @@ export default function WorkoutSummaryScreen() {
               backgroundColor: Colors.surface,
               borderRadius: 16,
               padding: 16,
-              borderWidth: 1,
-              borderColor: Colors.border,
               alignItems: 'center',
+              shadowColor: '#000',
+              shadowOpacity: 0.25,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 3,
             }}>
               <Text style={{
                 color: Colors.textMuted,
@@ -105,12 +122,51 @@ export default function WorkoutSummaryScreen() {
                 fontSize: 22,
                 fontWeight: '800',
                 letterSpacing: -0.5,
+                fontVariant: ['tabular-nums'],
               }}>
                 {stat.value}
               </Text>
             </View>
           ))}
         </Animated.View>
+
+        {/* Top lift of the session */}
+        {bestLift && (
+          <Animated.View style={[slideUp(statsAnim), {
+            backgroundColor: Colors.surface,
+            borderRadius: 16,
+            paddingVertical: 14,
+            paddingHorizontal: 18,
+            marginBottom: 24,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 3,
+          }]}>
+            <Text style={{ fontSize: 20 }}>🏋️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{
+                color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5,
+                textTransform: 'uppercase', fontWeight: '700', marginBottom: 2,
+              }}>
+                Top lift
+              </Text>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
+                {bestLift.name}
+              </Text>
+            </View>
+            <Text style={{
+              color: Colors.accent, fontSize: 18, fontWeight: '800',
+              fontVariant: ['tabular-nums'], letterSpacing: -0.3,
+            }}>
+              {bestLift.weight} × {bestLift.reps}
+            </Text>
+          </Animated.View>
+        )}
 
         {/* PRs */}
         {hasPRs && (
@@ -161,7 +217,7 @@ export default function WorkoutSummaryScreen() {
                 <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', flex: 1 }}>
                   {pr.exerciseName}
                 </Text>
-                <Text style={{ color: Colors.gold, fontSize: 15, fontWeight: '800' }}>
+                <Text style={{ color: Colors.gold, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
                   {pr.weight} × {pr.reps}
                 </Text>
               </View>
@@ -174,9 +230,12 @@ export default function WorkoutSummaryScreen() {
           backgroundColor: Colors.surface,
           borderRadius: 18,
           padding: 18,
-          borderWidth: 1,
-          borderColor: Colors.border,
           marginBottom: 28,
+          shadowColor: '#000',
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 3,
         }]}>
           <Text style={{
             color: Colors.textMuted,

@@ -34,6 +34,31 @@ import {
 // PR localId → isPR lookup, built as sets come in
 type PRMap = Record<string, boolean>;
 
+// Fire-and-forget: the recap screen should never wait on a photo upload.
+// Failures just mean the feed post has no photo — logged, never surfaced.
+async function uploadWorkoutPhotoInBackground(uri: string, workoutId: string, userId: string) {
+  try {
+    const ext = (uri.split('.').pop()?.split('?')[0]?.toLowerCase().replace('jpeg', 'jpg')) ?? 'jpg';
+    const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const fileName = `${userId}/${workoutId}.${ext}`;
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    const { error: uploadErr } = await supabase.storage
+      .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType });
+    if (uploadErr) throw uploadErr;
+    const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
+    await supabase.from('workout_photos').insert({
+      workout_id: workoutId,
+      user_id: userId,
+      photo_url: urlData.publicUrl,
+    });
+  } catch (e: any) {
+    console.warn('[workout] background photo upload failed:', e?.message);
+  }
+}
+
 export default function WorkoutTab() {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -102,7 +127,6 @@ export default function WorkoutTab() {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishNotes, setFinishNotes] = useState('');
   const [finishPhoto, setFinishPhoto] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
@@ -619,46 +643,21 @@ export default function WorkoutTab() {
 
       const summary = await finishWorkout(quick ? undefined : (finishNotes.trim() || undefined));
 
-      // Upload photo — uses FileSystem base64 (same pattern as working profile photo upload)
-      if (!quick && finishPhoto && summary?.workoutId && user) {
-        try {
-          setUploadingPhoto(true);
-          const ext = (finishPhoto.split('.').pop()?.split('?')[0]?.toLowerCase().replace('jpeg', 'jpg')) ?? 'jpg';
-          const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-          const fileName = `${user.id}/${summary.workoutId}.${ext}`;
-          const base64 = await FileSystem.readAsStringAsync(finishPhoto, { encoding: 'base64' as any });
-          const binaryStr = atob(base64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          const { data: uploadData, error: uploadErr } = await supabase.storage
-            .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType });
-          if (uploadErr) {
-            Alert.alert('Photo upload failed', uploadErr.message);
-          } else if (uploadData) {
-            const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
-            await supabase.from('workout_photos').insert({
-              workout_id: summary.workoutId,
-              user_id: user.id,
-              photo_url: urlData.publicUrl,
-            });
-          }
-        } catch (e: any) {
-          Alert.alert('Photo upload failed', e.message ?? 'Could not upload photo');
-        } finally {
-          setUploadingPhoto(false);
-        }
-      }
-
-      setFinishNotes('');
-      setFinishPhoto(null);
+      // Recap first, everything else after — the transition should feel instant.
       setPrMap({});
       setPrevSetsCache({});
       setIsFirstWorkout(false);
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
-
       router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
+
+      // Photo uploads quietly in the background while the recap is on screen
+      if (!quick && finishPhoto && summary?.workoutId && user) {
+        uploadWorkoutPhotoInBackground(finishPhoto, summary.workoutId, user.id);
+      }
+      setFinishNotes('');
+      setFinishPhoto(null);
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
     } finally {
