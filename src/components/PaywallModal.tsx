@@ -19,7 +19,7 @@ const PRODUCT_IDS = {
 // Required functional links on subscription paywalls (Guideline 3.1.2)
 const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 // Set to the same privacy policy URL used in App Store Connect
-const PRIVACY_URL = '';
+const PRIVACY_URL = 'https://blush-fiber-9a2.notion.site/STR-App-Privacy-Policy-28b1cd85d16f47b4aa026f1759d88c22';
 
 interface Props {
   visible: boolean;
