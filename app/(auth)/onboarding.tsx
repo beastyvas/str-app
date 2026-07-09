@@ -96,13 +96,26 @@ export default function OnboardingScreen() {
     if (nameIssue) { Alert.alert('Not allowed', nameIssue); return; }
     setSaving(true);
     try {
+      // The auth context's user can be null here if the session token was
+      // refreshed or dropped mid-onboarding (App Review hit this: "Cannot
+      // read property 'id' of null"). Re-resolve it before touching .id.
+      let uid = user?.id;
+      if (!uid) {
+        const { data } = await supabase.auth.getUser();
+        uid = data.user?.id;
+      }
+      if (!uid) {
+        Alert.alert('Connection issue', "Couldn't verify your session. Check your connection and tap Let's go again.");
+        return;
+      }
+
       const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
       const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
 
       // Check for duplicate username before saving
       if (cleanUsername) {
         const { data: taken } = await supabase
-          .from('public_profiles').select('id').eq('username', cleanUsername).neq('id', user!.id).maybeSingle();
+          .from('public_profiles').select('id').eq('username', cleanUsername).neq('id', uid).maybeSingle();
         if (taken) {
           Alert.alert('Username taken', `@${cleanUsername} is already in use. Pick a different handle.`);
           setSaving(false);
@@ -120,7 +133,7 @@ export default function OnboardingScreen() {
         primary_goal: goal || null,
         training_style: style || null,
         training_notes: dnaText.trim() || null,
-      }).eq('id', user!.id);
+      }).eq('id', uid);
 
       // Save SBD maxes as PRs
       const sbdEntries = [
@@ -136,7 +149,7 @@ export default function OnboardingScreen() {
           const ex = (exRows ?? []).find((e: any) => e.name === entry.name);
           if (!ex) continue;
           await supabase.from('personal_records').upsert({
-            user_id: user!.id, exercise_id: ex.id,
+            user_id: uid, exercise_id: ex.id,
             // Typed in the chosen unit — stored canonical lbs
             weight: unit === 'kg' ? Math.round(parseFloat(entry.val) * 2.2046226218 * 100) / 100 : parseFloat(entry.val),
             reps: 1,
