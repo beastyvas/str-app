@@ -6,7 +6,9 @@ module.exports = function (api) {
       'nativewind/babel',
     ],
     plugins: [
-      'react-native-reanimated/plugin',
+      // Reanimated 4 moved the worklets compiler into react-native-worklets.
+      // Must stay last in the plugin list.
+      'react-native-worklets/plugin',
     ],
   };
 };
