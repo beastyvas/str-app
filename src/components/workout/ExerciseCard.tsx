@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { WorkoutExercise, LoggedSet } from '@/hooks/useWorkout';
@@ -42,7 +42,9 @@ const MUSCLE_COLORS: Record<string, string> = {
   'Overall': '#ECF0F1',
 };
 
-export function ExerciseCard({
+// memo: the workout screen re-renders on every store change (any set logged
+// anywhere); each card only cares about its own exercise slice + callbacks.
+export const ExerciseCard = memo(function ExerciseCard({
   exercise,
   prevSets = [],
   prMap = {},
@@ -277,4 +279,4 @@ export function ExerciseCard({
       )}
     </View>
   );
-}
+});

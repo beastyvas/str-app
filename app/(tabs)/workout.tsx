@@ -18,6 +18,7 @@ import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
 import { useSubscription } from '@/hooks/useSubscription';
 import { WorkoutLiveActivity } from '../../modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
+import { ElapsedTime, formatElapsed } from '@/components/workout/ElapsedTime';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
@@ -25,6 +26,7 @@ import { getRankResult, RankTier } from '@/constants/ranks';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
 import { fmtVolume, unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
+import { useStableCallback } from '@/lib/useStableCallback';
 import {
   requestNotificationPermissions,
   setupNotificationChannels,
@@ -139,7 +141,6 @@ export default function WorkoutTab() {
   const [builderName, setBuilderName] = useState('');
   const [builderExercises, setBuilderExercises] = useState<any[]>([]);
   const [showBuilderPicker, setShowBuilderPicker] = useState(false);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
   const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
 
@@ -176,25 +177,8 @@ export default function WorkoutTab() {
   }[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
-  // Duration timer
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    if (activeWorkout) {
-      // startedAt may still be a string if Zustand rehydrated before onRehydrateStorage ran
-      const startedAt = activeWorkout.startedAt instanceof Date
-        ? activeWorkout.startedAt
-        : new Date(activeWorkout.startedAt as any);
-      const tick = () => {
-        setElapsedSec(Math.floor((Date.now() - startedAt.getTime()) / 1000));
-      };
-      tick();
-      timerRef.current = setInterval(tick, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setElapsedSec(0);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [activeWorkout?.id]);
+  // Duration ticking lives inside <ElapsedTime /> so the per-second interval
+  // re-renders one leaf <Text>, not this whole screen.
 
   // Auto-start first workout when coming from First Steps task
   useFocusEffect(useCallback(() => {
@@ -494,6 +478,8 @@ export default function WorkoutTab() {
   };
 
   // ─── LOG SET ──────────────────────────────────────────────────────────────
+  // Stable identity (useStableCallback below) so memo'd ExerciseCards don't
+  // re-render when this screen does.
   const handleLogSet = async (
     exerciseId: string,
     data: { weight: number; reps: number; rpe?: number; note?: string }
@@ -610,6 +596,13 @@ export default function WorkoutTab() {
     return result;
   };
 
+  // Identity-stable wrappers for props of memo'd ExerciseCards. Store actions
+  // (removeExercise/deleteSet/updateSet/toggleSupersetWithNext) are already
+  // stable zustand references; these cover the screen-level handlers.
+  const stableLogSet = useStableCallback(handleLogSet);
+  const stableReplaceExercise = useStableCallback(handleReplaceExercise);
+  const navigateToExerciseDetail = useStableCallback((id: string) => router.push(`/exercise/${id}`));
+
   // ─── FINISH WORKOUT ───────────────────────────────────────────────────────
   const handleFinishPress = () => {
     if (!activeWorkout) return;
@@ -708,14 +701,6 @@ export default function WorkoutTab() {
         },
       ]
     );
-  };
-
-  const formatElapsed = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    if (m < 60) return `${m}:${s.toString().padStart(2, '0')}`;
-    const h = Math.floor(m / 60);
-    return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
@@ -1270,15 +1255,16 @@ export default function WorkoutTab() {
             {activeWorkout.name}
           </Text>
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 4, alignItems: 'center' }}>
-            <Text style={{
-              color: Colors.accent,
-              fontSize: 13,
-              fontWeight: '700',
-              fontVariant: ['tabular-nums'],
-              letterSpacing: 0.5,
-            }}>
-              {formatElapsed(elapsedSec)}
-            </Text>
+            <ElapsedTime
+              startedAt={activeWorkout.startedAt}
+              style={{
+                color: Colors.accent,
+                fontSize: 13,
+                fontWeight: '700',
+                fontVariant: ['tabular-nums'],
+                letterSpacing: 0.5,
+              }}
+            />
             <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
             <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
               {totalSets} set{totalSets !== 1 ? 's' : ''}
@@ -1456,12 +1442,12 @@ export default function WorkoutTab() {
               prMap={prMap}
               workoutId={activeWorkout.id!}
               userId={user!.id}
-              onLogSet={handleLogSet}
+              onLogSet={stableLogSet}
               onRemove={removeExercise}
-              onReplace={handleReplaceExercise}
+              onReplace={stableReplaceExercise}
               onDeleteSet={deleteSet}
               onEditSet={updateSet}
-              onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
+              onNavigateToDetail={navigateToExerciseDetail}
               supersetRole={pairedWithNext ? 'first' : pairedWithPrev ? 'second' : null}
               canToggleSuperset={showSupersetControls && (pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId))}
               onToggleSuperset={toggleSupersetWithNext}
@@ -1634,7 +1620,7 @@ export default function WorkoutTab() {
               {/* Stats row */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {[
-                  { label: 'Duration', value: formatElapsed(elapsedSec) },
+                  { label: 'Duration', value: activeWorkout ? formatElapsed(Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt as any).getTime()) / 1000))) : '0:00' },
                   { label: 'Sets', value: String(totalSets) },
                   { label: 'Volume', value: fmtVolume(totalVolume, unit) },
                 ].map((s, i) => (

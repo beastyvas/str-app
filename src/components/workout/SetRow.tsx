@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { memo, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal,
   KeyboardAvoidingView, Platform, Pressable, Alert, ScrollView,
@@ -14,7 +14,9 @@ import {
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
-export function SetInputRow({
+// memo: rows live inside memo'd ExerciseCards; only re-render when their own
+// set/props change, not on every parent pass.
+export const SetInputRow = memo(function SetInputRow({
   setNumber,
   prevSet,
   equipmentType,
@@ -413,9 +415,9 @@ export function SetInputRow({
       </Modal>
     </View>
   );
-}
+});
 
-export function LoggedSetRow({
+export const LoggedSetRow = memo(function LoggedSetRow({
   set,
   isPR,
   onDelete,
@@ -626,4 +628,4 @@ export function LoggedSetRow({
       </Modal>
     </>
   );
-}
+});
