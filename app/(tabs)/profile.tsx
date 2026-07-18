@@ -23,6 +23,8 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
+import { computeStreak } from '@/lib/streak';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -61,11 +63,6 @@ interface ProfileStats {
 
 type WeeklyMetric = 'Volume' | 'Duration' | 'Sets';
 
-const SESSION_COLORS: Record<string, string> = {
-  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
-  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
-};
-const SESSION_TYPES = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Core'];
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -307,15 +304,7 @@ export default function ProfileScreen() {
       }
       setMuscleVolume(volByGroup);
 
-      // Streak calculation
-      const daySet = new Set((workouts ?? []).map(w => new Date(w.started_at).toDateString()));
-      let streak = 0;
-      for (let d = 0; d < 90; d++) {
-        const day = new Date();
-        day.setDate(day.getDate() - d);
-        if (daySet.has(day.toDateString())) streak++;
-        else if (d > 0) break;
-      }
+      const streak = computeStreak((workouts ?? []).map(w => w.started_at));
 
       const bw = profile?.bodyweight_lbs ?? 185;
       const allPRs: PREntry[] = (prs ?? []).map((p: any) => ({

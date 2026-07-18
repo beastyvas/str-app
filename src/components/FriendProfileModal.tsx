@@ -10,6 +10,7 @@ import { getRankResult, ROMAN } from '@/constants/ranks';
 import { useModeration } from '@/hooks/useModeration';
 import { useAuth } from '@/hooks/useAuth';
 import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { SESSION_COLORS, classifySessionFromSets as classifySession } from '@/lib/sessionType';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
@@ -17,24 +18,6 @@ const TIER_COLORS: Record<TierName, string> = {
   platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
 };
 
-const SESSION_COLORS: Record<string, string> = {
-  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
-  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
-};
-
-function classifySession(sets: any[]): string {
-  const groups = [...new Set(sets.map((s: any) => (s.exercises?.muscle_group ?? '').toLowerCase()).filter(Boolean))];
-  const hasPush = groups.some(g => ['chest', 'shoulder', 'tricep'].some(m => g.includes(m)));
-  const hasPull = groups.some(g => ['back', 'bicep', 'lat'].some(m => g.includes(m)));
-  const hasLegs = groups.some(g => ['quad', 'hamstring', 'glute', 'calf'].some(m => g.includes(m)));
-  if (hasPush && hasPull && hasLegs) return 'Full Body';
-  if (hasLegs && (hasPush || hasPull)) return 'Full Body';
-  if (hasPush && hasPull) return 'Upper';
-  if (hasPush) return 'Push';
-  if (hasPull) return 'Pull';
-  if (hasLegs) return 'Legs';
-  return 'Other';
-}
 
 function computeSplit(workouts: any[]) {
   if (!workouts || workouts.length === 0) return null;

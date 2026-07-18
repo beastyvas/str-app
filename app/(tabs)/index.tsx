@@ -15,6 +15,7 @@ import { CelebrationToast } from '@/components/CelebrationToast';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { toDisplay, toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { SESSION_COLORS, SESSION_EMOJI, classifySessionFromNames as classifySession } from '@/lib/sessionType';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -24,44 +25,6 @@ const TIER_COLORS: Record<TierName, string> = {
   platinum: Colors.tiers.platinum,
   diamond: Colors.tiers.diamond,
 };
-
-const SESSION_COLORS: Record<string, string> = {
-  Push: '#C2566B',
-  Pull: '#3B82F6',
-  Legs: '#F97316',
-  Upper: '#A855F7',
-  Lower: '#22C55E',
-  'Full Body': '#EAB308',
-  Core: '#14B8A6',
-  Training: '#888888',
-};
-
-const SESSION_EMOJI: Record<string, string> = {
-  Push: '💪',
-  Pull: '🎯',
-  Legs: '🦵',
-  Upper: '⬆️',
-  Lower: '🔽',
-  'Full Body': '🔥',
-  Core: '🧘',
-  Training: '🏋️',
-};
-
-function classifySession(exercises: string[]): string | null {
-  const s = exercises.join(' ').toLowerCase();
-  const push = /bench|chest|fly|press|tricep|shoulder|dip/.test(s);
-  const pull = /row|pull-?up|chin|lat|curl|bicep|shrug/.test(s);
-  const legs = /squat|leg press|lunge|hamstring|glute|calf|hip thrust|rdl/.test(s);
-  const core = /crunch|plank|\bab\b|core|oblique/.test(s);
-  if (push && pull && legs) return 'Full Body';
-  if ((push || pull) && legs) return 'Upper';
-  if (push && pull) return 'Upper';
-  if (push) return 'Push';
-  if (pull) return 'Pull';
-  if (legs) return 'Legs';
-  if (core) return 'Core';
-  return null;
-}
 
 interface FriendPR {
   display_name: string;

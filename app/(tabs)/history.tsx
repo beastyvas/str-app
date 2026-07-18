@@ -11,6 +11,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useAuth } from '@/hooks/useAuth';
 import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { computeStreak } from '@/lib/streak';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -86,13 +87,7 @@ function computeInsights(workouts: WorkoutData[]): Insight[] {
     insights.push({ label: 'Volume trend', value: `${pct >= 0 ? '+' : ''}${pct}%`, sub: 'vs last week', color: pct >= 0 ? Colors.success : Colors.danger });
   }
 
-  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
-  let streak = 0;
-  for (let d = 0; d < 60; d++) {
-    const day = new Date(now); day.setDate(now.getDate() - d);
-    if (daySet.has(day.toDateString())) streak++;
-    else if (d > 0) break;
-  }
+  const streak = computeStreak(workouts.map(w => w.started_at), 60);
   if (streak > 0) insights.push({ label: 'Current streak', value: `${streak}d`, sub: streak >= 7 ? '🔥 Keep it going' : 'consecutive days', color: Colors.gold });
 
   const muscleCount: Record<string, number> = {};
@@ -144,15 +139,9 @@ function WorkoutCalendar({
     return acc;
   }, {});
 
-  // Streak calculation
-  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
-  let streak = 0;
-  for (let d = 0; d < 90; d++) {
-    const day = new Date(today); day.setDate(today.getDate() - d);
-    if (daySet.has(day.toDateString())) streak++;
-    else if (d > 0) break;
-  }
+  const streak = computeStreak(workouts.map(w => w.started_at));
   // Rest days in last 30 days
+  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
   let restDays = 0;
   for (let d = 0; d < 30; d++) {
     const day = new Date(today); day.setDate(today.getDate() - d);
