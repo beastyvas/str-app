@@ -9,13 +9,14 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, TierName } from '@/constants/colors';
-import { TIER_ORDER } from '@/constants/strengthStandards';
-import { getRankResult, getNextTierGap, RankResult, SBD_EXERCISES, ROMAN } from '@/constants/ranks';
+import { getNextTierGap, ROMAN } from '@/constants/ranks';
 import { CelebrationToast } from '@/components/CelebrationToast';
 import { TierLadderModal } from '@/components/TierLadderModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { toDisplay, toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
-import { SESSION_COLORS, SESSION_EMOJI, classifySessionFromNames as classifySession } from '@/lib/sessionType';
+import { SESSION_COLORS, SESSION_EMOJI } from '@/lib/sessionType';
+import { useHomeData, WorkoutDayData, LastWorkout } from '@/hooks/useHomeData';
+import { HomeSkeleton } from '@/components/home/HomeSkeleton';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner,
@@ -26,66 +27,26 @@ const TIER_COLORS: Record<TierName, string> = {
   diamond: Colors.tiers.diamond,
 };
 
-interface FriendPR {
-  display_name: string;
-  exercise_name: string;
-  weight: number;
-  reps: number;
-  achieved_at: string;
-  unit_pref: 'lbs' | 'kg';
-}
-
-interface LastWorkout {
-  name: string;
-  started_at: string;
-  ended_at: string;
-  sets_count: number;
-  total_volume: number;
-  exercises: string[];
-}
-
-interface TopLift {
-  name: string;
-  weight: number;
-  reps: number;
-}
-
-interface WorkoutDayData {
-  sessionType: string;
-  name: string;
-  durationMins: number;
-  topLifts: TopLift[];
-}
-
 export default function HomeScreen() {
   const { profile, user } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
   const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
   const { isPro, aiAsksRemaining } = useSubscription();
   const router = useRouter();
-  const [friendPRs, setFriendPRs] = useState<FriendPR[]>([]);
-  const [lastWorkout, setLastWorkout] = useState<LastWorkout | null>(null);
-  const [rankResult, setRankResult] = useState<RankResult | null>(null);
-  const [tierReady, setTierReady] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [firstSteps, setFirstSteps] = useState<{
-    hasWorkout: boolean;
-    hasFriend: boolean;
-    hasCoach: boolean;
-  } | null>(null);
-  const prevFirstSteps = useRef<typeof firstSteps>(null);
-  const [celebration, setCelebration] = useState<{ emoji: string; title: string; sub: string } | null>(null);
-  const [creatorId, setCreatorId] = useState<string | null>(null);
+  // All Home data (SWR-cached: instant render on refocus, silent background
+  // refresh, skeleton only on true first load) lives in useHomeData.
+  const { data, loading, celebration, clearCelebration, refetch, markCoachStepDone } = useHomeData();
+  const friendPRs = data?.friendPRs ?? [];
+  const lastWorkout = data?.lastWorkout ?? null;
+  const rankResult = data?.rankResult ?? null;
+  const tierReady = data != null;
+  const firstSteps = data?.firstSteps ?? null;
+  const creatorId = data?.creatorId ?? null;
+  const recentFriendPost = data?.recentFriendPost ?? null;
+  const workoutDays = data?.workoutDays ?? {};
+
   const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
   const [trainingDays, setTrainingDays] = useState('4');
-  const [recentFriendPost, setRecentFriendPost] = useState<{
-    displayName: string;
-    workoutName: string;
-    notes?: string;
-    exercises: string[];
-    endedAt: string;
-  } | null>(null);
-  const [workoutDays, setWorkoutDays] = useState<Record<number, WorkoutDayData>>({});
   const [selectedDayWorkout, setSelectedDayWorkout] = useState<(WorkoutDayData & { dow: number }) | null>(null);
 
   const [showTierLadder, setShowTierLadder] = useState(false);
@@ -127,241 +88,6 @@ export default function HomeScreen() {
     loop.start();
     return () => loop.stop();
   }, []);
-
-  // Single source of truth — useFocusEffect handles both initial load and returns
-  useFocusEffect(useCallback(() => {
-    if (user) fetchData();
-  }, [user, profile?.bodyweight_lbs]));
-
-  const fetchData = async () => {
-    try {
-      const uid = user!.id;
-      // Check first steps completion
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-      const [{ count: workoutCount }, { count: friendCount }, weeklyPlanDone, { data: creator }] = await Promise.all([
-        supabase.from('workouts').select('id', { count: 'exact', head: true }).eq('user_id', uid).not('ended_at', 'is', null),
-        // Any friendship attempt (pending or accepted) marks this done
-        supabase.from('friendships').select('id', { count: 'exact', head: true }).or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
-        AsyncStorage.getItem(`weekly_plan_done_${uid}`),
-        supabase.from('public_profiles').select('id').eq('is_owner', true).single(),
-      ]);
-      const hasWorkout = (workoutCount ?? 0) > 0;
-      const hasFriend = (friendCount ?? 0) > 0;
-      // Durable server flag is the source of truth; fall back to the legacy
-      // local flag and backfill it server-side so it survives re-login/reinstall.
-      const serverPlanDone = (profile as any)?.weekly_plan_done === true;
-      const hasCoach = serverPlanDone || weeklyPlanDone === 'true';
-      if (hasCoach && !serverPlanDone) {
-        supabase.from('users').update({ weekly_plan_done: true }).eq('id', uid).then(() => {});
-      }
-      if (creator?.id) setCreatorId(creator.id);
-      const allDone = hasWorkout && hasFriend && hasCoach;
-      const newSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
-
-      // Check AsyncStorage flags for celebrations — reliable, not state-comparison-based
-      const [workoutCelebrated, friendCelebrated, onboardingDone, planPending] = await Promise.all([
-        AsyncStorage.getItem(`celebrated_workout_${uid}`),
-        AsyncStorage.getItem(`celebrated_friend_${uid}`),
-        AsyncStorage.getItem(`onboarding_done_${uid}`),
-        AsyncStorage.getItem(`celebrated_plan_${uid}`),
-      ]);
-
-      if (onboardingDone === 'pending') {
-        await AsyncStorage.setItem(`onboarding_done_${uid}`, 'shown');
-        setCelebration({ emoji: '🎉', title: "You're in the system!", sub: 'Your arc officially begins. Go crush it.' });
-      } else if (planPending === 'pending') {
-        await AsyncStorage.setItem(`celebrated_plan_${uid}`, 'shown');
-        setCelebration({ emoji: '⚡', title: 'Plan is being built!', sub: 'Coach is on it. Check the Insights tab.' });
-      } else if (hasWorkout && !workoutCelebrated) {
-        await AsyncStorage.setItem(`celebrated_workout_${uid}`, 'true');
-        setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
-      } else if (hasFriend && !friendCelebrated) {
-        await AsyncStorage.setItem(`celebrated_friend_${uid}`, 'true');
-        setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
-      }
-      setFirstSteps(newSteps);
-
-      // This calendar week's range (Mon–Sun) — computed up front so the
-      // weekly-strip query can run in the same batch below.
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
-      const daysSinceMon = (dayOfWeek + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - daysSinceMon);
-      weekStart.setHours(0, 0, 0, 0);
-
-      // All of these are independent of each other — fire them as one batch
-      // instead of a chain of round trips.
-      const [prRes, workoutRes, friendRes, friendshipsRes, weekRes] = await Promise.all([
-        // SBD PRs for rank tier
-        supabase
-          .from('personal_records')
-          .select('weight, reps, achieved_at, exercises!inner(name)')
-          .eq('user_id', uid)
-          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
-          .order('achieved_at', { ascending: false }),
-
-        // Last completed workout
-        supabase
-          .from('workouts')
-          .select('name, started_at, ended_at, workout_sets(weight, reps, exercises(name))')
-          .eq('user_id', uid)
-          .not('ended_at', 'is', null)
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-
-        // Friends' recent PRs
-        supabase
-          .from('personal_records')
-          .select('user_id, weight, reps, achieved_at, exercises(name)')
-          .neq('user_id', uid)
-          .order('achieved_at', { ascending: false })
-          .limit(8),
-
-        // Friendships — needed below for the crew activity card
-        supabase
-          .from('friendships')
-          .select('requester_id, addressee_id')
-          .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
-          .eq('status', 'accepted'),
-
-        // This week's workouts for the weekly strip
-        supabase
-          .from('workouts')
-          .select('name, started_at, ended_at, workout_sets(weight, reps, exercises(name))')
-          .eq('user_id', uid)
-          .not('ended_at', 'is', null)
-          .gte('started_at', weekStart.toISOString()),
-      ]);
-
-      // Rank tier — only set after fresh fetch, never from stale state
-      const bw = Math.max(profile?.bodyweight_lbs ?? 185, 50); // guard against sub-50 lbs
-      if (prRes.data) {
-        const prs = prRes.data.map((p: any) => ({
-          exerciseName: p.exercises?.name ?? '',
-          weight: p.weight,
-          reps: p.reps,
-          achievedAt: p.achieved_at,
-        }));
-        setRankResult(getRankResult(prs, bw, true));
-      } else {
-        setRankResult(getRankResult([], bw));
-      }
-      setTierReady(true);
-
-      // Last workout
-      if (workoutRes.data) {
-        const w = workoutRes.data as any;
-        const sets = w.workout_sets ?? [];
-        setLastWorkout({
-          name: w.name,
-          started_at: w.started_at,
-          ended_at: w.ended_at,
-          sets_count: sets.length,
-          total_volume: sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0),
-          exercises: [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[],
-        });
-      }
-
-      // Friend PRs — RLS on public.users only allows reading your own row, so
-      // pull the friends' display names/unit prefs from public_profiles instead
-      // of embedding the users table directly.
-      if (friendRes.data && friendRes.data.length > 0) {
-        const prUserIds = Array.from(new Set(friendRes.data.map((pr: any) => pr.user_id)));
-        const { data: prProfiles } = await supabase
-          .from('public_profiles')
-          .select('id, display_name, unit_pref')
-          .in('id', prUserIds);
-        const prProfileMap: Record<string, any> = {};
-        (prProfiles ?? []).forEach((p: any) => { prProfileMap[p.id] = p; });
-
-        setFriendPRs(friendRes.data.map((pr: any) => ({
-          display_name: prProfileMap[pr.user_id]?.display_name ?? 'Friend',
-          exercise_name: pr.exercises.name,
-          weight: pr.weight,
-          reps: pr.reps,
-          achieved_at: pr.achieved_at,
-          unit_pref: prProfileMap[pr.user_id]?.unit_pref,
-        })));
-      }
-
-      // Most recent friend workout post for crew activity card
-      const friendships = friendshipsRes.data;
-      const friendIds = (friendships ?? []).map(f =>
-        f.requester_id === uid ? f.addressee_id : f.requester_id
-      );
-      if (friendIds.length > 0) {
-        const { data: recentPost } = await supabase
-          .from('workouts')
-          .select('name, ended_at, notes, user_id, workout_sets(exercises(name))')
-          .in('user_id', friendIds)
-          .not('ended_at', 'is', null)
-          .order('ended_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (recentPost) {
-          const { data: posterProfile } = await supabase
-            .from('public_profiles')
-            .select('display_name')
-            .eq('id', (recentPost as any).user_id)
-            .maybeSingle();
-          const sets = (recentPost as any).workout_sets ?? [];
-          const exs = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
-          setRecentFriendPost({
-            displayName: posterProfile?.display_name ?? 'Friend',
-            workoutName: recentPost.name,
-            notes: recentPost.notes?.trim() || undefined,
-            exercises: exs,
-            endedAt: recentPost.ended_at!,
-          });
-        } else {
-          setRecentFriendPost(null);
-        }
-      }
-
-      // This calendar week's workouts for the weekly strip (Mon–Sun)
-      const weekData = weekRes.data;
-      if (weekData) {
-        const days: Record<number, WorkoutDayData> = {};
-        (weekData as any[]).forEach(w => {
-          const dow = new Date(w.started_at).getDay();
-          const sets = (w.workout_sets ?? []) as any[];
-          const exs = sets.map((s: any) => s.exercises?.name).filter(Boolean);
-          const durationMins = w.ended_at
-            ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000)
-            : 0;
-
-          // Top lifts — best set per exercise, ranked by volume
-          const byExercise = new Map<string, { weight: number; reps: number }>();
-          sets.forEach((s: any) => {
-            const name = s.exercises?.name;
-            if (!name) return;
-            const cur = byExercise.get(name);
-            if (!cur || s.weight > cur.weight || (s.weight === cur.weight && s.reps > cur.reps)) {
-              byExercise.set(name, { weight: s.weight, reps: s.reps });
-            }
-          });
-          const topLifts = [...byExercise.entries()]
-            .map(([name, best]) => ({ name, weight: best.weight, reps: best.reps }))
-            .sort((a, b) => (b.weight * b.reps) - (a.weight * a.reps))
-            .slice(0, 3);
-
-          days[dow] = {
-            sessionType: classifySession(exs) ?? 'Training',
-            name: w.name ?? 'Workout',
-            durationMins,
-            topLifts,
-          };
-        });
-        setWorkoutDays(days);
-      }
-    } catch (e) {
-      // silence
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -417,7 +143,7 @@ export default function HomeScreen() {
       setSbdModalOpen(false);
       setSbdInputs({ sq: '', bp: '', dl: '' });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      fetchData(); // refresh
+      refetch();
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -443,17 +169,9 @@ export default function HomeScreen() {
     return schedule[String(todayDow)] ?? null;
   })();
 
-  if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-          <ActivityIndicator color={Colors.accent} size="large" />
-          <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Loading
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
+  // Skeleton only on true first load — refocus renders cached data instantly.
+  if (loading && !data) {
+    return <HomeSkeleton />;
   }
 
   return (
@@ -763,7 +481,7 @@ export default function HomeScreen() {
                       .then(({ default: AS }) => AS.setItem(`weekly_plan_done_${user.id}`, 'true'));
                     supabase.from('users').update({ weekly_plan_done: true }).eq('id', user.id).then(() => {});
                   }
-                  setFirstSteps(prev => (prev ? { ...prev, hasCoach: true } : prev));
+                  markCoachStepDone();
                   router.push('/(tabs)/insights');
                 } else {
                   setWeeklyPlanModal(true);
@@ -1073,7 +791,7 @@ export default function HomeScreen() {
                     // Durable server flag so the task doesn't reset on re-login/reinstall
                     await supabase.from('users').update({ weekly_plan_done: true }).eq('id', user.id);
                   }
-                  setFirstSteps(prev => prev ? { ...prev, hasCoach: true } : null);
+                  markCoachStepDone();
                   const msg = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;
                   (global as any).__coachPreFill = msg;
                   router.push('/(tabs)/insights');
@@ -1241,7 +959,7 @@ export default function HomeScreen() {
         emoji={celebration?.emoji ?? '🎉'}
         title={celebration?.title ?? ''}
         sub={celebration?.sub}
-        onDone={() => setCelebration(null)}
+        onDone={clearCelebration}
       />
     </SafeAreaView>
   );
