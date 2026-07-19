@@ -12,6 +12,7 @@
     "@bacons/apple-targets": "^4.0.7",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@shopify/flash-list": "^2.0.2",
     "@supabase/supabase-js": "^2.43.4",
     "aes-js": "^3.1.2",
     "expo": "~54.0.0",

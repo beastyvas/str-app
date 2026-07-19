@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, RefreshControl, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 import { CameraView, Camera } from 'expo-camera';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -788,14 +789,11 @@ export default function SocialScreen() {
             </View>
           </ScrollView>
         ) : (
-          <FlatList
+          <FlashList
             data={feed}
             keyExtractor={post => post.workoutId}
             contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
-            initialNumToRender={6}
-            windowSize={7}
-            removeClippedSubviews
             renderItem={({ item: post }) => (
               <View style={{
                 backgroundColor: Colors.surface,
@@ -1022,10 +1020,14 @@ export default function SocialScreen() {
 
       {/* ── PEOPLE ─────────────────────────────────────────────────────────── */}
       {subTab === 'people' && (
-        <ScrollView
+        <FlashList
+          data={loading ? [] : friends}
+          keyExtractor={(f: Friend) => f.id}
           contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+          keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.accent} />}
-        >
+          ListHeaderComponent={
+          <>
           {/* QR Scan button */}
           <TouchableOpacity
             onPress={openScanner}
@@ -1169,23 +1171,25 @@ export default function SocialScreen() {
             </View>
           )}
 
-          {/* Friends list */}
+          {/* Friends list heading — the cards themselves are the list items */}
           {loading ? (
             <ActivityIndicator color={Colors.accent} style={{ marginTop: 40 }} />
-          ) : friends.length > 0 && (
-            <View style={{ gap: 10 }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
-                Your Crew ({friends.length})
-              </Text>
-              {friends.map(f => (
+          ) : friends.length > 0 ? (
+            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+              Your Crew ({friends.length})
+            </Text>
+          ) : null}
+          </>
+          }
+          renderItem={({ item: f }: { item: Friend }) => (
                 <View
-                  key={f.id}
                   style={{
                     backgroundColor: Colors.surface,
                     borderRadius: 18,
                     borderWidth: 1,
                     borderColor: (f.rankTierColor ?? Colors.border) + '30',
                     overflow: 'hidden',
+                    marginBottom: 10,
                   }}
                 >
                   {/* Profile header */}
@@ -1259,10 +1263,8 @@ export default function SocialScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))}
-            </View>
           )}
-        </ScrollView>
+        />
       )}
 
       {/* Comments Modal */}
