@@ -8,7 +8,8 @@ interface CardProps {
   onPress?: () => void;
   /** Renders the 3px top accent strip in this color */
   accent?: string;
-  padding?: keyof typeof Spacing;
+  /** 'none' = full-bleed content (rows with edge-to-edge dividers) */
+  padding?: keyof typeof Spacing | 'none';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -16,7 +17,7 @@ export function Card({ children, onPress, accent, padding = 'lg', style }: CardP
   const body = (
     <View style={[styles.card, style]}>
       {accent && <View style={[styles.strip, { backgroundColor: accent }]} />}
-      <View style={{ padding: Spacing[padding] }}>{children}</View>
+      <View style={{ padding: padding === 'none' ? 0 : Spacing[padding] }}>{children}</View>
     </View>
   );
   if (!onPress) return body;
