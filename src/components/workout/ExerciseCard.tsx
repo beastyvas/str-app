@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { WorkoutExercise, LoggedSet } from '@/hooks/useWorkout';
 import { SetInputRow, LoggedSetRow } from './SetRow';
+import { IconSymbol } from '@/components/ui';
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
@@ -156,7 +157,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               justifyContent: 'center',
             }}
           >
-            <Text style={{ color: supersetRole ? Colors.accent : Colors.textMuted, fontSize: 13, fontWeight: '800' }}>⛓</Text>
+            <IconSymbol name="link" size={14} color={supersetRole ? Colors.accent : Colors.textMuted} />
           </TouchableOpacity>
         )}
 
@@ -173,7 +174,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '800' }}>i</Text>
+          <IconSymbol name="info" size={14} color={Colors.textMuted} />
         </TouchableOpacity>
 
         {/* Replace */}
@@ -189,7 +190,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: Colors.textMuted, fontSize: 13, fontWeight: '800' }}>⇄</Text>
+          <IconSymbol name="swap" size={14} color={Colors.textMuted} />
         </TouchableOpacity>
 
         {/* Remove */}
@@ -205,7 +206,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: Colors.textMuted, fontSize: 18, lineHeight: 22 }}>×</Text>
+          <IconSymbol name="close" size={16} color={Colors.textMuted} />
         </TouchableOpacity>
 
         {/* Collapse chevron */}
@@ -217,19 +218,17 @@ export const ExerciseCard = memo(function ExerciseCard({
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          <Text style={{
-            color: collapsed ? Colors.textMuted : Colors.accent,
-            fontSize: 9,
-            fontWeight: '800',
-          }}>
-            {collapsed ? '▼' : '▲'}
-          </Text>
+          <IconSymbol
+            name={collapsed ? 'chevronDown' : 'chevronUp'}
+            size={12}
+            color={collapsed ? Colors.textMuted : Colors.accent}
+          />
         </View>
       </TouchableOpacity>
 
       {!collapsed && (
         <>
-          {/* Column headers */}
+          {/* Column headers — mirror SetInputRow: SET · LAST · WEIGHT · REPS · ✓ */}
           <View style={{
             flexDirection: 'row',
             paddingHorizontal: 16,
@@ -239,16 +238,17 @@ export const ExerciseCard = memo(function ExerciseCard({
             <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 22, textAlign: 'center', fontWeight: '700' }}>
               SET
             </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1.4, textAlign: 'center', fontWeight: '700' }}>
+            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 58, textAlign: 'center', fontWeight: '700' }}>
+              LAST
+            </Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1.6, textAlign: 'center', fontWeight: '700' }}>
               WEIGHT
             </Text>
             <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 14 }} />
             <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1, textAlign: 'center', fontWeight: '700' }}>
               REPS
             </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 46 }} />
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 32 }} />
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 50 }} />
+            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 44 }} />
           </View>
 
           {/* Logged sets */}

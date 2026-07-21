@@ -59,6 +59,12 @@ const ICONS = {
   medal: { family: 'ion', glyph: 'medal' },
   repeat: { family: 'ion', glyph: 'repeat' },
   play: { family: 'ion', glyph: 'play' },
+  // was ⛓ (superset link)
+  link: { family: 'ion', glyph: 'link' },
+  // was ⇄ (replace exercise)
+  swap: { family: 'ion', glyph: 'swap-horizontal' },
+  // was "i" (exercise info)
+  info: { family: 'ion', glyph: 'information' },
 } as const;
 
 export type IconName = keyof typeof ICONS;

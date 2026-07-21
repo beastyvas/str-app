@@ -791,9 +791,16 @@ export default function WorkoutTab() {
           </View>
         </View>
 
-        {/* Templates — peek at saved templates without leaving the workout */}
+        {/* Overflow — templates + discard live behind ⋯ so Finish is the only
+            loud header action */}
         <TouchableOpacity
-          onPress={() => setShowMidWorkoutTemplates(true)}
+          onPress={() => {
+            Alert.alert(activeWorkout.name, undefined, [
+              { text: '📋 View templates', onPress: () => setShowMidWorkoutTemplates(true) },
+              { text: 'Discard workout', style: 'destructive', onPress: handleDiscard },
+              { text: 'Cancel', style: 'cancel' },
+            ]);
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
           style={{
             width: 34,
@@ -804,23 +811,10 @@ export default function WorkoutTab() {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 14 }}>📋</Text>
+          <Text style={{ color: Colors.textMuted, fontSize: 16, fontWeight: '800', lineHeight: 18 }}>⋯</Text>
         </TouchableOpacity>
 
-        {/* Discard */}
-        <TouchableOpacity
-          onPress={handleDiscard}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: Colors.surface2,
-          }}
-        >
-          <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '700' }}>Discard</Text>
-        </TouchableOpacity>
-
-        {/* Finish */}
+        {/* Finish — brass, dark label per the primary-button convention */}
         <TouchableOpacity
           onPress={handleFinishPress}
           disabled={finishing}
@@ -837,9 +831,9 @@ export default function WorkoutTab() {
           }}
         >
           {finishing ? (
-            <ActivityIndicator color={Colors.text} size="small" />
+            <ActivityIndicator color="#141210" size="small" />
           ) : (
-            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
+            <Text style={{ color: '#141210', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -863,8 +857,6 @@ export default function WorkoutTab() {
         </TouchableOpacity>
       )}
 
-      {/* Rest timer — appears after first set */}
-      <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
       <WorkoutCoach
         lastSet={coachLastSet}
         allSetsThisExercise={coachHistory}
@@ -1021,6 +1013,9 @@ export default function WorkoutTab() {
       </View>
 
       {/* Tier Advancement */}
+      {/* Rest timer — floating pill above the tab bar, appears after first set */}
+      <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
+
       <TierAdvancementScreen
         visible={showTierAdvancement}
         tier={tierAdvancement}
