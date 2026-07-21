@@ -316,7 +316,6 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
           <View style={{
             position: 'absolute', right: 0, top: 0, bottom: 10,
             width: 32,
-            backgroundImage: undefined,
           }}
             pointerEvents="none"
           >

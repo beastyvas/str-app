@@ -25,6 +25,7 @@ import { getRankResult, ROMAN } from '@/constants/ranks';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
+import { IconSymbol } from '@/components/ui';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -648,7 +649,7 @@ export default function ProfileScreen() {
                 backgroundColor: Colors.surface, borderWidth: 2, borderColor: Colors.bg,
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Text style={{ fontSize: 11 }}>📷</Text>
+                <IconSymbol name="camera" size={11} color={Colors.textSecondary} />
               </View>
             </TouchableOpacity>
 
@@ -747,7 +748,7 @@ export default function ProfileScreen() {
                 {profile?.bio ?? 'Add a bio...'}
               </Text>
               <TouchableOpacity onPress={() => { setBio(profile?.bio ?? ''); setBioEditing(true); }} style={{ paddingTop: 2 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>✏️</Text>
+                <IconSymbol name="edit" size={13} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
           )}
@@ -962,7 +963,7 @@ export default function ProfileScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasSplit ? 12 : 0 }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>My Split</Text>
                   <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                    {hasSplit ? 'Edit ✏️' : 'Set up →'}
+                    {hasSplit ? 'Edit' : 'Set up →'}
                   </Text>
                 </View>
 
@@ -1056,7 +1057,7 @@ export default function ProfileScreen() {
               backgroundColor: isPro ? Colors.accent + '20' : Colors.surface2,
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 20 }}>{isPro ? '⚡' : '🔓'}</Text>
+              <IconSymbol name={isPro ? 'flash' : 'unlock'} size={20} color={isPro ? Colors.accent : Colors.textMuted} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
