@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { memo, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal,
   KeyboardAvoidingView, Platform, Pressable, Alert, ScrollView,
@@ -11,10 +11,13 @@ import { LoggedSet } from '@/hooks/useWorkout';
 import {
   WeightMode, PlateSystem, PLATE_CONFIGS, defaultModeForEquipment, describeWeight,
 } from '@/lib/plateUtils';
+import { IconSymbol } from '@/components/ui';
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
-export function SetInputRow({
+// memo: rows live inside memo'd ExerciseCards; only re-render when their own
+// set/props change, not on every parent pass.
+export const SetInputRow = memo(function SetInputRow({
   setNumber,
   prevSet,
   equipmentType,
@@ -131,26 +134,47 @@ export function SetInputRow({
       : describeWeight(plateWeight, cfg)
     : null;
 
+  // Ghost autofill — tap LAST to load last session's numbers for this set
+  const applyGhost = () => {
+    if (!prevSet) return;
+    if (prevSet.weight === 0) {
+      setMode('bw');
+      setWeight('');
+    } else {
+      setMode('number');
+      setWeight(String(toDisplay(prevSet.weight, unit)));
+    }
+    setReps(String(prevSet.reps));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  };
+
   return (
     <View>
-      {/* Ghost target — last session's numbers for this set, something to beat */}
-      {prevSet && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8 }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.2, fontWeight: '700', textTransform: 'uppercase' }}>
-            Last time
-          </Text>
-          <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-            {prevSet.weight === 0 ? 'BW' : toDisplay(prevSet.weight, unit)} × {prevSet.reps}{prevSet.rpe ? `  @${prevSet.rpe}` : ''}
-          </Text>
-          <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
-            BEAT IT →
-          </Text>
-        </View>
-      )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
         <Text style={{ color: Colors.textMuted, fontSize: 13, width: 22, textAlign: 'center', fontWeight: '700' }}>
           {setNumber}
         </Text>
+
+        {/* LAST — the ghost target as a column; tap to autofill weight + reps */}
+        <TouchableOpacity
+          onPress={applyGhost}
+          disabled={!prevSet}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          style={{ width: 58, alignItems: 'center' }}
+        >
+          {prevSet ? (
+            <>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }} numberOfLines={1}>
+                {prevSet.weight === 0 ? 'BW' : toDisplay(prevSet.weight, unit)}×{prevSet.reps}
+              </Text>
+              <Text style={{ color: Colors.accent, fontSize: 7, fontWeight: '800', letterSpacing: 0.8 }}>
+                {prevSet.rpe ? `@${prevSet.rpe} · ` : ''}FILL
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>—</Text>
+          )}
+        </TouchableOpacity>
 
         {/* Weight — switches by mode */}
         <View style={{ flex: 1.6 }}>
@@ -192,45 +216,18 @@ export function SetInputRow({
           />
         </View>
 
-        {/* Mode cycle — small, tucked */}
-        <TouchableOpacity
-          onPress={cycleMode}
-          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-          style={{
-            backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
-            borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5,
-            borderWidth: 1,
-            borderColor: mode !== 'number' ? Colors.accent + '60' : 'transparent',
-          }}
-        >
-          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 8, fontWeight: '800' }}>
-            {mode === 'number' ? unit : mode === 'bw' ? 'BW' : '🏋️'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Warmup toggle */}
-        <TouchableOpacity
-          onPress={() => setIsWarmup(w => !w)}
-          style={{
-            backgroundColor: isWarmup ? '#E0632E' + '25' : Colors.surface2,
-            borderRadius: 8, paddingHorizontal: 8, paddingVertical: 10,
-            borderWidth: 1, borderColor: isWarmup ? '#E0632E' + '60' : 'transparent',
-            minWidth: 32, alignItems: 'center',
-          }}
-        >
-          <Text style={{ color: isWarmup ? '#E0632E' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
-        </TouchableOpacity>
-
+        {/* Log — circular brass check */}
         <TouchableOpacity
           onPress={handleLog}
           disabled={!canLog() || logging}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
             backgroundColor: canLog() && !logging ? Colors.accent : Colors.surface2,
-            borderRadius: 10,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            minWidth: 54,
             alignItems: 'center',
+            justifyContent: 'center',
             shadowColor: canLog() && !logging ? Colors.accent : 'transparent',
             shadowOpacity: 0.4,
             shadowRadius: 8,
@@ -238,14 +235,11 @@ export function SetInputRow({
             elevation: canLog() && !logging ? 5 : 0,
           }}
         >
-          <Text style={{
-            color: canLog() && !logging ? Colors.text : Colors.textMuted,
-            fontWeight: '800',
-            fontSize: 12,
-            letterSpacing: 0.5,
-          }}>
-            {logging ? '···' : 'LOG'}
-          </Text>
+          {logging ? (
+            <Text style={{ color: Colors.textMuted, fontWeight: '800', fontSize: 12 }}>···</Text>
+          ) : (
+            <IconSymbol name="check" size={22} color={canLog() ? '#141210' : Colors.textMuted} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -258,40 +252,70 @@ export function SetInputRow({
         </View>
       )}
 
-      {/* Note — the hero. Always visible, one tap to write. The coach reads these. */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+      {/* Secondary strip — note (coach reads these, stays one tap), RPE,
+          warmup, and weight-mode in one compact row */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
         <TouchableOpacity
           onPress={() => setNoteOpen(true)}
           activeOpacity={0.7}
           style={{
-            flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+            flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
             backgroundColor: note ? Colors.accentDim : Colors.surface2,
-            borderRadius: 10, borderWidth: 1,
+            borderRadius: 8, borderWidth: 1,
             borderColor: note ? Colors.accent + '80' : Colors.border,
-            paddingHorizontal: 12, paddingVertical: 10,
+            paddingHorizontal: 10, paddingVertical: 7,
           }}
         >
-          <Text style={{ fontSize: 14 }}>💬</Text>
+          <IconSymbol name="comment" size={12} color={note ? Colors.accent : Colors.textMuted} />
           <Text
-            style={{ color: note ? Colors.text : Colors.textMuted, fontSize: 13, flex: 1 }}
+            style={{ color: note ? Colors.text : Colors.textMuted, fontSize: 12, flex: 1 }}
             numberOfLines={1}
           >
-            {note || 'Add a note — "felt heavy", "left shoulder tight"…'}
+            {note || 'Add a note…'}
           </Text>
         </TouchableOpacity>
 
-        {/* RPE — smaller, optional secondary action, one tap to open */}
         <TouchableOpacity
           onPress={() => setShowRpe(!showRpe)}
           style={{
             backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
             borderRadius: 8, borderWidth: 1,
             borderColor: rpe ? Colors.accent : Colors.border,
-            paddingHorizontal: 12, paddingVertical: 10, minWidth: 50, alignItems: 'center',
+            paddingHorizontal: 10, paddingVertical: 7, minWidth: 46, alignItems: 'center',
           }}
         >
           <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
-            {rpe ? `RPE ${rpe}` : 'RPE'}
+            {rpe ? `@${rpe}` : 'RPE'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Warmup toggle */}
+        <TouchableOpacity
+          onPress={() => setIsWarmup(w => !w)}
+          style={{
+            backgroundColor: isWarmup ? '#E0632E' + '25' : Colors.surface2,
+            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+            borderWidth: 1, borderColor: isWarmup ? '#E0632E' + '60' : Colors.border,
+            minWidth: 30, alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: isWarmup ? '#E0632E' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
+        </TouchableOpacity>
+
+        {/* Weight-mode cycle (number / BW / plates) */}
+        <TouchableOpacity
+          onPress={cycleMode}
+          hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
+          style={{
+            backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
+            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+            borderWidth: 1,
+            borderColor: mode !== 'number' ? Colors.accent + '60' : Colors.border,
+            minWidth: 34, alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: mode !== 'number' ? Colors.accent : Colors.textMuted, fontSize: 9, fontWeight: '800' }}>
+            {mode === 'number' ? unit.toUpperCase() : mode === 'bw' ? 'BW' : 'BAR'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -413,9 +437,9 @@ export function SetInputRow({
       </Modal>
     </View>
   );
-}
+});
 
-export function LoggedSetRow({
+export const LoggedSetRow = memo(function LoggedSetRow({
   set,
   isPR,
   onDelete,
@@ -514,7 +538,7 @@ export function LoggedSetRow({
             alignItems: 'center',
             gap: 3,
           }}>
-            <Text style={{ fontSize: 9 }}>🏆</Text>
+            <IconSymbol name="trophy" size={9} color={Colors.gold} />
             <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>PR</Text>
           </View>
         )}
@@ -524,7 +548,7 @@ export function LoggedSetRow({
           </Text>
         )}
         {onEdit && (
-          <Text style={{ color: Colors.textMuted, fontSize: 12 }}>✏️</Text>
+          <IconSymbol name="edit" size={12} color={Colors.textMuted} />
         )}
       </TouchableOpacity>
 
@@ -626,4 +650,4 @@ export function LoggedSetRow({
       </Modal>
     </>
   );
-}
+});

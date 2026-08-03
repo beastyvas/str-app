@@ -116,57 +116,26 @@ export function RestTimer({ lastSetLoggedAt, lastSetWasWarmup = false }: RestTim
   const done = elapsed >= target;
   const almost = !done && elapsed >= target * 0.8;
   const timerColor = done ? Colors.danger : almost ? Colors.gold : Colors.success;
-  const bgColor = (done ? Colors.danger : almost ? Colors.gold : Colors.success) + '12';
+  const progress = Math.min(1, target > 0 ? elapsed / target : 0);
 
+  // Floating pill anchored above the tab bar — out of the content flow, always
+  // visible while scrolling. Settings open as a small panel above the pill.
   return (
-    <View>
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => setSettingsOpen(o => !o)}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingVertical: 10,
-          paddingHorizontal: 20,
-          backgroundColor: bgColor,
-          borderBottomWidth: 1,
-          borderBottomColor: timerColor + '25',
-          gap: 10,
-        }}
-      >
-        <Animated.View style={{
-          width: 7, height: 7, borderRadius: 3.5,
-          backgroundColor: timerColor, opacity: dotPulse,
-        }} />
-        <Text style={{
-          color: Colors.textMuted, fontSize: 10, letterSpacing: 2,
-          textTransform: 'uppercase', fontWeight: '700',
-        }}>
-          {lastSetWasWarmup ? 'Warmup Rest' : 'Rest'}
-        </Text>
-        <Text style={{
-          color: timerColor, fontSize: 18, fontWeight: '800',
-          fontVariant: ['tabular-nums'], letterSpacing: 1.5,
-          textShadowColor: timerColor, textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: done ? 8 : 0,
-        }}>
-          {fmt(elapsed)}
-        </Text>
-        <Text style={{ color: Colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
-          / {fmt(target)}
-        </Text>
-        <Text style={{ color: Colors.textMuted, fontSize: 11, opacity: 0.6 }}>
-          {settingsOpen ? '▲' : '⚙'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Inline duration settings — tap the bar to open */}
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 14, alignItems: 'center' }}
+    >
+      {/* Inline duration settings — tap the pill to open */}
       {settingsOpen && (
         <View style={{
           backgroundColor: Colors.surface,
-          borderBottomWidth: 1, borderBottomColor: Colors.border,
+          borderWidth: 1, borderColor: Colors.borderLight,
+          borderRadius: 16,
+          marginBottom: 8,
+          marginHorizontal: 24,
           paddingHorizontal: 20, paddingVertical: 12, gap: 10,
+          shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 }, elevation: 8,
         }}>
           {([
             { label: 'Warmup rest', which: 'warmup' as const, value: warmupSec },
@@ -211,6 +180,60 @@ export function RestTimer({ lastSetLoggedAt, lastSetWasWarmup = false }: RestTim
           </Text>
         </View>
       )}
+
+      {/* The pill */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => setSettingsOpen(o => !o)}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 10,
+          paddingHorizontal: 18,
+          backgroundColor: Colors.surface,
+          borderWidth: 1,
+          borderColor: timerColor + '55',
+          borderRadius: 999,
+          gap: 10,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOpacity: 0.45,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 8,
+        }}
+      >
+        {/* Progress sweep toward the target */}
+        <View style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: `${progress * 100}%`,
+          backgroundColor: timerColor + '1A',
+        }} />
+        <Animated.View style={{
+          width: 7, height: 7, borderRadius: 3.5,
+          backgroundColor: timerColor, opacity: dotPulse,
+        }} />
+        <Text style={{
+          color: Colors.textMuted, fontSize: 10, letterSpacing: 2,
+          textTransform: 'uppercase', fontWeight: '700',
+        }}>
+          {lastSetWasWarmup ? 'Warmup Rest' : 'Rest'}
+        </Text>
+        <Text style={{
+          color: timerColor, fontSize: 18, fontWeight: '800',
+          fontVariant: ['tabular-nums'], letterSpacing: 1.5,
+          textShadowColor: timerColor, textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: done ? 8 : 0,
+        }}>
+          {fmt(elapsed)}
+        </Text>
+        <Text style={{ color: Colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+          / {fmt(target)}
+        </Text>
+        <Text style={{ color: Colors.textMuted, fontSize: 11, opacity: 0.6 }}>
+          {settingsOpen ? '▼' : '⚙'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }

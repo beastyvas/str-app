@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import {
-  View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   Modal, Dimensions, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
@@ -11,6 +12,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useAuth } from '@/hooks/useAuth';
 import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { computeStreak } from '@/lib/streak';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -70,6 +72,230 @@ function daysBetween(a: Date, b: Date) {
   return Math.floor(Math.abs(a.getTime() - b.getTime()) / 86400000);
 }
 
+// ─── History row (memo) ────────────────────────────────────────────────────
+// Extracted from the inline renderItem: byExercise grouping + set sorting are
+// memoized per workout instead of recomputed for every visible row on every
+// list render, and expand/collapse now re-renders only the two touched rows.
+const rowFormatDate = (iso: string) => {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+};
+const rowFormatDuration = (mins: number) => {
+  if (!mins) return '—';
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+};
+
+const HistoryRow = memo(function HistoryRow({
+  workout, isExpanded, unit, onToggle, onDelete, onOpenChart,
+}: {
+  workout: WorkoutData;
+  isExpanded: boolean;
+  unit: 'lbs' | 'kg';
+  onToggle: (id: string) => void;
+  onDelete: (workout: WorkoutData) => void;
+  onOpenChart: (exerciseName: string) => void;
+}) {
+  const byExercise = useMemo(() => {
+    const acc: Record<string, { sets: WorkoutSet[]; muscleGroup?: string }> = {};
+    for (const s of workout._sets as any[]) {
+      const name = s.exercises?.name ?? 'Unknown';
+      if (!acc[name]) acc[name] = { sets: [], muscleGroup: s.exercises?.muscle_group };
+      acc[name].sets.push(s);
+    }
+    // Sort a copy — the old inline .sort mutated workout._sets every render
+    for (const k of Object.keys(acc)) {
+      acc[k].sets = [...acc[k].sets].sort((a, b) => a.set_number - b.set_number);
+    }
+    return acc;
+  }, [workout]);
+
+  return (
+    <TouchableOpacity
+      onPress={() => onToggle(workout.id)}
+      activeOpacity={0.82}
+      style={{
+        backgroundColor: Colors.surface,
+        borderRadius: 18,
+        marginHorizontal: 20,
+        marginBottom: 10,
+        borderWidth: isExpanded ? 1 : 0,
+        borderColor: isExpanded ? Colors.accent + '45' : 'transparent',
+        overflow: 'hidden',
+        shadowColor: isExpanded ? Colors.accent : '#000',
+        shadowOpacity: isExpanded ? 0.1 : 0.25,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 3,
+      }}
+    >
+      {/* Workout header */}
+      <View style={{ padding: 18 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={{
+              color: Colors.text,
+              fontSize: 15,
+              fontWeight: '800',
+              marginBottom: 3,
+              letterSpacing: -0.3,
+            }}>
+              {workout.name}
+            </Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+              {rowFormatDate(workout.started_at)} · {rowFormatDuration(workout.duration_mins)}
+            </Text>
+          </View>
+          <View style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: isExpanded ? Colors.accent + '20' : Colors.surface2,
+            borderWidth: 1,
+            borderColor: isExpanded ? Colors.accent + '40' : Colors.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Text style={{
+              color: isExpanded ? Colors.accent : Colors.textMuted,
+              fontSize: 11,
+              fontWeight: '800',
+            }}>
+              {isExpanded ? '▲' : '▼'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Stats row */}
+        <View style={{ flexDirection: 'row', gap: 20, marginBottom: 10 }}>
+          {[
+            { label: 'Sets', value: String(workout.sets_count) },
+            { label: 'Volume', value: fmtVolumeUnit(workout.total_volume, unit) },
+            { label: 'Exercises', value: String(workout.exercises.length) },
+          ].map((s, i) => (
+            <View key={i}>
+              <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</Text>
+              <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 }}>{s.value}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Muscle group tags */}
+        {workout.muscle_groups.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+            {workout.muscle_groups.slice(0, 5).map((mg, i) => (
+              <View key={i} style={{
+                paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                backgroundColor: getMuscleColor(mg) + '18',
+                borderWidth: 1, borderColor: getMuscleColor(mg) + '40',
+              }}>
+                <Text style={{ color: getMuscleColor(mg), fontSize: 10, fontWeight: '700' }}>{mg}</Text>
+              </View>
+            ))}
+            {workout.muscle_groups.length > 5 && (
+              <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 3 }}>
+                +{workout.muscle_groups.length - 5}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Top set */}
+        {workout.top_set && !isExpanded && (
+          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}>
+            Top set: {workout.top_set}
+          </Text>
+        )}
+      </View>
+
+      {/* Expanded set log */}
+      {isExpanded && (
+        <View style={{ borderTopWidth: 1, borderTopColor: Colors.border }}>
+          {Object.entries(byExercise).map(([exName, { sets, muscleGroup }], ei) => {
+            const color = getMuscleColor(muscleGroup ?? '');
+            return (
+              <View key={ei} style={{
+                paddingHorizontal: 16, paddingVertical: 12,
+                borderBottomWidth: ei < Object.keys(byExercise).length - 1 ? 1 : 0,
+                borderBottomColor: Colors.border,
+              }}>
+                {/* Exercise header — tappable for chart */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <View style={{ width: 4, height: 16, borderRadius: 2, backgroundColor: color }} />
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => onOpenChart(exName)}
+                  >
+                    <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
+                      {exName}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => onOpenChart(exName)}>
+                    <Text style={{ color: Colors.accent, fontSize: 11 }}>
+                      {sets.length} set{sets.length !== 1 ? 's' : ''} →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sets */}
+                {sets.map((s, si) => (
+                  <View key={si} style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    marginBottom: 4, paddingLeft: 12, gap: 8,
+                  }}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 11, width: 18 }}>{s.set_number}</Text>
+                    <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>
+                      {s.weight === 0 ? 'BW' : toDisplay(s.weight, unit)} × {s.reps}
+                    </Text>
+                    {s.rpe && (
+                      <View style={{ backgroundColor: Colors.surface2, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '700' }}>RPE {s.rpe}</Text>
+                      </View>
+                    )}
+                    {s.note && (
+                      <Text style={{ color: Colors.textSecondary, fontSize: 11, fontStyle: 'italic', flex: 1 }} numberOfLines={1}>
+                        "{s.note}"
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+
+          {/* Workout notes */}
+          {workout.notes && (
+            <View style={{
+              padding: 14, backgroundColor: Colors.surface2,
+              margin: 12, borderRadius: 10,
+            }}>
+              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                Session notes
+              </Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 19 }}>
+                {workout.notes}
+              </Text>
+            </View>
+          )}
+
+          {/* Delete workout */}
+          <TouchableOpacity
+            onPress={() => onDelete(workout)}
+            style={{ alignItems: 'center', paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border }}
+          >
+            <Text style={{ color: Colors.danger, fontSize: 13, fontWeight: '700' }}>Delete Workout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 function computeInsights(workouts: WorkoutData[]): Insight[] {
   if (workouts.length === 0) return [];
   const now = new Date();
@@ -86,13 +312,7 @@ function computeInsights(workouts: WorkoutData[]): Insight[] {
     insights.push({ label: 'Volume trend', value: `${pct >= 0 ? '+' : ''}${pct}%`, sub: 'vs last week', color: pct >= 0 ? Colors.success : Colors.danger });
   }
 
-  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
-  let streak = 0;
-  for (let d = 0; d < 60; d++) {
-    const day = new Date(now); day.setDate(now.getDate() - d);
-    if (daySet.has(day.toDateString())) streak++;
-    else if (d > 0) break;
-  }
+  const streak = computeStreak(workouts.map(w => w.started_at), 60);
   if (streak > 0) insights.push({ label: 'Current streak', value: `${streak}d`, sub: streak >= 7 ? '🔥 Keep it going' : 'consecutive days', color: Colors.gold });
 
   const muscleCount: Record<string, number> = {};
@@ -144,15 +364,9 @@ function WorkoutCalendar({
     return acc;
   }, {});
 
-  // Streak calculation
-  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
-  let streak = 0;
-  for (let d = 0; d < 90; d++) {
-    const day = new Date(today); day.setDate(today.getDate() - d);
-    if (daySet.has(day.toDateString())) streak++;
-    else if (d > 0) break;
-  }
+  const streak = computeStreak(workouts.map(w => w.started_at));
   // Rest days in last 30 days
+  const daySet = new Set(workouts.map(w => new Date(w.started_at).toDateString()));
   let restDays = 0;
   for (let d = 0; d < 30; d++) {
     const day = new Date(today); day.setDate(today.getDate() - d);
@@ -654,6 +868,39 @@ export default function HistoryScreen() {
 
   const formatVolume = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedId(prev => (prev === id ? null : id));
+  }, []);
+  const openChart = useCallback((name: string) => setChartExercise(name), []);
+  const deleteWorkout = useCallback((workout: WorkoutData) => {
+    Alert.alert(
+      'Delete Workout',
+      `Delete "${workout.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('workouts').delete().eq('id', workout.id);
+            setWorkouts(prev => prev.filter(w => w.id !== workout.id));
+            setExpandedId(null);
+          },
+        },
+      ]
+    );
+  }, []);
+  const renderHistoryRow = useCallback(({ item }: { item: WorkoutData }) => (
+    <HistoryRow
+      workout={item}
+      isExpanded={expandedId === item.id}
+      unit={unit}
+      onToggle={toggleExpanded}
+      onDelete={deleteWorkout}
+      onOpenChart={openChart}
+    />
+  ), [expandedId, unit, toggleExpanded, deleteWorkout, openChart]);
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' }}>
@@ -662,17 +909,16 @@ export default function HistoryScreen() {
     );
   }
 
-  const thisMonthWorkouts = workouts.filter(w => daysBetween(new Date(w.started_at), new Date()) < 30).length;
-  const thisMonthVolume = workouts.filter(w => daysBetween(new Date(w.started_at), new Date()) < 30).reduce((s, w) => s + w.total_volume, 0);
+  const monthWorkouts = workouts.filter(w => daysBetween(new Date(w.started_at), new Date()) < 30);
+  const thisMonthWorkouts = monthWorkouts.length;
+  const thisMonthVolume = monthWorkouts.reduce((s, w) => s + w.total_volume, 0);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <FlatList
+      <FlashList
         data={viewMode === 'list' ? workouts : []}
         keyExtractor={w => w.id}
         contentContainerStyle={{ paddingBottom: 48 }}
-        initialNumToRender={8}
-        windowSize={9}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -837,213 +1083,7 @@ export default function HistoryScreen() {
         )}
         </>
         }
-        renderItem={({ item: workout }) => {
-                const isExpanded = expandedId === workout.id;
-                const byExercise = workout._sets.reduce<Record<string, { sets: WorkoutSet[]; muscleGroup?: string }>>((acc, s: any) => {
-                  const name = s.exercises?.name ?? 'Unknown';
-                  if (!acc[name]) acc[name] = { sets: [], muscleGroup: s.exercises?.muscle_group };
-                  acc[name].sets.push(s);
-                  return acc;
-                }, {});
-
-                return (
-                  <TouchableOpacity
-                    key={workout.id}
-                    onPress={() => setExpandedId(isExpanded ? null : workout.id)}
-                    activeOpacity={0.82}
-                    style={{
-                      backgroundColor: Colors.surface,
-                      borderRadius: 18,
-                      marginHorizontal: 20,
-                      marginBottom: 10,
-                      borderWidth: isExpanded ? 1 : 0,
-                      borderColor: isExpanded ? Colors.accent + '45' : 'transparent',
-                      overflow: 'hidden',
-                      shadowColor: isExpanded ? Colors.accent : '#000',
-                      shadowOpacity: isExpanded ? 0.1 : 0.25,
-                      shadowRadius: 10,
-                      shadowOffset: { width: 0, height: 3 },
-                      elevation: 3,
-                    }}
-                  >
-                    {/* Workout header */}
-                    <View style={{ padding: 18 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={{
-                            color: Colors.text,
-                            fontSize: 15,
-                            fontWeight: '800',
-                            marginBottom: 3,
-                            letterSpacing: -0.3,
-                          }}>
-                            {workout.name}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                            {formatDate(workout.started_at)} · {formatDuration(workout.duration_mins)}
-                          </Text>
-                        </View>
-                        <View style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 14,
-                          backgroundColor: isExpanded ? Colors.accent + '20' : Colors.surface2,
-                          borderWidth: 1,
-                          borderColor: isExpanded ? Colors.accent + '40' : Colors.border,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <Text style={{
-                            color: isExpanded ? Colors.accent : Colors.textMuted,
-                            fontSize: 11,
-                            fontWeight: '800',
-                          }}>
-                            {isExpanded ? '▲' : '▼'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Stats row */}
-                      <View style={{ flexDirection: 'row', gap: 20, marginBottom: 10 }}>
-                        {[
-                          { label: 'Sets', value: String(workout.sets_count) },
-                          { label: 'Volume', value: fmtVolumeUnit(workout.total_volume, unit) },
-                          { label: 'Exercises', value: String(workout.exercises.length) },
-                        ].map((s, i) => (
-                          <View key={i}>
-                            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</Text>
-                            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 }}>{s.value}</Text>
-                          </View>
-                        ))}
-                      </View>
-
-                      {/* Muscle group tags */}
-                      {workout.muscle_groups.length > 0 && (
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
-                          {workout.muscle_groups.slice(0, 5).map((mg, i) => (
-                            <View key={i} style={{
-                              paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                              backgroundColor: getMuscleColor(mg) + '18',
-                              borderWidth: 1, borderColor: getMuscleColor(mg) + '40',
-                            }}>
-                              <Text style={{ color: getMuscleColor(mg), fontSize: 10, fontWeight: '700' }}>{mg}</Text>
-                            </View>
-                          ))}
-                          {workout.muscle_groups.length > 5 && (
-                            <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 3 }}>
-                              +{workout.muscle_groups.length - 5}
-                            </Text>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Top set */}
-                      {workout.top_set && !isExpanded && (
-                        <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}>
-                          Top set: {workout.top_set}
-                        </Text>
-                      )}
-                    </View>
-
-                    {/* Expanded set log */}
-                    {isExpanded && (
-                      <View style={{ borderTopWidth: 1, borderTopColor: Colors.border }}>
-                        {Object.entries(byExercise).map(([exName, { sets, muscleGroup }], ei) => {
-                          const color = getMuscleColor(muscleGroup ?? '');
-                          return (
-                            <View key={ei} style={{
-                              paddingHorizontal: 16, paddingVertical: 12,
-                              borderBottomWidth: ei < Object.keys(byExercise).length - 1 ? 1 : 0,
-                              borderBottomColor: Colors.border,
-                            }}>
-                              {/* Exercise header — tappable for chart */}
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                <View style={{ width: 4, height: 16, borderRadius: 2, backgroundColor: color }} />
-                                <TouchableOpacity
-                                  style={{ flex: 1 }}
-                                  onPress={() => setChartExercise(exName)}
-                                >
-                                  <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
-                                    {exName}
-                                  </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setChartExercise(exName)}>
-                                  <Text style={{ color: Colors.accent, fontSize: 11 }}>
-                                    {sets.length} set{sets.length !== 1 ? 's' : ''} →
-                                  </Text>
-                                </TouchableOpacity>
-                              </View>
-
-                              {/* Sets */}
-                              {sets.sort((a, b) => a.set_number - b.set_number).map((s, si) => (
-                                <View key={si} style={{
-                                  flexDirection: 'row', alignItems: 'center',
-                                  marginBottom: 4, paddingLeft: 12, gap: 8,
-                                }}>
-                                  <Text style={{ color: Colors.textMuted, fontSize: 11, width: 18 }}>{s.set_number}</Text>
-                                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>
-                                    {s.weight === 0 ? 'BW' : toDisplay(s.weight, unit)} × {s.reps}
-                                  </Text>
-                                  {s.rpe && (
-                                    <View style={{ backgroundColor: Colors.surface2, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                      <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '700' }}>RPE {s.rpe}</Text>
-                                    </View>
-                                  )}
-                                  {s.note && (
-                                    <Text style={{ color: Colors.textSecondary, fontSize: 11, fontStyle: 'italic', flex: 1 }} numberOfLines={1}>
-                                      "{s.note}"
-                                    </Text>
-                                  )}
-                                </View>
-                              ))}
-                            </View>
-                          );
-                        })}
-
-                        {/* Workout notes */}
-                        {workout.notes && (
-                          <View style={{
-                            padding: 14, backgroundColor: Colors.surface2,
-                            margin: 12, borderRadius: 10,
-                          }}>
-                            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
-                              Session notes
-                            </Text>
-                            <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 19 }}>
-                              {workout.notes}
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* Delete workout */}
-                        <TouchableOpacity
-                          onPress={() => {
-                            Alert.alert(
-                              'Delete Workout',
-                              `Delete "${workout.name}"? This cannot be undone.`,
-                              [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                  text: 'Delete',
-                                  style: 'destructive',
-                                  onPress: async () => {
-                                    await supabase.from('workouts').delete().eq('id', workout.id);
-                                    setWorkouts(prev => prev.filter(w => w.id !== workout.id));
-                                    setExpandedId(null);
-                                  },
-                                },
-                              ]
-                            );
-                          }}
-                          style={{ alignItems: 'center', paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border }}
-                        >
-                          <Text style={{ color: Colors.danger, fontSize: 13, fontWeight: '700' }}>Delete Workout</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-        }}
+        renderItem={renderHistoryRow}
         ListFooterComponent={
           viewMode === 'list' && !isPro && workouts.length > 0 ? (
             <TouchableOpacity

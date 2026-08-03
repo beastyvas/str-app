@@ -10,6 +10,7 @@ import { getRankResult, ROMAN } from '@/constants/ranks';
 import { useModeration } from '@/hooks/useModeration';
 import { useAuth } from '@/hooks/useAuth';
 import { toDisplay, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { SESSION_COLORS, classifySessionFromSets as classifySession } from '@/lib/sessionType';
 
 const TIER_COLORS: Record<TierName, string> = {
   beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
@@ -17,24 +18,20 @@ const TIER_COLORS: Record<TierName, string> = {
   platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
 };
 
-const SESSION_COLORS: Record<string, string> = {
-  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
-  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
-};
 
-function classifySession(sets: any[]): string {
-  const groups = [...new Set(sets.map((s: any) => (s.exercises?.muscle_group ?? '').toLowerCase()).filter(Boolean))];
-  const hasPush = groups.some(g => ['chest', 'shoulder', 'tricep'].some(m => g.includes(m)));
-  const hasPull = groups.some(g => ['back', 'bicep', 'lat'].some(m => g.includes(m)));
-  const hasLegs = groups.some(g => ['quad', 'hamstring', 'glute', 'calf'].some(m => g.includes(m)));
-  if (hasPush && hasPull && hasLegs) return 'Full Body';
-  if (hasLegs && (hasPush || hasPull)) return 'Full Body';
-  if (hasPush && hasPull) return 'Upper';
-  if (hasPush) return 'Push';
-  if (hasPull) return 'Pull';
-  if (hasLegs) return 'Legs';
-  return 'Other';
-}
+// Per-profile cache (60s TTL) — reopening a profile renders instantly.
+const profileCache = new Map<string, {
+  at: number;
+  profile: any;
+  prs: any[];
+  workouts: any[];
+  workoutCount: number;
+  splitData: any;
+  rankResult: any;
+  friendStatus: 'none' | 'pending' | 'friends';
+  myRank: any;
+  photos: Record<string, string>;
+}>();
 
 function computeSplit(workouts: any[]) {
   if (!workouts || workouts.length === 0) return null;
@@ -155,7 +152,29 @@ export function FriendProfileModal({ visible, userId, onClose, onFriended }: Pro
 
   useEffect(() => {
     if (!visible || !userId) return;
-    setLoading(true);
+
+    // 60s cache — reopening the same profile renders instantly, then refreshes.
+    const cached = profileCache.get(userId);
+    const fresh = cached && Date.now() - cached.at < 60_000;
+    if (cached) {
+      setProfile(cached.profile);
+      setPrs(cached.prs);
+      setRecentWorkouts(cached.workouts);
+      setWorkoutCount(cached.workoutCount);
+      setSplitData(cached.splitData);
+      setRankTier(cached.rankResult);
+      setFriendStatus(cached.friendStatus);
+      setMyRank(cached.myRank);
+      setPhotosByWorkout(cached.photos);
+      setLoading(false);
+      if (fresh) return;
+    } else {
+      setLoading(true);
+    }
+
+    // One parallel wave — friendship + viewer-rank queries only depend on ids
+    // known upfront (previously 3 extra sequential round trips + an
+    // auth.getUser() network call; the viewer comes from useAuth now).
     Promise.all([
       supabase.from('public_profiles').select('*').eq('id', userId!).single(),
       supabase
@@ -176,71 +195,94 @@ export function FriendProfileModal({ visible, userId, onClose, onFriended }: Pro
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .not('ended_at', 'is', null),
-    ]).then(async ([{ data: prof }, { data: prData }, { data: workouts }, { count }]) => {
+      me
+        ? supabase
+            .from('friendships')
+            .select('status')
+            .or(`requester_id.eq.${me.id},addressee_id.eq.${me.id}`)
+            .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+            .maybeSingle()
+        : Promise.resolve({ data: null as any }),
+      me && me.id !== userId
+        ? supabase
+            .from('personal_records')
+            .select('weight, reps, exercises(name)')
+            .eq('user_id', me.id)
+        : Promise.resolve({ data: null as any }),
+    ]).then(([{ data: prof }, { data: prData }, { data: workouts }, { count }, { data: friendship }, { data: myPrData }]) => {
       setProfile(prof);
       setPrs(prData ?? []);
       setRecentWorkouts(workouts ?? []);
       setWorkoutCount(count ?? 0);
 
-      // Workout photos make the recent list read like their feed posts
+      // Workout photos make the recent list read like their feed posts —
+      // background fill, not gating first paint
       const workoutIds = (workouts ?? []).map((w: any) => w.id);
+      let photos: Record<string, string> = {};
       if (workoutIds.length > 0) {
         supabase.from('workout_photos')
           .select('workout_id, photo_url')
           .in('workout_id', workoutIds)
           .then(({ data: photoRows }) => {
-            const map: Record<string, string> = {};
-            (photoRows ?? []).forEach((p: any) => { map[p.workout_id] = p.photo_url; });
-            setPhotosByWorkout(map);
+            photos = {};
+            (photoRows ?? []).forEach((p: any) => { photos[p.workout_id] = p.photo_url; });
+            setPhotosByWorkout(photos);
+            const c = profileCache.get(userId);
+            if (c) profileCache.set(userId, { ...c, photos });
           });
       } else {
         setPhotosByWorkout({});
       }
 
       // Prefer manually configured split; fall back to auto-detection
+      let split: ReturnType<typeof computeSplit>;
       if (prof?.split_type || prof?.split_schedule) {
         const storedWeek: Array<{ type: string; color: string } | null> = Array(7).fill(null);
         Object.entries((prof.split_schedule ?? {}) as Record<string, string>).forEach(([day, type]) => {
           storedWeek[Number(day)] = { type, color: SESSION_COLORS[type] ?? Colors.textMuted };
         });
-        setSplitData({
+        split = {
           splitLabel: prof.split_type ?? 'Custom',
           sessionsPerWeek: Object.keys(prof.split_schedule ?? {}).length,
           typicalWeek: storedWeek,
-        });
+        };
       } else {
-        setSplitData(computeSplit(workouts ?? []));
+        split = computeSplit(workouts ?? []);
       }
+      setSplitData(split);
 
       const sbdPrs = (prData ?? [])
         .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
         .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
-      setRankTier(getRankResult(sbdPrs, prof?.bodyweight_lbs ?? 185));
+      const rank = getRankResult(sbdPrs, prof?.bodyweight_lbs ?? 185);
+      setRankTier(rank);
 
-      const { data: { user: me } } = await supabase.auth.getUser();
-      if (me && userId) {
-        const { data: friendship } = await supabase
-          .from('friendships')
-          .select('status')
-          .or(`requester_id.eq.${me.id},addressee_id.eq.${me.id}`)
-          .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-          .maybeSingle();
-        if (friendship?.status === 'accepted') setFriendStatus('friends');
-        else if (friendship?.status === 'pending') setFriendStatus('pending');
-        else setFriendStatus('none');
+      let status: 'none' | 'pending' | 'friends' = 'none';
+      if (friendship?.status === 'accepted') status = 'friends';
+      else if (friendship?.status === 'pending') status = 'pending';
+      setFriendStatus(status);
 
-        // The viewer's own SBD rank, for the head-to-head comparison strip
-        if (me.id !== userId) {
-          const { data: myPrData } = await supabase
-            .from('personal_records')
-            .select('weight, reps, exercises(name)')
-            .eq('user_id', me.id);
-          const mySbd = (myPrData ?? [])
-            .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
-            .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
-          setMyRank(getRankResult(mySbd, myProfile?.bodyweight_lbs ?? 185));
-        }
+      let viewerRank: ReturnType<typeof getRankResult> | null = null;
+      if (myPrData) {
+        const mySbd = (myPrData ?? [])
+          .filter((p: any) => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exercises?.name))
+          .map((p: any) => ({ exerciseName: p.exercises?.name, weight: p.weight, reps: p.reps }));
+        viewerRank = getRankResult(mySbd, myProfile?.bodyweight_lbs ?? 185);
+        setMyRank(viewerRank);
       }
+
+      profileCache.set(userId, {
+        at: Date.now(),
+        profile: prof,
+        prs: prData ?? [],
+        workouts: workouts ?? [],
+        workoutCount: count ?? 0,
+        splitData: split,
+        rankResult: rank,
+        friendStatus: status,
+        myRank: viewerRank,
+        photos,
+      });
 
       setLoading(false);
     });

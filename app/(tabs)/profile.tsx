@@ -23,6 +23,9 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
+import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
+import { computeStreak } from '@/lib/streak';
+import { IconSymbol } from '@/components/ui';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -61,11 +64,6 @@ interface ProfileStats {
 
 type WeeklyMetric = 'Volume' | 'Duration' | 'Sets';
 
-const SESSION_COLORS: Record<string, string> = {
-  Push: '#C2566B', Pull: '#3B82F6', Legs: '#F97316',
-  Upper: '#A855F7', Lower: '#22C55E', 'Full Body': '#EAB308', Core: '#14B8A6',
-};
-const SESSION_TYPES = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Core'];
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -307,15 +305,7 @@ export default function ProfileScreen() {
       }
       setMuscleVolume(volByGroup);
 
-      // Streak calculation
-      const daySet = new Set((workouts ?? []).map(w => new Date(w.started_at).toDateString()));
-      let streak = 0;
-      for (let d = 0; d < 90; d++) {
-        const day = new Date();
-        day.setDate(day.getDate() - d);
-        if (daySet.has(day.toDateString())) streak++;
-        else if (d > 0) break;
-      }
+      const streak = computeStreak((workouts ?? []).map(w => w.started_at));
 
       const bw = profile?.bodyweight_lbs ?? 185;
       const allPRs: PREntry[] = (prs ?? []).map((p: any) => ({
@@ -659,7 +649,7 @@ export default function ProfileScreen() {
                 backgroundColor: Colors.surface, borderWidth: 2, borderColor: Colors.bg,
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Text style={{ fontSize: 11 }}>📷</Text>
+                <IconSymbol name="camera" size={11} color={Colors.textSecondary} />
               </View>
             </TouchableOpacity>
 
@@ -758,7 +748,7 @@ export default function ProfileScreen() {
                 {profile?.bio ?? 'Add a bio...'}
               </Text>
               <TouchableOpacity onPress={() => { setBio(profile?.bio ?? ''); setBioEditing(true); }} style={{ paddingTop: 2 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 13 }}>✏️</Text>
+                <IconSymbol name="edit" size={13} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
           )}
@@ -973,7 +963,7 @@ export default function ProfileScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasSplit ? 12 : 0 }}>
                   <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>My Split</Text>
                   <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                    {hasSplit ? 'Edit ✏️' : 'Set up →'}
+                    {hasSplit ? 'Edit' : 'Set up →'}
                   </Text>
                 </View>
 
@@ -1067,7 +1057,7 @@ export default function ProfileScreen() {
               backgroundColor: isPro ? Colors.accent + '20' : Colors.surface2,
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 20 }}>{isPro ? '⚡' : '🔓'}</Text>
+              <IconSymbol name={isPro ? 'flash' : 'unlock'} size={20} color={isPro ? Colors.accent : Colors.textMuted} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>

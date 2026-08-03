@@ -18,6 +18,10 @@ import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
 import { useSubscription } from '@/hooks/useSubscription';
 import { WorkoutLiveActivity } from '../../modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
+import { ElapsedTime, formatElapsed } from '@/components/workout/ElapsedTime';
+import { WorkoutIdleScreen } from '@/components/workout/WorkoutIdleScreen';
+import { TemplateBuilderSheet } from '@/components/workout/TemplateBuilderSheet';
+import { useWorkoutTemplates } from '@/hooks/useWorkoutTemplates';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
@@ -25,6 +29,7 @@ import { getRankResult, RankTier } from '@/constants/ranks';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
 import { fmtVolume, unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
+import { useStableCallback } from '@/lib/useStableCallback';
 import {
   requestNotificationPermissions,
   setupNotificationChannels,
@@ -134,14 +139,8 @@ export default function WorkoutTab() {
   const [finishPhoto, setFinishPhoto] = useState<string | null>(null);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
   const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
-  const [builderName, setBuilderName] = useState('');
-  const [builderExercises, setBuilderExercises] = useState<any[]>([]);
-  const [showBuilderPicker, setShowBuilderPicker] = useState(false);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
-  const [lastWorkoutExercises, setLastWorkoutExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
 
   // First workout tutorial
   const [isFirstWorkout, setIsFirstWorkout] = useState(false);
@@ -159,42 +158,15 @@ export default function WorkoutTab() {
     sqTier?: string; bpTier?: string; dlTier?: string;
   } | null>(null);
 
-  // Smart suggestion + templates
-  const [daySuggestion, setDaySuggestion] = useState<{
-    name: string;
-    dayLabel: string;
-    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[];
-    isPinned?: boolean;
-    pinnedTemplateId?: string;
-  } | null>(null);
-  const [templates, setTemplates] = useState<{
-    id: string;
-    name: string;
-    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[];
-    muscleGroups: string[];
-    lastUsed: string;
-  }[]>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  // Smart suggestion + templates — SWR-cached hook; no reload flash on every
+  // return to the idle tab.
+  const {
+    daySuggestion, templates, savedTemplates, lastWorkoutExercises,
+    loadingTemplates, refetch: refetchTemplates, setDaySuggestion,
+  } = useWorkoutTemplates(!activeWorkout);
 
-  // Duration timer
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    if (activeWorkout) {
-      // startedAt may still be a string if Zustand rehydrated before onRehydrateStorage ran
-      const startedAt = activeWorkout.startedAt instanceof Date
-        ? activeWorkout.startedAt
-        : new Date(activeWorkout.startedAt as any);
-      const tick = () => {
-        setElapsedSec(Math.floor((Date.now() - startedAt.getTime()) / 1000));
-      };
-      tick();
-      timerRef.current = setInterval(tick, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setElapsedSec(0);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [activeWorkout?.id]);
+  // Duration ticking lives inside <ElapsedTime /> so the per-second interval
+  // re-renders one leaf <Text>, not this whole screen.
 
   // Auto-start first workout when coming from First Steps task
   useFocusEffect(useCallback(() => {
@@ -214,88 +186,6 @@ export default function WorkoutTab() {
     }
   }, [newPRs]);
 
-  // ─── LOAD TEMPLATES + DAY SUGGESTION ────────────────────────────────────
-  useEffect(() => {
-    if (!user || activeWorkout) return;
-    setLoadingTemplates(true);
-    const todayDow = new Date().getDay();
-
-    const load = async () => {
-      const { data } = await supabase
-        .from('workouts')
-        .select('id, name, started_at, workout_sets(exercises(id, name, muscle_group, equipment_type))')
-        .eq('user_id', user.id)
-        .not('ended_at', 'is', null)
-        .order('started_at', { ascending: false })
-        .limit(20);
-
-      if (!data) { setLoadingTemplates(false); return; }
-
-      const parseExercises = (w: any) => {
-        const seen = new Set<string>();
-        const exs: { id: string; name: string; muscle_group: string; equipment_type?: string }[] = [];
-        for (const s of w.workout_sets ?? []) {
-          const ex = s.exercises;
-          if (ex && !seen.has(ex.id)) {
-            seen.add(ex.id);
-            exs.push({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
-          }
-        }
-        return exs;
-      };
-
-      // Day suggestion — prefer pinned template for today, else fall back to history
-      const { data: pinnedTmpl } = await supabase
-        .from('workout_templates')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('day_of_week', todayDow)
-        .limit(1)
-        .maybeSingle();
-
-      if (pinnedTmpl && (pinnedTmpl as any).exercises?.length > 0) {
-        const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][todayDow];
-        setDaySuggestion({
-          name: (pinnedTmpl as any).name,
-          dayLabel: `📌 Your ${dayName} plan`,
-          exercises: (pinnedTmpl as any).exercises,
-          isPinned: true,
-          pinnedTemplateId: (pinnedTmpl as any).id,
-        });
-      } else {
-        const sameDayWorkout = data.find((w: any) => new Date(w.started_at).getDay() === todayDow);
-        if (sameDayWorkout) {
-          const exs = parseExercises(sameDayWorkout);
-          if (exs.length > 0) {
-            const daysAgo = Math.floor((Date.now() - new Date((sameDayWorkout as any).started_at).getTime()) / 86400000);
-            const label = daysAgo === 7 ? 'Last week' : daysAgo === 14 ? '2 weeks ago' : `${daysAgo}d ago`;
-            setDaySuggestion({ name: (sameDayWorkout as any).name, dayLabel: label, exercises: exs });
-          }
-        }
-      }
-
-      // Templates — deduplicate by name, take most recent per name
-      const seen = new Map<string, any>();
-      for (const w of data) {
-        if (!seen.has((w as any).name)) seen.set((w as any).name, w);
-      }
-      const tmpl = Array.from(seen.values()).slice(0, 6).map((w: any) => {
-        const exs = parseExercises(w);
-        const mgs = [...new Set(exs.map((e: any) => e.muscle_group))];
-        return { id: w.id, name: w.name, exercises: exs, muscleGroups: mgs, lastUsed: w.started_at };
-      });
-      setTemplates(tmpl);
-
-      if (data[0]) {
-        setLastWorkoutExercises(parseExercises(data[0]));
-      }
-
-      setLoadingTemplates(false);
-    };
-
-    load();
-  }, [user, activeWorkout]);
-
   // ─── START WORKOUT ────────────────────────────────────────────────────────
   const handleStartPress = () => {
     const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -312,21 +202,6 @@ export default function WorkoutTab() {
 
   // Start directly from a template — no name modal
   // Seed current tier ref when starting a workout
-  // Load saved templates
-  const loadSavedTemplates = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('workout_templates')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('last_used_at', { ascending: false, nullsFirst: false });
-    setSavedTemplates(data ?? []);
-  };
-
-  useEffect(() => {
-    if (user) loadSavedTemplates();
-  }, [user, activeWorkout?.id]);
-
   const saveTemplate = async (name: string, exercises: any[]) => {
     if (!user || !name.trim() || exercises.length === 0) return;
     await supabase.from('workout_templates').insert({
@@ -339,12 +214,12 @@ export default function WorkoutTab() {
         equipment_type: e.equipmentType,
       })),
     });
-    await loadSavedTemplates();
+    await refetchTemplates();
   };
 
   const deleteTemplate = async (templateId: string) => {
     await supabase.from('workout_templates').delete().eq('id', templateId);
-    setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
+    refetchTemplates();
   };
 
   const startFromSavedTemplate = async (tmpl: any) => {
@@ -494,6 +369,8 @@ export default function WorkoutTab() {
   };
 
   // ─── LOG SET ──────────────────────────────────────────────────────────────
+  // Stable identity (useStableCallback below) so memo'd ExerciseCards don't
+  // re-render when this screen does.
   const handleLogSet = async (
     exerciseId: string,
     data: { weight: number; reps: number; rpe?: number; note?: string }
@@ -610,6 +487,13 @@ export default function WorkoutTab() {
     return result;
   };
 
+  // Identity-stable wrappers for props of memo'd ExerciseCards. Store actions
+  // (removeExercise/deleteSet/updateSet/toggleSupersetWithNext) are already
+  // stable zustand references; these cover the screen-level handlers.
+  const stableLogSet = useStableCallback(handleLogSet);
+  const stableReplaceExercise = useStableCallback(handleReplaceExercise);
+  const navigateToExerciseDetail = useStableCallback((id: string) => router.push(`/exercise/${id}`));
+
   // ─── FINISH WORKOUT ───────────────────────────────────────────────────────
   const handleFinishPress = () => {
     if (!activeWorkout) return;
@@ -710,30 +594,9 @@ export default function WorkoutTab() {
     );
   };
 
-  const formatElapsed = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    if (m < 60) return `${m}:${s.toString().padStart(2, '0')}`;
-    const h = Math.floor(m / 60);
-    return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
   // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
-  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   // Starter programs are pitched at new lifters (no experience set reads as new)
   const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
-  // One Quick Start list: saved templates first, then recent sessions that
-  // aren't already saved under the same name (capped so the screen stays calm)
-  const savedNames = new Set(savedTemplates.map((t: any) => String(t.name).toLowerCase()));
-  const quickStartRecents = templates
-    .filter(t => !savedNames.has(t.name.toLowerCase()))
-    .slice(0, 3);
-  const MUSCLE_COLORS: Record<string, string> = {
-    'Chest': '#C2566B', 'Shoulders': '#9B59B6', 'Triceps': '#8E44AD',
-    'Biceps': '#3498DB', 'Mid-Upper Back': '#1ABC9C', 'Lats': '#16A085',
-    'Quads': '#E67E22', 'Hamstrings': '#D35400', 'Glutes': '#E74C3C',
-    'Core': '#F39C12', 'Overall': Colors.textSecondary,
-  };
 
   if (restoring) {
     return (
@@ -745,428 +608,61 @@ export default function WorkoutTab() {
 
   if (!activeWorkout) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
-          {/* Header */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>
-              {todayName}
-            </Text>
-            <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1, marginTop: 2 }}>
-              Your arc continues.
-            </Text>
-          </View>
+      <View style={{ flex: 1 }}>
+        <WorkoutIdleScreen
+          isNewLifter={isNewLifter}
+          daySuggestion={daySuggestion}
+          templates={templates}
+          savedTemplates={savedTemplates}
+          loadingTemplates={loadingTemplates}
+          onStartBlank={handleStartPress}
+          onStartFromTemplate={startFromTemplate}
+          onStartFromSavedTemplate={startFromSavedTemplate}
+          onStartStarterDay={startStarterDay}
+          onDeleteTemplate={deleteTemplate}
+          onPinSuggestion={() => {
+            if (!daySuggestion) return;
+            const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+            Alert.alert(
+              `Pin as ${dayName} template?`,
+              `Every ${dayName}, this workout will be your default suggestion.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: `Pin for ${dayName}`,
+                  onPress: async () => {
+                    if (!user) return;
+                    await supabase.from('workout_templates').insert({
+                      user_id: user.id,
+                      name: daySuggestion.name,
+                      exercises: daySuggestion.exercises as any,
+                      day_of_week: new Date().getDay(),
+                    });
+                    setDaySuggestion(prev => prev ? { ...prev, isPinned: true, dayLabel: `📌 Your ${dayName} plan` } : null);
+                  },
+                },
+              ]
+            );
+          }}
+          onUnpinSuggestion={() => {
+            if (!daySuggestion?.pinnedTemplateId) return;
+            Alert.alert('Unpin?', 'Remove this as your pinned template for this day?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Unpin', style: 'destructive', onPress: async () => {
+                await supabase.from('workout_templates').update({ day_of_week: null }).eq('id', daySuggestion.pinnedTemplateId!);
+                setDaySuggestion(() => null);
+              }},
+            ]);
+          }}
+          onCreateTemplate={() => setShowTemplateBuilder(true)}
+        />
 
-          {/* Day suggestion */}
-          {daySuggestion && (
-            <View style={{ marginBottom: 20 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
-                  {daySuggestion.isPinned ? daySuggestion.dayLabel : `${daySuggestion.dayLabel} you trained`}
-                </Text>
-                {!daySuggestion.isPinned && (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
-                      Alert.alert(
-                        `Pin as ${dayName} template?`,
-                        `Every ${dayName}, this workout will be your default suggestion.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: `Pin for ${dayName}`,
-                            onPress: async () => {
-                              if (!user) return;
-                              await supabase.from('workout_templates').insert({
-                                user_id: user.id,
-                                name: daySuggestion.name,
-                                exercises: daySuggestion.exercises,
-                                day_of_week: new Date().getDay(),
-                              });
-                              setDaySuggestion(prev => prev ? { ...prev, isPinned: true, dayLabel: `📌 Your ${dayName} plan` } : null);
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>📌 Pin for today</Text>
-                  </TouchableOpacity>
-                )}
-                {daySuggestion.isPinned && daySuggestion.pinnedTemplateId && (
-                  <TouchableOpacity
-                    onPress={() => Alert.alert('Unpin?', 'Remove this as your pinned template for this day?', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Unpin', style: 'destructive', onPress: async () => {
-                        await supabase.from('workout_templates').update({ day_of_week: null }).eq('id', daySuggestion.pinnedTemplateId!);
-                        setDaySuggestion(null);
-                      }},
-                    ])}
-                  >
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Unpin</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 18,
-                borderWidth: 1.5,
-                borderColor: daySuggestion.isPinned ? Colors.accent + '70' : Colors.accent + '50',
-                overflow: 'hidden',
-              }}>
-                <View style={{ padding: 18 }}>
-                  <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800', marginBottom: 4 }}>
-                    {daySuggestion.name}
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 12, marginBottom: 14 }}>
-                    {daySuggestion.exercises.slice(0, 4).map(e => e.name).join(' · ')}
-                    {daySuggestion.exercises.length > 4 ? ` +${daySuggestion.exercises.length - 4} more` : ''}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => startFromTemplate(daySuggestion.name, daySuggestion.exercises)}
-                    style={{ backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
-                  >
-                    <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, letterSpacing: 0.3 }}>
-                      {daySuggestion.isPinned ? 'Start my plan →' : 'Repeat this session →'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Start blank */}
-          <TouchableOpacity
-            onPress={handleStartPress}
-            activeOpacity={0.85}
-            style={{
-              backgroundColor: daySuggestion ? Colors.surface : Colors.accent,
-              borderRadius: 16,
-              paddingVertical: daySuggestion ? 14 : 20,
-              alignItems: 'center',
-              marginBottom: 24,
-              borderWidth: daySuggestion ? 1 : 0,
-              borderColor: Colors.border,
-              shadowColor: daySuggestion ? 'transparent' : Colors.accent,
-              shadowOpacity: daySuggestion ? 0 : 0.35,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: daySuggestion ? 0 : 8,
-            }}
-          >
-            <Text style={{
-              color: daySuggestion ? Colors.textSecondary : Colors.text,
-              fontWeight: '800',
-              fontSize: daySuggestion ? 14 : 16,
-              letterSpacing: daySuggestion ? 0 : 0.5,
-            }}>
-              {daySuggestion ? '+ Start blank workout' : 'START WORKOUT'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Starter programs — "just tell me what to do" for new lifters */}
-          {isNewLifter && (
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
-                Starter Programs
-              </Text>
-              <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
-                No guesswork — pick a day, the exercises are loaded, just show up.
-              </Text>
-              <View style={{ gap: 12 }}>
-                {STARTER_PROGRAMS.map(program => (
-                  <View
-                    key={program.key}
-                    style={{
-                      backgroundColor: Colors.surface, borderRadius: 18, padding: 16,
-                      shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8,
-                      shadowOffset: { width: 0, height: 3 }, elevation: 3,
-                    }}
-                  >
-                    <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 }}>
-                      {program.title}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2, marginBottom: 4 }}>
-                      {program.schedule}
-                    </Text>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 12 }}>
-                      {program.tagline}
-                    </Text>
-                    <View style={{ gap: 8 }}>
-                      {program.days.map(day => (
-                        <TouchableOpacity
-                          key={day.key}
-                          onPress={() => startStarterDay(day)}
-                          activeOpacity={0.8}
-                          style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 10,
-                            backgroundColor: Colors.surface2, borderRadius: 12,
-                            paddingVertical: 11, paddingHorizontal: 14,
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }}>
-                              {day.name}
-                            </Text>
-                            <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>
-                              {day.focus} · {day.guidance}
-                            </Text>
-                          </View>
-                          <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '800' }}>
-                            Start →
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Quick Start — saved templates + recent sessions, one calm list */}
-          {(savedTemplates.length > 0 || quickStartRecents.length > 0) && (
-            <View style={{ marginBottom: 24 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
-                  Quick Start
-                </Text>
-              </View>
-              <View style={{ gap: 10 }}>
-                {savedTemplates.map(tmpl => (
-                  <TouchableOpacity
-                    key={tmpl.id}
-                    onPress={() => startFromSavedTemplate(tmpl)}
-                    onLongPress={() => Alert.alert(
-                      tmpl.name,
-                      'Delete this template?',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(tmpl.id) },
-                      ]
-                    )}
-                    style={{
-                      backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
-                      borderWidth: 1, borderColor: Colors.accent + '30',
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
-                        {tmpl.name}
-                      </Text>
-                      <View style={{
-                        backgroundColor: Colors.accentDim, borderRadius: 8,
-                        paddingHorizontal: 10, paddingVertical: 6,
-                        borderWidth: 1, borderColor: Colors.accent + '40',
-                      }}>
-                        <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>Start →</Text>
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {(tmpl.exercises as any[]).map((ex: any, i: number) => (
-                        <View key={i} style={{
-                          backgroundColor: Colors.surface2, borderRadius: 6,
-                          paddingHorizontal: 8, paddingVertical: 4,
-                        }}>
-                          <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{ex.name}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 8 }}>
-                      Long press to delete · {(tmpl.exercises as any[]).length} exercises
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-
-                {/* Recent sessions not saved as templates — same list, quieter chip */}
-                {quickStartRecents.map(tmpl => {
-                  const daysAgo = Math.floor((Date.now() - new Date(tmpl.lastUsed).getTime()) / 86400000);
-                  const ageLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
-                  return (
-                    <TouchableOpacity
-                      key={tmpl.id}
-                      onPress={() => startFromTemplate(tmpl.name, tmpl.exercises)}
-                      style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16 }}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <View style={{ flex: 1, marginRight: 10 }}>
-                          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
-                            {tmpl.name}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                            Recent session · last done {ageLabel}
-                          </Text>
-                        </View>
-                        <View style={{
-                          backgroundColor: Colors.surface2, borderRadius: 8,
-                          paddingHorizontal: 10, paddingVertical: 6,
-                        }}>
-                          <Text style={{ color: Colors.textSecondary, fontWeight: '800', fontSize: 12 }}>Repeat →</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                        {tmpl.exercises.map((ex, i) => (
-                          <View key={i} style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 4,
-                            backgroundColor: Colors.surface2, borderRadius: 6,
-                            paddingHorizontal: 8, paddingVertical: 4,
-                          }}>
-                            <View style={{
-                              width: 5, height: 5, borderRadius: 3,
-                              backgroundColor: MUSCLE_COLORS[ex.muscle_group] ?? Colors.textMuted,
-                            }} />
-                            <Text style={{ color: Colors.textSecondary, fontSize: 11, fontWeight: '600' }}>
-                              {ex.name}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Create template from scratch */}
-          <TouchableOpacity
-            onPress={() => { setBuilderName(''); setBuilderExercises([]); setShowTemplateBuilder(true); }}
-            style={{
-              flexDirection: 'row', alignItems: 'center', gap: 12,
-              backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
-              borderWidth: 1, borderColor: Colors.border, marginBottom: 20,
-            }}
-          >
-            <View style={{
-              width: 36, height: 36, borderRadius: 18,
-              backgroundColor: Colors.surface2,
-              borderWidth: 1, borderColor: Colors.border,
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Text style={{ color: Colors.textMuted, fontSize: 22, lineHeight: 26 }}>+</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>Create Template</Text>
-              <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 1 }}>
-                Build a reusable workout from scratch
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {loadingTemplates && (
-            <ActivityIndicator color={Colors.textMuted} style={{ marginTop: 40 }} />
-          )}
-        </ScrollView>
-
-        {/* Template Builder Modal */}
-        <Modal visible={showTemplateBuilder} animationType="slide" presentationStyle="pageSheet">
-          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-            <View style={{
-              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-              paddingHorizontal: 20, paddingVertical: 16,
-              borderBottomWidth: 1, borderBottomColor: Colors.border,
-            }}>
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>New Template</Text>
-              <TouchableOpacity onPress={() => setShowTemplateBuilder(false)}>
-                <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-              {/* Template name */}
-              <TextInput
-                value={builderName}
-                onChangeText={setBuilderName}
-                placeholder="Template name (e.g. Push Day, Leg Day...)"
-                placeholderTextColor={Colors.textMuted}
-                autoFocus
-                style={{
-                  backgroundColor: Colors.surface, borderRadius: 12,
-                  paddingHorizontal: 16, paddingVertical: 14,
-                  color: Colors.text, fontSize: 17, fontWeight: '700',
-                  borderWidth: 1, borderColor: Colors.border,
-                }}
-              />
-
-              {/* Added exercises */}
-              {builderExercises.length > 0 && (
-                <View style={{ gap: 8 }}>
-                  {builderExercises.map((ex, i) => (
-                    <View key={i} style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 12,
-                      backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-                      borderWidth: 1, borderColor: Colors.border,
-                    }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>{ex.name}</Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>{ex.muscle_group}</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => setBuilderExercises(prev => prev.filter((_, idx) => idx !== i))}
-                        style={{ padding: 6 }}
-                      >
-                        <Text style={{ color: Colors.danger, fontSize: 16 }}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Add exercise button */}
-              <TouchableOpacity
-                onPress={() => setShowBuilderPicker(true)}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  backgroundColor: Colors.surface2, borderRadius: 12, padding: 14,
-                  borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
-                }}
-              >
-                <Text style={{ color: Colors.textMuted, fontSize: 20 }}>+</Text>
-                <Text style={{ color: Colors.textMuted, fontWeight: '600' }}>Add Exercise</Text>
-              </TouchableOpacity>
-
-              {/* Save */}
-              <TouchableOpacity
-                onPress={async () => {
-                  if (!builderName.trim()) { Alert.alert('Add a name'); return; }
-                  if (builderExercises.length === 0) { Alert.alert('Add at least one exercise'); return; }
-                  await supabase.from('workout_templates').insert({
-                    user_id: user!.id,
-                    name: builderName.trim(),
-                    exercises: builderExercises,
-                  });
-                  await loadSavedTemplates();
-                  setShowTemplateBuilder(false);
-                }}
-                disabled={!builderName.trim() || builderExercises.length === 0}
-                style={{
-                  backgroundColor: builderName.trim() && builderExercises.length > 0 ? Colors.accent : Colors.surface2,
-                  borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-                  marginTop: 8,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
-                  Save Template ({builderExercises.length} exercises)
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </SafeAreaView>
-
-          {/* Exercise picker for builder */}
-          <ExercisePickerModal
-            visible={showBuilderPicker}
-            alreadyAdded={builderExercises.map(e => e.id)}
-            onSelect={(ex) => {
-              setBuilderExercises(prev => [...prev, {
-                id: ex.id, name: ex.name,
-                muscle_group: ex.muscle_group,
-                equipment_type: ex.equipment_type,
-              }]);
-              setShowBuilderPicker(false);
-            }}
-            onClose={() => setShowBuilderPicker(false)}
-          />
-        </Modal>
+        {/* Template builder */}
+        <TemplateBuilderSheet
+          visible={showTemplateBuilder}
+          onClose={() => setShowTemplateBuilder(false)}
+          onSaved={refetchTemplates}
+        />
 
         {/* Name modal for blank workouts */}
         <Modal visible={showNameModal} transparent animationType="fade">
@@ -1230,7 +726,7 @@ export default function WorkoutTab() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -1270,15 +766,16 @@ export default function WorkoutTab() {
             {activeWorkout.name}
           </Text>
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 4, alignItems: 'center' }}>
-            <Text style={{
-              color: Colors.accent,
-              fontSize: 13,
-              fontWeight: '700',
-              fontVariant: ['tabular-nums'],
-              letterSpacing: 0.5,
-            }}>
-              {formatElapsed(elapsedSec)}
-            </Text>
+            <ElapsedTime
+              startedAt={activeWorkout.startedAt}
+              style={{
+                color: Colors.accent,
+                fontSize: 13,
+                fontWeight: '700',
+                fontVariant: ['tabular-nums'],
+                letterSpacing: 0.5,
+              }}
+            />
             <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
             <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
               {totalSets} set{totalSets !== 1 ? 's' : ''}
@@ -1294,9 +791,16 @@ export default function WorkoutTab() {
           </View>
         </View>
 
-        {/* Templates — peek at saved templates without leaving the workout */}
+        {/* Overflow — templates + discard live behind ⋯ so Finish is the only
+            loud header action */}
         <TouchableOpacity
-          onPress={() => setShowMidWorkoutTemplates(true)}
+          onPress={() => {
+            Alert.alert(activeWorkout.name, undefined, [
+              { text: '📋 View templates', onPress: () => setShowMidWorkoutTemplates(true) },
+              { text: 'Discard workout', style: 'destructive', onPress: handleDiscard },
+              { text: 'Cancel', style: 'cancel' },
+            ]);
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
           style={{
             width: 34,
@@ -1307,23 +811,10 @@ export default function WorkoutTab() {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 14 }}>📋</Text>
+          <Text style={{ color: Colors.textMuted, fontSize: 16, fontWeight: '800', lineHeight: 18 }}>⋯</Text>
         </TouchableOpacity>
 
-        {/* Discard */}
-        <TouchableOpacity
-          onPress={handleDiscard}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: Colors.surface2,
-          }}
-        >
-          <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: '700' }}>Discard</Text>
-        </TouchableOpacity>
-
-        {/* Finish */}
+        {/* Finish — brass, dark label per the primary-button convention */}
         <TouchableOpacity
           onPress={handleFinishPress}
           disabled={finishing}
@@ -1340,9 +831,9 @@ export default function WorkoutTab() {
           }}
         >
           {finishing ? (
-            <ActivityIndicator color={Colors.text} size="small" />
+            <ActivityIndicator color="#141210" size="small" />
           ) : (
-            <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
+            <Text style={{ color: '#141210', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -1366,8 +857,6 @@ export default function WorkoutTab() {
         </TouchableOpacity>
       )}
 
-      {/* Rest timer — appears after first set */}
-      <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
       <WorkoutCoach
         lastSet={coachLastSet}
         allSetsThisExercise={coachHistory}
@@ -1456,12 +945,12 @@ export default function WorkoutTab() {
               prMap={prMap}
               workoutId={activeWorkout.id!}
               userId={user!.id}
-              onLogSet={handleLogSet}
+              onLogSet={stableLogSet}
               onRemove={removeExercise}
-              onReplace={handleReplaceExercise}
+              onReplace={stableReplaceExercise}
               onDeleteSet={deleteSet}
               onEditSet={updateSet}
-              onNavigateToDetail={(id) => router.push(`/exercise/${id}`)}
+              onNavigateToDetail={navigateToExerciseDetail}
               supersetRole={pairedWithNext ? 'first' : pairedWithPrev ? 'second' : null}
               canToggleSuperset={showSupersetControls && (pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId))}
               onToggleSuperset={toggleSupersetWithNext}
@@ -1524,6 +1013,9 @@ export default function WorkoutTab() {
       </View>
 
       {/* Tier Advancement */}
+      {/* Rest timer — floating pill above the tab bar, appears after first set */}
+      <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
+
       <TierAdvancementScreen
         visible={showTierAdvancement}
         tier={tierAdvancement}
@@ -1634,7 +1126,7 @@ export default function WorkoutTab() {
               {/* Stats row */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {[
-                  { label: 'Duration', value: formatElapsed(elapsedSec) },
+                  { label: 'Duration', value: activeWorkout ? formatElapsed(Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt as any).getTime()) / 1000))) : '0:00' },
                   { label: 'Sets', value: String(totalSets) },
                   { label: 'Volume', value: fmtVolume(totalVolume, unit) },
                 ].map((s, i) => (
