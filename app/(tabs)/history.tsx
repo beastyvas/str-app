@@ -794,8 +794,8 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadKey, setLoadKey] = useState(0);
 
-  const isPrоRef = useRef(isPro);
-  isPrоRef.current = isPro;
+  const isProRef = useRef(isPro);
+  isProRef.current = isPro;
 
   useEffect(() => {
     let cancelled = false;
@@ -810,7 +810,7 @@ export default function HistoryScreen() {
         .order('started_at', { ascending: false })
         .limit(60);
 
-      if (!isPrоRef.current) {
+      if (!isProRef.current) {
         query = query.gte('started_at', new Date(Date.now() - 90 * 86400000).toISOString());
       }
 

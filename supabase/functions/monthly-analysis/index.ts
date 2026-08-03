@@ -205,7 +205,7 @@ Format: a short opening line, then 3-5 tight findings as a dash list, then one b
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 1024,
         system: systemPrompt,
         messages: [{ role: 'user', content: dataSummary }],
