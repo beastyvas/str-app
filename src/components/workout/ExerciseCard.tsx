@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Colors } from '@/constants/colors';
-import { WorkoutExercise, LoggedSet } from '@/hooks/useWorkout';
+import { WorkoutExercise, LoggedSet, LogSetOutcome } from '@/hooks/useWorkout';
 import { SetInputRow, LoggedSetRow } from './SetRow';
 import { IconSymbol } from '@/components/ui';
 
@@ -13,8 +13,8 @@ interface ExerciseCardProps {
   userId: string;
   onLogSet: (
     exerciseId: string,
-    data: { weight: number; reps: number; rpe?: number; note?: string }
-  ) => Promise<{ isPR: boolean }>;
+    data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }
+  ) => LogSetOutcome;
   onRemove: (exerciseId: string) => void;
   onReplace: (exerciseId: string) => void;
   onDeleteSet: (exerciseId: string, localId: string) => void;
@@ -262,19 +262,30 @@ export const ExerciseCard = memo(function ExerciseCard({
             />
           ))}
 
-          {/* Divider before input row */}
-          {exercise.sets.length > 0 && (
-            <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 14, marginTop: 4 }} />
-          )}
-
           {/* Input row for the next set — always open. Logging keeps the row
-              (weight/reps carry over) so the next set is zero extra taps. */}
-          <SetInputRow
-            setNumber={nextSetNumber}
-            prevSet={prevSetForNext}
-            equipmentType={exercise.equipmentType}
-            onLog={(data) => onLogSet(exercise.exerciseId, data)}
-          />
+              (weight/reps carry over) so the next set is zero extra taps.
+              Because of that carry-over the row shows real numbers under a real
+              set number, so it has to read as clearly unlogged: the accent rule
+              and tinted ground are the boundary between done and not done.
+              (Solid, not dashed — RN renders a single-side dashed border
+              inconsistently on iOS.) */}
+          <View
+            style={{
+              marginTop: exercise.sets.length > 0 ? 6 : 0,
+              borderTopWidth: exercise.sets.length > 0 ? 1 : 0,
+              borderTopColor: Colors.accent + '40',
+              backgroundColor: Colors.accent + '08',
+            }}
+          >
+            <SetInputRow
+              setNumber={nextSetNumber}
+              exerciseId={exercise.exerciseId}
+              exerciseName={exercise.exerciseName}
+              prevSet={prevSetForNext}
+              equipmentType={exercise.equipmentType}
+              onLog={(data) => onLogSet(exercise.exerciseId, data)}
+            />
+          </View>
         </>
       )}
     </View>

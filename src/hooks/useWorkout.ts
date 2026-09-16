@@ -20,6 +20,15 @@ export interface LoggedSet {
   isWarmup?: boolean;
 }
 
+// `ok` means the set is recorded on this phone — NOT that it reached Supabase.
+// Offline logging is a supported state with its own banner, so conflating the
+// two would make every underground workout look like a failure. Callers must
+// only report success (haptic, clearing the row) when ok is true.
+export interface LogSetOutcome {
+  ok: boolean;
+  isPR: boolean;
+}
+
 export interface WorkoutExercise {
   exerciseId: string;
   exerciseName: string;
@@ -59,15 +68,23 @@ interface WorkoutStore {
   // Pair this exercise with the NEXT one as a superset (or unpair if already
   // linked). Returns false when there's no valid partner.
   toggleSupersetWithNext: (exerciseId: string) => boolean;
+  // Records the set on this phone and returns synchronously. ok=false means
+  // nothing was recorded — the caller must NOT report success.
+  addSetLocal: (
+    exerciseId: string,
+    set: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }
+  ) => { ok: boolean; localId: string | null };
   logSet: (
     exerciseId: string,
     set: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean },
     workoutId: string | undefined,
     userId: string
-  ) => Promise<{ isPR: boolean }>;
+  ) => Promise<LogSetOutcome>;
   // Pushes everything unsynced (workout row + sets without a DB id) to Supabase.
   // ok=false means still offline; prLocalIds are sets that turned out to be PRs.
   syncPending: () => Promise<{ ok: boolean; prLocalIds: string[] }>;
+  // syncPending, serialised. Always prefer this over calling syncPending directly.
+  enqueueSync: () => Promise<{ ok: boolean; prLocalIds: string[] }>;
   updateSet: (exerciseId: string, localId: string, updates: Partial<LoggedSet>) => void;
   deleteSet: (exerciseId: string, localId: string) => void;
   finishWorkout: (notes?: string) => Promise<any>;
@@ -78,6 +95,14 @@ interface WorkoutStore {
 
 let localIdCounter = 0;
 const newLocalId = () => `local_${Date.now()}_${localIdCounter++}`;
+
+// Serialises syncPending. Logging no longer awaits the network, so two logs in
+// quick succession would otherwise overlap — and both would see the same
+// `!s.id` rows, re-running checkAndRecordPR and double-pushing into newPRs.
+// The client-UUID/23505 path would absorb the duplicate insert; the duplicated
+// PR in the finish recap it would not.
+let syncChain: Promise<{ ok: boolean; prLocalIds: string[] }> =
+  Promise.resolve({ ok: true, prLocalIds: [] });
 
 // Epley e1RM PR check + upsert. Returns whether this set beat the stored PR.
 // Any fetch error skips the check — never falsely celebrate on flaky signal.
@@ -235,12 +260,12 @@ export const useWorkoutStore = create<WorkoutStore>()(
     return true;
   },
 
-  logSet: async (exerciseId, setData, _workoutId, _userId) => {
+  addSetLocal: (exerciseId, setData) => {
     const { activeWorkout } = get();
-    if (!activeWorkout) return { isPR: false };
+    if (!activeWorkout) return { ok: false, localId: null };
 
     const ex = activeWorkout.exercises.find(e => e.exerciseId === exerciseId);
-    if (!ex) return { isPR: false };
+    if (!ex) return { ok: false, localId: null };
 
     const setNumber = ex.sets.length + 1;
     const localId = newLocalId();
@@ -267,8 +292,21 @@ export const useWorkoutStore = create<WorkoutStore>()(
       } : null,
     }));
 
-    const { prLocalIds } = await get().syncPending();
-    return { isPR: prLocalIds.includes(localId) };
+    return { ok: true, localId };
+  },
+
+  // Kept for callers that want the old await-the-network behaviour. The live
+  // logging path uses addSetLocal + enqueueSync so the button never waits.
+  logSet: async (exerciseId, setData) => {
+    const { ok, localId } = get().addSetLocal(exerciseId, setData);
+    if (!ok || !localId) return { ok: false, isPR: false };
+    const { prLocalIds } = await get().enqueueSync();
+    return { ok: true, isPR: prLocalIds.includes(localId) };
+  },
+
+  enqueueSync: () => {
+    syncChain = syncChain.catch(() => {}).then(() => get().syncPending());
+    return syncChain;
   },
 
   syncPending: async () => {
@@ -353,8 +391,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
       }
       set({ syncFailed: false });
       return { ok: true, prLocalIds };
-    } catch {
+    } catch (e: any) {
       // Still offline — everything without a DB id stays queued on-device.
+      // The user-facing banner says "offline", but an RLS or constraint failure
+      // lands here too and looks identical, so leave a trace for diagnosis.
+      console.warn('[syncPending] sync failed, sets stay queued on-device:', e?.message ?? e);
       set({ syncFailed: true });
       return { ok: false, prLocalIds };
     }
@@ -393,7 +434,9 @@ export const useWorkoutStore = create<WorkoutStore>()(
   finishWorkout: async (notes) => {
     // Everything must be on the server before the workout can close — a
     // finished workout with phone-only sets would silently lose them.
-    const { ok } = await get().syncPending();
+    // Via the chain, so this waits behind any log still in flight rather than
+    // racing it and concluding there is nothing left to push.
+    const { ok } = await get().enqueueSync();
     const { activeWorkout } = get();
     if (!activeWorkout) throw new Error('No active workout');
     if (!ok || !activeWorkout.id) {

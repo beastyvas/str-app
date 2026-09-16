@@ -1,13 +1,15 @@
-import { memo, useState, useRef } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal,
   KeyboardAvoidingView, Platform, Pressable, Alert, ScrollView,
+  InputAccessoryView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { toDisplay, toLbs, unitFromProfile } from '@/lib/units';
-import { LoggedSet } from '@/hooks/useWorkout';
+import { LoggedSet, LogSetOutcome } from '@/hooks/useWorkout';
+import { useSetDrafts } from '@/hooks/useSetDrafts';
 import {
   WeightMode, PlateSystem, PLATE_CONFIGS, defaultModeForEquipment, describeWeight,
 } from '@/lib/plateUtils';
@@ -19,14 +21,18 @@ const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 // set/props change, not on every parent pass.
 export const SetInputRow = memo(function SetInputRow({
   setNumber,
+  exerciseId,
+  exerciseName,
   prevSet,
   equipmentType,
   onLog,
 }: {
   setNumber: number;
+  exerciseId: string;
+  exerciseName: string;
   prevSet?: LoggedSet;
   equipmentType?: string;
-  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => Promise<{ isPR: boolean } | void>;
+  onLog: (data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }) => LogSetOutcome | Promise<LogSetOutcome>;
 }) {
   // Storage is lbs; everything typed/shown here is in the user's unit
   const { profile } = useAuth();
@@ -51,6 +57,7 @@ export const SetInputRow = memo(function SetInputRow({
   const [isWarmup, setIsWarmup] = useState(false);
   const [logging, setLogging] = useState(false);
   const [showRpe, setShowRpe] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
   const savedNumericWeight = useRef(weight);
 
   const cfg = PLATE_CONFIGS[plateSystem];
@@ -83,6 +90,12 @@ export const SetInputRow = memo(function SetInputRow({
     return parseFloat(weight);
   };
 
+  // Mirror whatever is typed into the draft store so handleFinishPress can see
+  // it. Nothing subscribes to that store, so this costs a map write, not a
+  // render. Cleared on a successful log and on unmount.
+  const setDraft = useSetDrafts(s => s.setDraft);
+  const clearDraft = useSetDrafts(s => s.clearDraft);
+
   const canLog = () => {
     const r = parseInt(reps);
     if (!r || r <= 0) return false;
@@ -91,6 +104,21 @@ export const SetInputRow = memo(function SetInputRow({
     return !!weight && parseFloat(weight) >= 0;
   };
 
+  useEffect(() => {
+    setDraft({
+      exerciseId,
+      exerciseName,
+      weight: toLbs(getWeight(), mode === 'plates' ? plateSystem : unit),
+      reps: parseInt(reps),
+      rpe,
+      note: note.trim() || undefined,
+      isWarmup,
+      canLog: canLog(),
+    });
+  }, [weight, reps, rpe, note, isWarmup, mode, plateSystem, unit, exerciseId, exerciseName]);
+
+  useEffect(() => () => clearDraft(exerciseId), [exerciseId]);
+
   const handleLog = async () => {
     if (!canLog()) return;
     // Plates mode is denominated in the plate system's unit; number mode in
@@ -98,9 +126,21 @@ export const SetInputRow = memo(function SetInputRow({
     const w = toLbs(getWeight(), mode === 'plates' ? plateSystem : unit);
     const r = parseInt(reps);
     setLogging(true);
+    setLogError(null);
     try {
-      await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined, isWarmup });
+      const result = await onLog({ weight: w, reps: r, rpe, note: note.trim() || undefined, isWarmup });
+
+      // Only report success when the set actually reached the store. Several
+      // paths used to return quietly here while this fired the success haptic
+      // and cleared the row, so a dropped set felt exactly like a logged one.
+      if (!result?.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setLogError("Couldn't log that set — tap ✓ to try again.");
+        return; // keep every field intact so the lifter can retry
+      }
+
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      clearDraft(exerciseId);
       // The row stays mounted between sets now — reset the per-set fields but
       // keep weight/reps, since the next set is usually the same load.
       setNote('');
@@ -109,7 +149,9 @@ export const SetInputRow = memo(function SetInputRow({
       setShowRpe(false);
       setIsWarmup(false);
     } finally {
-      setLogging(false);
+      // The store write is synchronous now, so this is just a double-tap guard
+      // rather than a network-length window that swallowed taps.
+      setTimeout(() => setLogging(false), 250);
     }
   };
 
@@ -124,6 +166,12 @@ export const SetInputRow = memo(function SetInputRow({
     paddingVertical: 10,
     letterSpacing: -0.5,
   };
+
+  // decimal-pad and number-pad have no return key, so without this bar the ✓ at
+  // the far right of the row is the only way to commit — and it sits behind the
+  // keyboard. iOS only; Android numeric IMEs vary too much to fake it.
+  // Unique per exercise: two cards must not share one accessory view.
+  const accessoryId = Platform.OS === 'ios' ? `log-accessory-${exerciseId}` : undefined;
 
   // Mode hint shown below the input row
   const modeHint = mode === 'bw'
@@ -151,9 +199,17 @@ export const SetInputRow = memo(function SetInputRow({
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
-        <Text style={{ color: Colors.textMuted, fontSize: 13, width: 22, textAlign: 'center', fontWeight: '700' }}>
-          {setNumber}
-        </Text>
+        {/* Accent number + label: the logged rows above use the same digit in
+            muted grey, and after a log this row still shows the carried-over
+            weight/reps, so the colour is what says "this one isn't in yet". */}
+        <View style={{ width: 22, alignItems: 'center' }}>
+          <Text style={{ color: Colors.accent, fontSize: 13, textAlign: 'center', fontWeight: '800' }}>
+            {setNumber}
+          </Text>
+          <Text style={{ color: Colors.accent, fontSize: 7, fontWeight: '800', letterSpacing: 0.3, opacity: 0.8 }}>
+            TO LOG
+          </Text>
+        </View>
 
         {/* LAST — the ghost target as a column; tap to autofill weight + reps */}
         <TouchableOpacity
@@ -198,6 +254,7 @@ export const SetInputRow = memo(function SetInputRow({
               placeholderTextColor={Colors.textMuted}
               style={inputStyle}
               selectTextOnFocus
+              inputAccessoryViewID={accessoryId}
             />
           )}
         </View>
@@ -213,6 +270,7 @@ export const SetInputRow = memo(function SetInputRow({
             placeholderTextColor={Colors.textMuted}
             style={inputStyle}
             selectTextOnFocus
+            inputAccessoryViewID={accessoryId}
           />
         </View>
 
@@ -242,6 +300,15 @@ export const SetInputRow = memo(function SetInputRow({
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Log failure — the row keeps its values so the ✓ is all that's needed */}
+      {logError && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+          <Text style={{ color: Colors.danger, fontSize: 11, fontWeight: '600' }}>
+            {logError}
+          </Text>
+        </View>
+      )}
 
       {/* Mode hint — explains BW and plates to new users */}
       {modeHint && (
@@ -435,6 +502,44 @@ export const SetInputRow = memo(function SetInputRow({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Commit affordance on the keyboard itself — the numeric pads have no
+          return key, and the ✓ is behind the keyboard while typing. */}
+      {accessoryId && (
+        <InputAccessoryView nativeID={accessoryId}>
+          <View
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+              paddingHorizontal: 16, paddingVertical: 8,
+              backgroundColor: Colors.surface2,
+              borderTopWidth: 1, borderTopColor: Colors.border,
+            }}
+          >
+            <Text style={{ color: Colors.textMuted, fontSize: 13, flex: 1 }} numberOfLines={1}>
+              {canLog()
+                ? `${mode === 'bw' ? 'BW' : getWeight()} × ${parseInt(reps)}`
+                : 'Enter weight and reps'}
+            </Text>
+            <TouchableOpacity
+              onPress={handleLog}
+              disabled={!canLog() || logging}
+              style={{
+                paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
+                backgroundColor: canLog() && !logging ? Colors.accent : Colors.surface,
+              }}
+            >
+              <Text
+                style={{
+                  color: canLog() && !logging ? Colors.bg : Colors.textMuted,
+                  fontSize: 13, fontWeight: '800',
+                }}
+              >
+                {logging ? 'Logging…' : 'Log set'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </View>
   );
 });

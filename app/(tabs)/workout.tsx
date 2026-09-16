@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useWorkoutStore } from '@/hooks/useWorkout';
+import { useWorkoutStore, LogSetOutcome } from '@/hooks/useWorkout';
 import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
 import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
@@ -27,7 +27,8 @@ import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { getRankResult, RankTier } from '@/constants/ranks';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
-import { fmtVolume, unitFromProfile } from '@/lib/units';
+import { fmtVolume, unitFromProfile, toDisplay } from '@/lib/units';
+import { useSetDrafts, pendingDrafts } from '@/hooks/useSetDrafts';
 import { screenText } from '@/lib/contentFilter';
 import { useStableCallback } from '@/lib/useStableCallback';
 import {
@@ -91,14 +92,14 @@ export default function WorkoutTab() {
     addExercise,
     replaceExercise,
     removeExercise,
-    logSet,
+    addSetLocal,
     updateSet,
     deleteSet,
     finishWorkout,
     discardWorkout,
     clearPRs,
     restoreWorkout,
-    syncPending,
+    enqueueSync,
     syncFailed,
     toggleSupersetWithNext,
   } = useWorkoutStore();
@@ -113,7 +114,7 @@ export default function WorkoutTab() {
         notifyWorkoutStarted(name);
       }
       // Push anything logged offline last session now that we may be back online
-      syncPending();
+      enqueueSync();
     }).finally(() => setRestoring(false));
   }, [user]);
 
@@ -371,104 +372,33 @@ export default function WorkoutTab() {
   // ─── LOG SET ──────────────────────────────────────────────────────────────
   // Stable identity (useStableCallback below) so memo'd ExerciseCards don't
   // re-render when this screen does.
-  const handleLogSet = async (
+  //
+  // The set lands in the store synchronously and this returns immediately. The
+  // Supabase write and the PR check run afterwards, off the serialised sync
+  // chain. Previously the ✓ stayed disabled for that entire round trip —
+  // insert, then a PR select, then a PR upsert — and any tap that landed in the
+  // window was swallowed with no haptic and no error. That is the 5-becomes-4.
+  const handleLogSet = (
     exerciseId: string,
-    data: { weight: number; reps: number; rpe?: number; note?: string }
-  ) => {
-    if (!activeWorkout || !user) return { isPR: false };
-    const result = await logSet(exerciseId, data, activeWorkout.id, user.id);
+    data: { weight: number; reps: number; rpe?: number; note?: string; isWarmup?: boolean }
+  ): LogSetOutcome => {
+    if (!activeWorkout || !user) return { ok: false, isPR: false };
+
+    const { ok, localId } = addSetLocal(exerciseId, data);
+    if (!ok || !localId) return { ok: false, isPR: false };
 
     // Advance first workout tutorial
     if (isFirstWorkout && tutorialStep === 'log_set') {
       setTutorialStep('finish');
     }
 
-    // Tag the most recently logged set with isPR
     const ex = useWorkoutStore.getState().activeWorkout?.exercises.find(e => e.exerciseId === exerciseId);
     if (ex && ex.sets.length > 0) {
-      const lastSet = ex.sets[ex.sets.length - 1];
-      setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
       // Feed coach
       const coachSet = { weight: data.weight, reps: data.reps, rpe: data.rpe, note: data.note, exerciseName: ex.exerciseName };
       const history = ex.sets.slice(0, -1).map(s => ({ weight: s.weight, reps: s.reps, rpe: s.rpe, note: s.note, exerciseName: ex.exerciseName }));
       setCoachHistory(history);
       setCoachLastSet(coachSet);
-    }
-
-    // Check for tier/sub-tier advancement on SBD PRs
-    if (result.isPR) {
-      const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
-      const exName = ex?.exerciseName ?? '';
-      if (SBD_NAMES.some(n => exName.toLowerCase() === n.toLowerCase())) {
-        // Fetch ALL PRs (filter to SBD inside getRankResult)
-        const { data: allPrs } = await supabase
-          .from('personal_records')
-          .select('weight, reps, exercises!inner(name)')
-          .eq('user_id', user.id);
-
-        const prs = (allPrs ?? []).map((p: any) => ({
-          exerciseName: p.exercises?.name ?? '',
-          weight: p.weight, reps: p.reps,
-        }));
-        const newResult = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
-        const newKey = newResult.tier.key;
-        const newMinScore = newResult.tier.minScore;
-        const newSubTier = newResult.subTier;
-
-        const prev = currentTierRef.current as any;
-        const thisLift = newResult.lifts.find(l => l.exercise.toLowerCase() === exName.toLowerCase());
-        const SBD_KEY: Record<string, string> = {
-          'barbell back squats': 'sqTier',
-          'barbell bench press': 'bpTier',
-          'deadlifts': 'dlTier',
-        };
-        const prevLiftTierKey = SBD_KEY[exName.toLowerCase()];
-        const prevLiftTier = prev?.[prevLiftTierKey] ?? 'beginner';
-        const TIER_COLORS_INLINE: Record<string, string> = {
-          beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
-          silver: Colors.tiers.silver, gold: Colors.tiers.gold,
-          platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
-        };
-
-        if (!prev) {
-          // First ever SBD PR — always fire
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(newSubTier);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        } else if (newMinScore > prev.minScore) {
-          // Full overall rank advance
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(undefined);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        } else if (newKey === prev.key && newSubTier > prev.subTier) {
-          // Sub-tier advance within same rank
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(newSubTier);
-          setIsSubTierAdvance(true);
-          setShowTierAdvancement(true);
-        } else if (thisLift && thisLift.tier !== prevLiftTier && thisLift.tier !== 'beginner') {
-          // Individual lift tier advanced (squat/bench/deadlift tier went up)
-          // even if the overall weakest-link rank didn't change yet
-          const liftLabel = exName.replace('Barbell ', '').replace(' Squats', ' Squat').toUpperCase();
-          const tierLabel = (thisLift.tier.charAt(0).toUpperCase() + thisLift.tier.slice(1)).toUpperCase();
-          const liftColor = TIER_COLORS_INLINE[thisLift.tier];
-          // Mutate the tier object temporarily to pass lift info
-          const liftTierObj = { ...newResult.tier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
-          setTierAdvancement(liftTierObj as any);
-          setTierAdvSubTier(undefined);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        }
-
-        currentTierRef.current = {
-          key: newKey, subTier: newSubTier, minScore: newMinScore,
-          sqTier: newResult.lifts[0]?.tier ?? 'beginner',
-          bpTier: newResult.lifts[1]?.tier ?? 'beginner',
-          dlTier: newResult.lifts[2]?.tier ?? 'beginner',
-        };
-      }
     }
 
     // Lock screen notification + Live Activity update
@@ -484,7 +414,93 @@ export default function WorkoutTab() {
       restSeconds: restAlertSeconds,
     });
 
-    return result;
+    // The network half, deliberately un-awaited: the row is already on screen.
+    // The PR badge and any tier celebration land a beat later, which reads as a
+    // reward rather than a stall.
+    void enqueueSync().then(({ prLocalIds }) => {
+      if (!prLocalIds.includes(localId)) return;
+      setPrMap(prev => ({ ...prev, [localId]: true }));
+      void checkTierAdvancement(exName);
+    });
+
+    return { ok: true, isPR: false };
+  };
+
+  // Fires the tier/sub-tier advancement screen after an SBD PR. Split out of
+  // handleLogSet when logging stopped awaiting the network.
+  const checkTierAdvancement = async (exName: string) => {
+    if (!user) return;
+    const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
+    if (!SBD_NAMES.some(n => exName.toLowerCase() === n.toLowerCase())) return;
+
+    // Fetch ALL PRs (filter to SBD inside getRankResult)
+    const { data: allPrs } = await supabase
+      .from('personal_records')
+      .select('weight, reps, exercises!inner(name)')
+      .eq('user_id', user.id);
+
+    const prs = (allPrs ?? []).map((p: any) => ({
+      exerciseName: p.exercises?.name ?? '',
+      weight: p.weight, reps: p.reps,
+    }));
+    const newResult = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
+    const newKey = newResult.tier.key;
+    const newMinScore = newResult.tier.minScore;
+    const newSubTier = newResult.subTier;
+
+    const prev = currentTierRef.current as any;
+    const thisLift = newResult.lifts.find(l => l.exercise.toLowerCase() === exName.toLowerCase());
+    const SBD_KEY: Record<string, string> = {
+      'barbell back squats': 'sqTier',
+      'barbell bench press': 'bpTier',
+      'deadlifts': 'dlTier',
+    };
+    const prevLiftTierKey = SBD_KEY[exName.toLowerCase()];
+    const prevLiftTier = prev?.[prevLiftTierKey] ?? 'beginner';
+    const TIER_COLORS_INLINE: Record<string, string> = {
+      beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
+      silver: Colors.tiers.silver, gold: Colors.tiers.gold,
+      platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
+    };
+
+    if (!prev) {
+      // First ever SBD PR — always fire
+      setTierAdvancement(newResult.tier);
+      setTierAdvSubTier(newSubTier);
+      setIsSubTierAdvance(false);
+      setShowTierAdvancement(true);
+    } else if (newMinScore > prev.minScore) {
+      // Full overall rank advance
+      setTierAdvancement(newResult.tier);
+      setTierAdvSubTier(undefined);
+      setIsSubTierAdvance(false);
+      setShowTierAdvancement(true);
+    } else if (newKey === prev.key && newSubTier > prev.subTier) {
+      // Sub-tier advance within same rank
+      setTierAdvancement(newResult.tier);
+      setTierAdvSubTier(newSubTier);
+      setIsSubTierAdvance(true);
+      setShowTierAdvancement(true);
+    } else if (thisLift && thisLift.tier !== prevLiftTier && thisLift.tier !== 'beginner') {
+      // Individual lift tier advanced (squat/bench/deadlift tier went up)
+      // even if the overall weakest-link rank didn't change yet
+      const liftLabel = exName.replace('Barbell ', '').replace(' Squats', ' Squat').toUpperCase();
+      const tierLabel = (thisLift.tier.charAt(0).toUpperCase() + thisLift.tier.slice(1)).toUpperCase();
+      const liftColor = TIER_COLORS_INLINE[thisLift.tier];
+      // Mutate the tier object temporarily to pass lift info
+      const liftTierObj = { ...newResult.tier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
+      setTierAdvancement(liftTierObj as any);
+      setTierAdvSubTier(undefined);
+      setIsSubTierAdvance(false);
+      setShowTierAdvancement(true);
+    }
+
+    currentTierRef.current = {
+      key: newKey, subTier: newSubTier, minScore: newMinScore,
+      sqTier: newResult.lifts[0]?.tier ?? 'beginner',
+      bpTier: newResult.lifts[1]?.tier ?? 'beginner',
+      dlTier: newResult.lifts[2]?.tier ?? 'beginner',
+    };
   };
 
   // Identity-stable wrappers for props of memo'd ExerciseCards. Store actions
@@ -495,13 +511,63 @@ export default function WorkoutTab() {
   const navigateToExerciseDetail = useStableCallback((id: string) => router.push(`/exercise/${id}`));
 
   // ─── FINISH WORKOUT ───────────────────────────────────────────────────────
+  // Storage is lbs; the prompt has to name the numbers the lifter typed.
+  const fmtWeightForPrompt = (lbs: number) =>
+    lbs === 0 ? 'BW' : `${toDisplay(lbs, unit)} ${unit}`;
+
   const handleFinishPress = () => {
     if (!activeWorkout) return;
     const totalSets = activeWorkout.exercises.reduce((n, e) => n + e.sets.length, 0);
-    if (totalSets === 0) {
+
+    // Anything typed into an open input row but never committed with ✓. Without
+    // this check it is discarded silently: the finish count only sees the store.
+    const drafts = pendingDrafts();
+
+    if (totalSets === 0 && drafts.length === 0) {
       Alert.alert('No sets logged', 'Log at least one set before finishing.');
       return;
     }
+
+    if (drafts.length > 0) {
+      const shown = drafts.slice(0, 3)
+        .map(d => `${d.exerciseName} — ${fmtWeightForPrompt(d.weight)} × ${d.reps}`)
+        .join('\n');
+      const more = drafts.length > 3 ? `\n+${drafts.length - 3} more` : '';
+      Alert.alert(
+        drafts.length === 1 ? "One set isn't logged yet" : `${drafts.length} sets aren't logged yet`,
+        `${shown}${more}`,
+        [
+          {
+            text: drafts.length === 1 ? 'Log it and finish' : 'Log them and finish',
+            onPress: () => {
+              for (const d of drafts) {
+                handleLogSet(d.exerciseId, {
+                  weight: d.weight, reps: d.reps, rpe: d.rpe,
+                  note: d.note, isWarmup: d.isWarmup,
+                });
+              }
+              useSetDrafts.getState().clearAll();
+              setShowFinishModal(true);
+            },
+          },
+          {
+            text: drafts.length === 1 ? 'Discard it' : 'Discard them',
+            style: 'destructive',
+            onPress: () => {
+              useSetDrafts.getState().clearAll();
+              if (totalSets === 0) {
+                Alert.alert('No sets logged', 'Log at least one set before finishing.');
+                return;
+              }
+              setShowFinishModal(true);
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
     setShowFinishModal(true);
   };
 
@@ -554,6 +620,7 @@ export default function WorkoutTab() {
       // Recap first, everything else after — the transition should feel instant.
       setPrMap({});
       setPrevSetsCache({});
+      useSetDrafts.getState().clearAll();
       setIsFirstWorkout(false);
       setTutorialStep('done');
       clearWorkoutNotifications();
@@ -574,9 +641,15 @@ export default function WorkoutTab() {
   };
 
   const handleDiscard = () => {
+    // Name the uncommitted input too, so "all logged sets" isn't quietly
+    // understating what is about to go.
+    const drafts = pendingDrafts();
+    const draftLine = drafts.length > 0
+      ? ` ${drafts.length} typed-but-unlogged ${drafts.length === 1 ? 'set' : 'sets'} will go too.`
+      : '';
     Alert.alert(
       'Discard Workout',
-      'This will delete the workout and all logged sets. Are you sure?',
+      `This will delete the workout and all logged sets.${draftLine} Are you sure?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -588,6 +661,7 @@ export default function WorkoutTab() {
             WorkoutLiveActivity.endActivity();
             setPrMap({});
             setPrevSetsCache({});
+            useSetDrafts.getState().clearAll();
           },
         },
       ]
@@ -842,7 +916,7 @@ export default function WorkoutTab() {
           never during the normal in-flight moment of an online log */}
       {syncFailed && pendingSyncCount > 0 && (
         <TouchableOpacity
-          onPress={() => syncPending()}
+          onPress={() => enqueueSync()}
           activeOpacity={0.8}
           style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
