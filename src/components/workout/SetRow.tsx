@@ -15,6 +15,28 @@ import { IconSymbol } from '@/components/ui';
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
+// 34pt tall + 7pt hitSlop each side ≈ 48pt effective target
+function StepButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={{ top: 7, bottom: 7 }}
+      activeOpacity={0.6}
+      style={{
+        flex: 1, height: 34, borderRadius: 8,
+        backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
+        alignItems: 'center', justifyContent: 'center',
+        opacity: disabled ? 0.35 : 1,
+      }}
+    >
+      <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 // memo: rows live inside memo'd ExerciseCards; only re-render when their own
 // set/props change, not on every parent pass.
 export const SetInputRow = memo(function SetInputRow({
@@ -134,6 +156,20 @@ export const SetInputRow = memo(function SetInputRow({
       : describeWeight(plateWeight, cfg)
     : null;
 
+  // Steppers — adjust load/reps with sweaty hands, no keyboard mid-set
+  const weightStep = unit === 'kg' ? 2.5 : 5;
+  const stepWeight = (dir: 1 | -1) => {
+    const cur = parseFloat(weight) || 0;
+    const next = Math.max(0, Math.round((cur + dir * weightStep) * 10) / 10);
+    setWeight(String(next));
+    Haptics.selectionAsync().catch(() => {});
+  };
+  const stepReps = (dir: 1 | -1) => {
+    const next = Math.max(0, (parseInt(reps) || 0) + dir);
+    setReps(next ? String(next) : '');
+    Haptics.selectionAsync().catch(() => {});
+  };
+
   // Ghost autofill — tap LAST to load last session's numbers for this set
   const applyGhost = () => {
     if (!prevSet) return;
@@ -202,7 +238,7 @@ export const SetInputRow = memo(function SetInputRow({
           )}
         </View>
 
-        <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300' }}>×</Text>
+        <Text style={{ color: Colors.textMuted, fontSize: 18, fontWeight: '300', width: 14, textAlign: 'center' }}>×</Text>
 
         <View style={{ flex: 1 }}>
           <TextInput
@@ -222,9 +258,9 @@ export const SetInputRow = memo(function SetInputRow({
           disabled={!canLog() || logging}
           hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
+            width: 48,
+            height: 48,
+            borderRadius: 24,
             backgroundColor: canLog() && !logging ? Colors.accent : Colors.surface2,
             alignItems: 'center',
             justifyContent: 'center',
@@ -241,6 +277,26 @@ export const SetInputRow = memo(function SetInputRow({
             <IconSymbol name="check" size={22} color={canLog() ? '#141210' : Colors.textMuted} />
           )}
         </TouchableOpacity>
+      </View>
+
+      {/* Stepper strip — aligned under the WEIGHT and REPS columns */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+        <View style={{ width: 22 }} />
+        <View style={{ width: 58 }} />
+        <View style={{ flex: 1.6, flexDirection: 'row', gap: 6 }}>
+          {mode === 'number' && (
+            <>
+              <StepButton label={`−${weightStep}`} onPress={() => stepWeight(-1)} disabled={!(parseFloat(weight) > 0)} />
+              <StepButton label={`+${weightStep}`} onPress={() => stepWeight(1)} />
+            </>
+          )}
+        </View>
+        <View style={{ width: 14 }} />
+        <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+          <StepButton label="−1" onPress={() => stepReps(-1)} disabled={!(parseInt(reps) > 0)} />
+          <StepButton label="+1" onPress={() => stepReps(1)} />
+        </View>
+        <View style={{ width: 48 }} />
       </View>
 
       {/* Mode hint — explains BW and plates to new users */}
@@ -263,7 +319,7 @@ export const SetInputRow = memo(function SetInputRow({
             backgroundColor: note ? Colors.accentDim : Colors.surface2,
             borderRadius: 8, borderWidth: 1,
             borderColor: note ? Colors.accent + '80' : Colors.border,
-            paddingHorizontal: 10, paddingVertical: 7,
+            paddingHorizontal: 10, paddingVertical: 10,
           }}
         >
           <IconSymbol name="comment" size={12} color={note ? Colors.accent : Colors.textMuted} />
@@ -281,7 +337,7 @@ export const SetInputRow = memo(function SetInputRow({
             backgroundColor: rpe ? Colors.accentDim : Colors.surface2,
             borderRadius: 8, borderWidth: 1,
             borderColor: rpe ? Colors.accent : Colors.border,
-            paddingHorizontal: 10, paddingVertical: 7, minWidth: 46, alignItems: 'center',
+            paddingHorizontal: 10, paddingVertical: 10, minWidth: 46, alignItems: 'center',
           }}
         >
           <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
@@ -294,7 +350,7 @@ export const SetInputRow = memo(function SetInputRow({
           onPress={() => setIsWarmup(w => !w)}
           style={{
             backgroundColor: isWarmup ? '#E0632E' + '25' : Colors.surface2,
-            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 10,
             borderWidth: 1, borderColor: isWarmup ? '#E0632E' + '60' : Colors.border,
             minWidth: 30, alignItems: 'center',
           }}
@@ -308,7 +364,7 @@ export const SetInputRow = memo(function SetInputRow({
           hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
           style={{
             backgroundColor: mode !== 'number' ? Colors.accentDim : Colors.surface2,
-            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+            borderRadius: 8, paddingHorizontal: 9, paddingVertical: 10,
             borderWidth: 1,
             borderColor: mode !== 'number' ? Colors.accent + '60' : Colors.border,
             minWidth: 34, alignItems: 'center',

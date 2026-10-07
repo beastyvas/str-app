@@ -248,7 +248,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1, textAlign: 'center', fontWeight: '700' }}>
               REPS
             </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 44 }} />
+            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 48 }} />
           </View>
 
           {/* Logged sets */}
