@@ -50,7 +50,7 @@ export function TemplateBuilderSheet({ visible, onClose, onSaved }: TemplateBuil
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
           <AppText variant="title" style={styles.headerTitle}>New Template</AppText>

@@ -31,7 +31,7 @@ export function QRModal({ visible, userId, username, displayName, tierLabel, tie
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         {/* Header */}
         <View style={{

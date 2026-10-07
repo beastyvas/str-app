@@ -1268,7 +1268,7 @@ export default function SocialScreen() {
       )}
 
       {/* Comments Modal */}
-      <Modal visible={!!commentWorkoutId} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={!!commentWorkoutId} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setCommentWorkoutId(null)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={{
@@ -1380,7 +1380,7 @@ export default function SocialScreen() {
       />
 
       {/* QR Scanner Modal */}
-      <Modal visible={showScanner} animationType="slide" statusBarTranslucent>
+      <Modal visible={showScanner} animationType="slide" statusBarTranslucent onRequestClose={() => setShowScanner(false)}>
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           {/* Full screen camera */}
           <CameraView

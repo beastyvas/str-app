@@ -368,7 +368,7 @@ export function FriendProfileModal({ visible, userId, onClose, onFriended }: Pro
   })();
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         {/* Header */}
         <View style={{

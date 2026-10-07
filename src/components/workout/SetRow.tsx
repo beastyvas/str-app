@@ -1,8 +1,5 @@
 import { memo, useState, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, TextInput, Modal,
-  KeyboardAvoidingView, Platform, Pressable, Alert, ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +8,7 @@ import { LoggedSet } from '@/hooks/useWorkout';
 import {
   WeightMode, PlateSystem, PLATE_CONFIGS, defaultModeForEquipment, describeWeight,
 } from '@/lib/plateUtils';
-import { IconSymbol } from '@/components/ui';
+import { IconSymbol, SheetModal } from '@/components/ui';
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
@@ -458,10 +455,8 @@ export const SetInputRow = memo(function SetInputRow({
       )}
 
       {/* Note Modal */}
-      <Modal visible={noteOpen} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setNoteOpen(false)} />
-          <View style={{ backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border, padding: 16, gap: 12 }}>
+      <SheetModal visible={noteOpen} onClose={() => setNoteOpen(false)}>
+          <View style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ color: Colors.textMuted, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>Set note</Text>
               <TouchableOpacity onPress={() => setNoteOpen(false)}>
@@ -489,8 +484,7 @@ export const SetInputRow = memo(function SetInputRow({
               }}
             />
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </SheetModal>
     </View>
   );
 });
@@ -534,7 +528,8 @@ export const LoggedSetRow = memo(function LoggedSetRow({
   const handleSaveEdit = () => {
     const w = parseFloat(weight);
     const r = parseInt(reps);
-    if (!w || !r) return;
+    // weight 0 is a valid bodyweight set — only reject NaN/negative
+    if (isNaN(w) || w < 0 || !r) return;
     onEdit?.(set.localId, { weight: toLbs(w, unit), reps: r, rpe, note: note.trim() || undefined });
     setEditOpen(false);
   };
@@ -609,16 +604,8 @@ export const LoggedSetRow = memo(function LoggedSetRow({
       </TouchableOpacity>
 
       {/* Edit Modal */}
-      <Modal visible={editOpen} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} onPress={() => setEditOpen(false)} />
-          <View style={{
-            backgroundColor: Colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: Colors.border,
-            padding: 20,
-            gap: 14,
-          }}>
+      <SheetModal visible={editOpen} onClose={() => setEditOpen(false)}>
+          <View style={{ gap: 14 }}>
             <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
               Edit Set {set.setNumber}
             </Text>
@@ -693,7 +680,7 @@ export const LoggedSetRow = memo(function LoggedSetRow({
                 onPress={handleSaveEdit}
                 style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.accent, alignItems: 'center' }}
               >
-                <Text style={{ color: Colors.text, fontWeight: '800' }}>Save</Text>
+                <Text style={{ color: '#141210', fontWeight: '800' }}>Save</Text>
               </TouchableOpacity>
             </View>
             {onDelete && (
@@ -702,8 +689,7 @@ export const LoggedSetRow = memo(function LoggedSetRow({
               </TouchableOpacity>
             )}
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </SheetModal>
     </>
   );
 });

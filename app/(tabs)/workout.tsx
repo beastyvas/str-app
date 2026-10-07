@@ -1041,7 +1041,7 @@ export default function WorkoutTab() {
       />
 
       {/* Templates — viewable mid-workout without leaving the session */}
-      <Modal visible={showMidWorkoutTemplates} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showMidWorkoutTemplates} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setShowMidWorkoutTemplates(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <View style={{
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -1099,7 +1099,7 @@ export default function WorkoutTab() {
       </Modal>
 
       {/* Finish Modal — social post style */}
-      <Modal visible={showFinishModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showFinishModal} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setShowFinishModal(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             {/* Header */}

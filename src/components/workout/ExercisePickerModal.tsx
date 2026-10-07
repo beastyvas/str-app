@@ -209,7 +209,7 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
   }, [alreadyAdded, selectedGroup, search]);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={handleClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}

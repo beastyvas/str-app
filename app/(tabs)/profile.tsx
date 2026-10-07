@@ -26,6 +26,7 @@ import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units'
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
 import { IconSymbol } from '@/components/ui';
+import { SbdEntrySheet } from '@/components/home/SbdEntrySheet';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -1237,57 +1238,19 @@ export default function ProfileScreen() {
         />
       )}
 
-      {/* SBD Entry Modal */}
-      <Modal visible={sbdModalOpen} transparent animationType="slide">
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={() => setSbdModalOpen(false)} />
-          <View style={{
-            backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-            padding: 24, borderTopWidth: 1, borderTopColor: Colors.border, gap: 16,
-          }}>
-            <View>
-              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>Your SBD Maxes</Text>
-              <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 4 }}>
-                Best single or heavy working set. Updates your rank instantly.
-              </Text>
-            </View>
-            {[
-              { label: 'Squat', key: 'sq' as const, placeholder: '315' },
-              { label: 'Bench', key: 'bp' as const, placeholder: '225' },
-              { label: 'Deadlift', key: 'dl' as const, placeholder: '405' },
-            ].map(({ label, key, placeholder }) => (
-              <View key={key}>
-                <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
-                  {label} ({displayUnit})
-                </Text>
-                <TextInput
-                  value={sbdInputs[key]}
-                  onChangeText={v => setSbdInputs(prev => ({ ...prev, [key]: v }))}
-                  keyboardType="number-pad"
-                  placeholder={placeholder}
-                  placeholderTextColor={Colors.textMuted}
-                  style={{
-                    backgroundColor: Colors.surface2, borderRadius: 12,
-                    paddingHorizontal: 16, paddingVertical: 14,
-                    color: Colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -1,
-                    borderWidth: 1, borderColor: Colors.border,
-                  }}
-                />
-              </View>
-            ))}
-            <TouchableOpacity
-              onPress={saveSBD}
-              disabled={sbdSaving}
-              style={{ backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 }}
-            >
-              {sbdSaving ? <ActivityIndicator color={Colors.text} /> : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>SAVE & UPDATE RANK</Text>}
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* SBD Entry — shared with Home */}
+      <SbdEntrySheet
+        visible={sbdModalOpen}
+        unit={displayUnit}
+        inputs={sbdInputs}
+        saving={sbdSaving}
+        onChange={setSbdInputs}
+        onSave={saveSBD}
+        onClose={() => setSbdModalOpen(false)}
+      />
 
       {/* ── EDIT MODAL ──────────────────────────────────────────────────────── */}
-      <Modal visible={editing} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={editing} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setEditing(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={{
@@ -1365,7 +1328,7 @@ export default function ProfileScreen() {
       </Modal>
 
       {/* ── SPLIT EDITOR MODAL ───────────────────────────────────────────────── */}
-      <Modal visible={showSplitEditor} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showSplitEditor} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setShowSplitEditor(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={{
@@ -1553,7 +1516,7 @@ export default function ProfileScreen() {
 
 
       {/* ── LIFTER DNA MODAL ─────────────────────────────────────────────────── */}
-      <Modal visible={dnaModalOpen} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={dnaModalOpen} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setDnaModalOpen(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={{

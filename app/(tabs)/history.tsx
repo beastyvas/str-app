@@ -8,6 +8,7 @@ import { FlashList } from '@shopify/flash-list';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+import { SheetModal } from '@/components/ui';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -479,14 +480,8 @@ function WorkoutBottomSheet({ workout, onClose }: { workout: WorkoutData; onClos
   const formatVolume = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
   return (
-    <Modal visible transparent animationType="slide">
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
-        <View style={{
-          backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          padding: 24, paddingBottom: 40, borderTopWidth: 1, borderTopColor: Colors.border,
-          maxHeight: '70%',
-        }}>
+    <SheetModal visible onClose={onClose} keyboardAware={false}>
+        <View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 }}>{workout.name}</Text>
@@ -541,8 +536,7 @@ function WorkoutBottomSheet({ workout, onClose }: { workout: WorkoutData; onClos
             ))}
           </ScrollView>
         </View>
-      </View>
-    </Modal>
+    </SheetModal>
   );
 }
 
@@ -635,7 +629,7 @@ function ExerciseProgressModal({
   const modes: ChartMode[] = ['Max Weight', 'Est. 1RM', 'Volume'];
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet">
+    <Modal visible animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: Colors.bg, paddingTop: insets.top }}>
         {/* Header */}
         <View style={{

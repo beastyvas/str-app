@@ -143,7 +143,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
         <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
           {/* Close */}
