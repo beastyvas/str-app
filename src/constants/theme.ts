@@ -26,17 +26,18 @@ export const Radius = {
   pill: 999,
 } as const;
 
-// Codifies the app's existing voice: heavy weights, tight negative tracking
-// on display text, wide-tracked uppercase overlines, tabular numerals on
-// anything that counts. Spread into style arrays: [Type.title, { ... }].
+// Weight is hierarchy: 800 is reserved for hero numbers and display text
+// (display, statValue) — when everything is bold, nothing is. Titles 700,
+// body 400. Tight tracking on display, wide-tracked overlines, tabular
+// numerals on anything that counts. Spread into style arrays: [Type.title, { ... }].
 export const Type = {
   display: { fontSize: 32, fontWeight: '800', letterSpacing: -1.5, lineHeight: 36, color: Colors.text },
-  title: { fontSize: 22, fontWeight: '800', letterSpacing: -0.6, color: Colors.text },
-  heading: { fontSize: 16, fontWeight: '800', letterSpacing: -0.4, color: Colors.text },
-  body: { fontSize: 14, fontWeight: '500', color: Colors.textSecondary, lineHeight: 20 },
-  caption: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.6, color: Colors.text },
+  heading: { fontSize: 16, fontWeight: '700', letterSpacing: -0.4, color: Colors.text },
+  body: { fontSize: 14, fontWeight: '400', color: Colors.textSecondary, lineHeight: 20 },
+  caption: { fontSize: 12, fontWeight: '500', color: Colors.textSecondary },
   micro: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
-  overline: { fontSize: 11, fontWeight: '700', letterSpacing: 2.5, textTransform: 'uppercase', color: Colors.textMuted },
+  overline: { fontSize: 11, fontWeight: '600', letterSpacing: 2.5, textTransform: 'uppercase', color: Colors.textMuted },
   statValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'], color: Colors.text },
   mono: { fontVariant: ['tabular-nums'] },
 } as const satisfies Record<string, TextStyle>;

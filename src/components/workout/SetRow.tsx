@@ -27,7 +27,7 @@ function StepButton({ label, onPress, disabled }: { label: string; onPress: () =
         opacity: disabled ? 0.35 : 1,
       }}
     >
-      <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+      <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -184,7 +184,7 @@ export const SetInputRow = memo(function SetInputRow({
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
-        <Text style={{ color: Colors.textMuted, fontSize: 13, width: 22, textAlign: 'center', fontWeight: '700' }}>
+        <Text style={{ color: Colors.textMuted, fontSize: 13, width: 22, textAlign: 'center', fontWeight: '600' }}>
           {setNumber}
         </Text>
 
@@ -197,7 +197,7 @@ export const SetInputRow = memo(function SetInputRow({
         >
           {prevSet ? (
             <>
-              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }} numberOfLines={1}>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] }} numberOfLines={1}>
                 {prevSet.weight === 0 ? 'BW' : toDisplay(prevSet.weight, unit)}×{prevSet.reps}
               </Text>
               <Text style={{ color: Colors.accent, fontSize: 7, fontWeight: '800', letterSpacing: 0.8 }}>
@@ -337,7 +337,7 @@ export const SetInputRow = memo(function SetInputRow({
             paddingHorizontal: 10, paddingVertical: 10, minWidth: 46, alignItems: 'center',
           }}
         >
-          <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+          <Text style={{ color: rpe ? Colors.accent : Colors.textMuted, fontSize: 11, fontWeight: '600' }}>
             {rpe ? `@${rpe}` : 'RPE'}
           </Text>
         </TouchableOpacity>
@@ -352,7 +352,7 @@ export const SetInputRow = memo(function SetInputRow({
             minWidth: 30, alignItems: 'center',
           }}
         >
-          <Text style={{ color: isWarmup ? '#E0632E' : Colors.textMuted, fontSize: 11, fontWeight: '800' }}>W</Text>
+          <Text style={{ color: isWarmup ? '#E0632E' : Colors.textMuted, fontSize: 11, fontWeight: '700' }}>W</Text>
         </TouchableOpacity>
 
         {/* Weight-mode cycle (number / BW / plates) */}
@@ -606,7 +606,7 @@ export const LoggedSetRow = memo(function LoggedSetRow({
       {/* Edit Modal */}
       <SheetModal visible={editOpen} onClose={() => setEditOpen(false)}>
           <View style={{ gap: 14 }}>
-            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
+            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '700' }}>
               Edit Set {set.setNumber}
             </Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>

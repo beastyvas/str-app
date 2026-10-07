@@ -112,7 +112,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           <Text style={{
             color: Colors.text,
             fontSize: 16,
-            fontWeight: '800',
+            fontWeight: '700',
             letterSpacing: -0.4,
           }}>
             {exercise.exerciseName}
