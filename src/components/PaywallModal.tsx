@@ -37,13 +37,14 @@ const FREE_FEATURES = [
   'Workout history (last 90 days)',
 ];
 
+// Only what Pro actually gates. (Lifter DNA and imports are free for
+// everyone; there is no separate "priority" AI tier — don't list them.)
 const PRO_FEATURES = [
-  { label: 'Unlimited AI Coach', sub: 'Ask anything, anytime' },
+  { label: 'Unlimited AI Coach', sub: 'Free plan: 5 questions a week' },
+  { label: 'Live in-workout coach', sub: 'Reads your set notes between sets' },
+  { label: 'Unlimited monthly analysis', sub: 'Free plan: one a month' },
   { label: 'Full workout history', sub: 'Every session, forever' },
-  { label: 'Lifter DNA', sub: 'Coach learns who you are' },
-  { label: 'Unlimited log imports', sub: 'Migrate all your old data' },
-  { label: 'Workout export', sub: 'CSV + PDF' },
-  { label: 'Priority AI responses', sub: 'Longer, deeper analysis' },
+  { label: 'Workout export', sub: 'CSV of every set you’ve logged' },
 ];
 
 export function PaywallModal({ visible, onClose, reason }: Props) {
