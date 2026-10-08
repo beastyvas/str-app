@@ -4,6 +4,7 @@ import {
   Modal, Dimensions, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
@@ -770,6 +771,35 @@ function ExerciseProgressModal({
   );
 }
 
+// Pro means "every session, forever" — so history pages instead of a hard
+// cap (it used to stop at the 60 most recent workouts for everyone).
+const HISTORY_PAGE = 60;
+
+function mapWorkoutRows(rows: any[], unit: ReturnType<typeof unitFromProfile>): WorkoutData[] {
+  return rows.map((w: any) => {
+    const sets: WorkoutSet[] = w.workout_sets ?? [];
+    const totalVolume = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
+    const exerciseNames = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
+    const muscleGroups = [...new Set(sets.map((s: any) => s.exercises?.muscle_group).filter(Boolean))] as string[];
+    const durMins = w.ended_at ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000) : 0;
+    const topSet = sets.reduce((best: any, s: any) => {
+      const e1rm = s.weight * (1 + s.reps / 30);
+      const bestE1rm = best ? best.weight * (1 + best.reps / 30) : 0;
+      return e1rm > bestE1rm ? s : best;
+    }, null);
+    return {
+      ...w,
+      _sets: sets,
+      sets_count: sets.length,
+      total_volume: totalVolume,
+      exercises: exerciseNames,
+      muscle_groups: muscleGroups,
+      top_set: topSet ? `${topSet.exercises?.name} ${toDisplay(topSet.weight, unit)}×${topSet.reps}` : '',
+      duration_mins: durMins,
+    };
+  });
+}
+
 // ─── Main History Screen ───────────────────────────────────────────────────
 export default function HistoryScreen() {
   const { isPro, historyLimit } = useSubscription();
@@ -791,58 +821,77 @@ export default function HistoryScreen() {
   const isProRef = useRef(isPro);
   isProRef.current = isPro;
 
+  const [hasMore, setHasMore] = useState(true);
+  const loadingMoreRef = useRef(false);
+
+  const fetchPage = useCallback(async (from: number): Promise<WorkoutData[] | null> => {
+    if (!user) return null;
+    let query = supabase
+      .from('workouts')
+      .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
+      .eq('user_id', user.id)
+      .not('ended_at', 'is', null)
+      .order('started_at', { ascending: false })
+      .range(from, from + HISTORY_PAGE - 1);
+    if (!isProRef.current) {
+      query = query.gte('started_at', new Date(Date.now() - 90 * 86400000).toISOString());
+    }
+    const { data } = await query;
+    return data ? mapWorkoutRows(data, unit) : null;
+  }, [user?.id, unit]);
+
   useEffect(() => {
     let cancelled = false;
     const doLoad = async () => {
       if (!user) return;
       if (loadKey === 0) setLoading(true);
-      let query = supabase
-        .from('workouts')
-        .select(`*, workout_sets(weight, reps, set_number, rpe, note, logged_at, exercises(name, muscle_group))`)
-        .eq('user_id', user.id)
-        .not('ended_at', 'is', null)
-        .order('started_at', { ascending: false })
-        .limit(60);
-
-      if (!isProRef.current) {
-        query = query.gte('started_at', new Date(Date.now() - 90 * 86400000).toISOString());
-      }
-
-      const { data } = await query;
+      const fresh = await fetchPage(0);
       if (cancelled) return;
-
-      if (data) {
-        const mapped: WorkoutData[] = data.map((w: any) => {
-          const sets: WorkoutSet[] = w.workout_sets ?? [];
-          const totalVolume = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
-          const exerciseNames = [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[];
-          const muscleGroups = [...new Set(sets.map((s: any) => s.exercises?.muscle_group).filter(Boolean))] as string[];
-          const durMins = w.ended_at ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000) : 0;
-          const topSet = sets.reduce((best: any, s: any) => {
-            const e1rm = s.weight * (1 + s.reps / 30);
-            const bestE1rm = best ? best.weight * (1 + best.reps / 30) : 0;
-            return e1rm > bestE1rm ? s : best;
-          }, null);
-          return {
-            ...w,
-            _sets: sets,
-            sets_count: sets.length,
-            total_volume: totalVolume,
-            exercises: exerciseNames,
-            muscle_groups: muscleGroups,
-            top_set: topSet ? `${topSet.exercises?.name} ${toDisplay(topSet.weight, unit)}×${topSet.reps}` : '',
-            duration_mins: durMins,
-          };
+      if (fresh) {
+        const freshIsAll = fresh.length < HISTORY_PAGE;
+        setWorkouts(prev => {
+          if (loadKey === 0 || prev.length === 0 || freshIsAll) return fresh;
+          // Refresh (focus / pull): replace the newest page, keep older pages the
+          // user already scrolled into so the list doesn't jump.
+          const oldest = fresh[fresh.length - 1].started_at;
+          const freshIds = new Set(fresh.map(w => w.id));
+          return [...fresh, ...prev.filter(w => !freshIds.has(w.id) && w.started_at < oldest)];
         });
-        setWorkouts(mapped);
-        setInsights(computeInsights(mapped));
+        if (loadKey === 0 || freshIsAll) setHasMore(!freshIsAll);
       }
       setLoading(false);
       setRefreshing(false);
     };
     doLoad();
     return () => { cancelled = true; };
-  }, [loadKey, user?.id]); // loadKey increments on pull-to-refresh; reload on account switch
+  }, [loadKey, user?.id]); // loadKey increments on pull-to-refresh / refocus; reload on account switch
+
+  useEffect(() => { setInsights(computeInsights(workouts)); }, [workouts]);
+
+  // Tab screens stay mounted — without this a just-finished workout didn't
+  // appear until pull-to-refresh. Silent: loadKey > 0 skips the spinner.
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!focusedOnce.current) { focusedOnce.current = true; return; }
+    setLoadKey(k => k + 1);
+  }, []));
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMoreRef.current || loading) return;
+    loadingMoreRef.current = true;
+    try {
+      const next = await fetchPage(workouts.length);
+      if (next) {
+        setWorkouts(prev => {
+          const ids = new Set(prev.map(w => w.id));
+          return [...prev, ...next.filter(w => !ids.has(w.id))];
+        });
+        setHasMore(next.length === HISTORY_PAGE);
+      }
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [hasMore, loading, workouts.length, fetchPage]);
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -912,6 +961,8 @@ export default function HistoryScreen() {
       <FlashList
         data={viewMode === 'list' ? workouts : []}
         keyExtractor={w => w.id}
+        onEndReached={viewMode === 'list' ? loadMore : undefined}
+        onEndReachedThreshold={0.5}
         contentContainerStyle={{ paddingBottom: 48 }}
         refreshControl={
           <RefreshControl
