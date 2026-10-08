@@ -81,7 +81,8 @@ const newLocalId = () => `local_${Date.now()}_${localIdCounter++}`;
 
 // Epley e1RM PR check + upsert. Returns whether this set beat the stored PR.
 // Any fetch error skips the check — never falsely celebrate on flaky signal.
-async function checkAndRecordPR(
+// Exported so imports apply the same PR rule as live logging.
+export async function checkAndRecordPR(
   userId: string,
   exerciseId: string,
   weight: number,

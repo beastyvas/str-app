@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Colors } from '@/constants/colors';
 import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
+import { checkAndRecordPR } from '@/hooks/useWorkout';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore } from '@/hooks/useChatStore';
 import { getRankResult, TIER_COACH_NAME, ROMAN } from '@/constants/ranks';
@@ -426,6 +427,10 @@ export default function InsightsTab() {
     if (!parsedWorkouts || !user) return;
     setSaving(true);
     let savedCount = 0;
+    // Best set per exercise across the whole import (by e1RM), so imported
+    // history counts toward PRs — and therefore rank. Without this an import
+    // wrote sets but never touched personal_records.
+    const bestByExercise = new Map<string, { weight: number; reps: number; e1rm: number; at: string }>();
     try {
       // Auto-merge duplicates before saving
       const merged = mergeExercises(parsedWorkouts);
@@ -447,6 +452,12 @@ export default function InsightsTab() {
         for (const ex of workout.exercises) {
           if (!ex.matchedId) continue;
           ex.sets.forEach((s, i) => {
+            const at = new Date(workout.date.getTime() + i * 60000).toISOString();
+            if (s.weight > 0 && s.reps > 0) {
+              const e1rm = s.weight * (1 + s.reps / 30);
+              const prev = bestByExercise.get(ex.matchedId!);
+              if (!prev || e1rm > prev.e1rm) bestByExercise.set(ex.matchedId!, { weight: s.weight, reps: s.reps, e1rm, at });
+            }
             setsToInsert.push({
               workout_id: wRow.id,
               exercise_id: ex.matchedId,
@@ -464,9 +475,18 @@ export default function InsightsTab() {
         }
         savedCount++;
       }
+      // Same rule as live logging: only upgrades an existing PR, never lowers it
+      let prCount = 0;
+      for (const [exerciseId, best] of bestByExercise) {
+        if (await checkAndRecordPR(user.id, exerciseId, best.weight, best.reps, best.at)) prCount++;
+      }
       setParsedWorkouts(null);
       setImportText('');
-      Alert.alert('Imported!', `Saved ${savedCount} workout${savedCount !== 1 ? 's' : ''} to your history.`);
+      Alert.alert(
+        'Imported!',
+        `Saved ${savedCount} workout${savedCount !== 1 ? 's' : ''} to your history.` +
+          (prCount > 0 ? ` ${prCount} PR${prCount !== 1 ? 's' : ''} updated — your rank reflects them now.` : ''),
+      );
     } catch (e: any) {
       Alert.alert('Save failed', e.message);
     } finally {
