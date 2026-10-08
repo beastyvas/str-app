@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
@@ -161,6 +162,40 @@ function WeeklyChart({
   );
 }
 
+// Module-level stale-while-revalidate cache: a revisit renders the last
+// known stats instantly and refreshes silently, instead of a spinner.
+interface ProfileCacheEntry {
+  stats: ProfileStats;
+  rankResult: ReturnType<typeof getRankResult>;
+  friendCount: number;
+  weeklyData: { day: string; volume: number; duration: number; sets: number }[];
+  muscleVolume: Record<string, number>;
+}
+const profileCache = new Map<string, ProfileCacheEntry>();
+
+// Lifetime volume/sets. Supabase caps a response at 1000 rows, so a single
+// select silently undercounted anyone past 1000 logged sets — page through.
+async function fetchLifetimeTotals(userId: string): Promise<{ volume: number; sets: number }> {
+  const PAGE = 1000;
+  let from = 0;
+  let volume = 0;
+  let sets = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('workout_sets')
+      .select('id, weight, reps, workouts!inner(user_id)')
+      .eq('workouts.user_id', userId)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    for (const x of data as any[]) volume += (Number(x.weight) || 0) * (x.reps ?? 0);
+    sets += data.length;
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return { volume, sets };
+}
+
 export default function ProfileScreen() {
   const { profile, user, signOut, refreshProfile } = useAuth();
   // NB: `unit` state below is the edit-modal picker; this is the live pref
@@ -174,12 +209,13 @@ export default function ProfileScreen() {
   const [bodyweight, setBodyweight] = useState(profile?.bodyweight_lbs?.toString() ?? '');
   const [unit, setUnit] = useState<'lbs' | 'kg'>(profile?.unit_pref ?? 'lbs');
   const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState<ProfileStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(null);
-  const [friendCount, setFriendCount] = useState(0);
-  const [weeklyData, setWeeklyData] = useState<{ day: string; volume: number; duration: number; sets: number }[]>([]);
-  const [muscleVolume, setMuscleVolume] = useState<Record<string, number>>({});
+  const cached = user ? profileCache.get(user.id) : undefined;
+  const [stats, setStats] = useState<ProfileStats | null>(cached?.stats ?? null);
+  const [loadingStats, setLoadingStats] = useState(!cached);
+  const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(cached?.rankResult ?? null);
+  const [friendCount, setFriendCount] = useState(cached?.friendCount ?? 0);
+  const [weeklyData, setWeeklyData] = useState<{ day: string; volume: number; duration: number; sets: number }[]>(cached?.weeklyData ?? []);
+  const [muscleVolume, setMuscleVolume] = useState<Record<string, number>>(cached?.muscleVolume ?? {});
 
   // Lifter DNA
   const [dnaModalOpen, setDnaModalOpen] = useState(false);
@@ -212,9 +248,17 @@ export default function ProfileScreen() {
     }
   }, [user, profile?.bodyweight_lbs]);
 
+  // Tab screens stay mounted, so the mount effect alone left stats stale after
+  // finishing a workout. Refresh silently on every revisit (cache = no flash).
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!focusedOnce.current) { focusedOnce.current = true; return; } // mount effect covers first focus
+    loadStats();
+  }, [user]));
+
   const loadStats = async () => {
     if (!user) return;
-    setLoadingStats(true);
+    if (!profileCache.has(user.id)) setLoadingStats(true);
     try {
       // 8 days for timezone buffer
       const eightDaysAgo = new Date(Date.now() - 8 * 86400000).toISOString();
@@ -226,7 +270,7 @@ export default function ProfileScreen() {
         { count: friends },
         { data: weekWorkouts },
         { data: recentWorkouts },
-        { data: volumeData },
+        lifetime,
       ] = await Promise.all([
         supabase.from('workouts').select('id, started_at').eq('user_id', user.id).not('ended_at', 'is', null),
         supabase.from('personal_records').select('weight, reps, achieved_at, exercises(name)').eq('user_id', user.id).order('achieved_at', { ascending: false }),
@@ -234,8 +278,8 @@ export default function ProfileScreen() {
         supabase.from('workouts').select('id, started_at, ended_at').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', eightDaysAgo),
         // 30-day muscle heatmap base set — independent of the above, batched together
         supabase.from('workouts').select('id').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', thirtyDaysAgo),
-        // All-time volume/sets — independent of the above, batched together
-        supabase.from('workout_sets').select('weight, reps, workouts!inner(user_id)').eq('workouts.user_id', user.id),
+        // All-time volume/sets — paged past the 1000-row response cap
+        fetchLifetimeTotals(user.id),
       ]);
 
       setFriendCount(friends ?? 0);
@@ -327,8 +371,8 @@ export default function ProfileScreen() {
         .map(p => ({ exerciseName: p.exerciseName, weight: p.weight, reps: p.reps }));
       setRankTier(getRankResult(sbdPRs, bw));
 
-      const totalVolume = (volumeData ?? []).reduce((s: number, x: any) => s + x.weight * x.reps, 0);
-      const totalSets = (volumeData ?? []).length;
+      const totalVolume = lifetime.volume;
+      const totalSets = lifetime.sets;
 
       const groupMap: Record<string, { tier: TierName; bestLift: string; weight: number }> = {};
       for (const pr of allPRs) {
@@ -345,7 +389,7 @@ export default function ProfileScreen() {
         .sort((a, b) => TIER_ORDER.indexOf(b[1].tier) - TIER_ORDER.indexOf(a[1].tier))
         .map(([group, data]) => ({ group, ...data }));
 
-      setStats({
+      const nextStats: ProfileStats = {
         totalWorkouts: workouts?.length ?? 0,
         totalVolume,
         totalSets,
@@ -353,6 +397,15 @@ export default function ProfileScreen() {
         streakDays: streak,
         allPRs,
         muscleGroupTiers,
+      };
+      const nextRank = getRankResult(sbdPRs, bw);
+      setStats(nextStats);
+      profileCache.set(user.id, {
+        stats: nextStats,
+        rankResult: nextRank,
+        friendCount: friends ?? 0,
+        weeklyData: weekly,
+        muscleVolume: volByGroup,
       });
     } catch (e) {
       // silence

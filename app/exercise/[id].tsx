@@ -76,20 +76,24 @@ function WeightChart({ data, unit }: { data: { value: number }[]; unit: WeightUn
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [exercise, setExercise] = useState<any>(null);
   const [pr, setPr] = useState<any>(null);
   const [recentSets, setRecentSets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !user) return;
     Promise.all([
       supabase.from('exercises').select('*').eq('id', id).single(),
-      supabase.from('personal_records').select('*').eq('exercise_id', id).single(),
+      // Scoped to this user — RLS also exposes friends'/public sets and PRs,
+      // which leaked strangers' lifts into the PR card and e1RM chart (and
+      // made .single() error when more than one PR row was visible).
+      supabase.from('personal_records').select('*').eq('exercise_id', id).eq('user_id', user.id).maybeSingle(),
       supabase.from('workout_sets')
-        .select('*, workouts!inner(started_at, name)')
+        .select('*, workouts!inner(started_at, name, user_id)')
         .eq('exercise_id', id)
+        .eq('workouts.user_id', user.id)
         .order('logged_at', { ascending: false })
         .limit(30),
     ]).then(([{ data: ex }, { data: prData }, { data: sets }]) => {
@@ -98,7 +102,7 @@ export default function ExerciseDetailScreen() {
       setRecentSets(sets ?? []);
       setLoading(false);
     });
-  }, [id]);
+  }, [id, user?.id]);
 
   if (loading) {
     return (

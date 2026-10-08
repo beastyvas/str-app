@@ -339,17 +339,26 @@ export default function WorkoutTab() {
     if (isFirstWorkout && tutorialStep === 'add_exercise') {
       setTutorialStep('log_set');
     }
-    // Fetch previous session's sets for this exercise for reference hints
+    // Previous session's sets for this exercise — the LAST column / prefill.
+    // Must be scoped to this user: RLS also exposes friends' and public
+    // profiles' sets (for the feed), so an exercise_id-only query returned
+    // whoever lifted most recently. Then keep only the latest session, in set
+    // order, since ExerciseCard indexes prevSets by sets-logged-so-far.
     if (user && !prevSetsCache[exercise.id]) {
       const { data } = await supabase
         .from('workout_sets')
-        .select('set_number, weight, reps, rpe, note')
+        .select('workout_id, set_number, weight, reps, rpe, note, workouts!inner(user_id)')
         .eq('exercise_id', exercise.id)
+        .eq('workouts.user_id', user.id)
         .order('logged_at', { ascending: false })
-        .limit(10);
+        .limit(20);
       if (data && data.length > 0) {
-        // Take the most recent session's sets (same workout_id = not stored here, so just take first N)
-        setPrevSetsCache(prev => ({ ...prev, [exercise.id]: data.slice(0, 6) }));
+        const lastWorkoutId = data[0].workout_id;
+        const lastSession = data
+          .filter(s => s.workout_id === lastWorkoutId)
+          .sort((a, b) => a.set_number - b.set_number)
+          .map(({ set_number, weight, reps, rpe, note }) => ({ set_number, weight, reps, rpe, note }));
+        setPrevSetsCache(prev => ({ ...prev, [exercise.id]: lastSession }));
       }
     }
   };

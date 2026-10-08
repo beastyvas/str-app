@@ -450,10 +450,14 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
           // Find the previous PR for this exercise (before this workout)
           // by looking at workout_sets not in this workout
+          // Scoped to this user — RLS also exposes friends'/public sets, and
+          // the result is upserted as *this user's* PR, so an unscoped query
+          // could write a stranger's lift into their record (and rank).
           const { data: prevSets } = await supabase
             .from('workout_sets')
-            .select('weight, reps')
+            .select('weight, reps, workouts!inner(user_id)')
             .eq('exercise_id', ex.id)
+            .eq('workouts.user_id', uid)
             .neq('workout_id', activeWorkout.id)
             .order('logged_at', { ascending: false })
             .limit(10);

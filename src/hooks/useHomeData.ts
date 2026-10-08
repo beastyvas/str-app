@@ -99,7 +99,6 @@ export function useHomeData() {
         planPending,
         prRes,
         workoutRes,
-        friendRes,
         friendshipsRes,
         weekRes,
       ] = await Promise.all([
@@ -128,13 +127,6 @@ export function useHomeData() {
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        // Friends' recent PRs
-        supabase
-          .from('personal_records')
-          .select('user_id, weight, reps, achieved_at, exercises(name)')
-          .neq('user_id', uid)
-          .order('achieved_at', { ascending: false })
-          .limit(8),
         // Friendships — needed for the crew activity card
         supabase
           .from('friendships')
@@ -212,12 +204,21 @@ export function useHomeData() {
         f.requester_id === uid ? f.addressee_id : f.requester_id
       );
 
-      // Wave 2 — the two queries that depend on wave-1 results, in parallel
-      // (previously three sequential round trips).
-      const prUserIds = Array.from(new Set((friendRes.data ?? []).map((pr: any) => pr.user_id)));
-      const [prProfilesRes, recentPostRes] = await Promise.all([
-        prUserIds.length > 0
-          ? supabase.from('public_profiles').select('id, display_name, unit_pref').in('id', prUserIds)
+      // Wave 2 — queries that depend on the friend list, in parallel.
+      // Friend PRs must be filtered to actual friends: since migration 028,
+      // RLS exposes every public profile's PRs, so the old neq(uid) query
+      // filled "your crew" with strangers.
+      const [friendPrRes, prProfilesRes, recentPostRes] = await Promise.all([
+        friendIds.length > 0
+          ? supabase
+              .from('personal_records')
+              .select('user_id, weight, reps, achieved_at, exercises(name)')
+              .in('user_id', friendIds)
+              .order('achieved_at', { ascending: false })
+              .limit(8)
+          : Promise.resolve({ data: [] as any[] }),
+        friendIds.length > 0
+          ? supabase.from('public_profiles').select('id, display_name, unit_pref').in('id', friendIds)
           : Promise.resolve({ data: [] as any[] }),
         friendIds.length > 0
           ? supabase
@@ -235,7 +236,7 @@ export function useHomeData() {
       (prProfilesRes.data ?? []).forEach((p: any) => { prProfileMap[p.id] = p; });
 
       // Friend PRs — names come from public_profiles (users-table RLS is own-row only)
-      const friendPRs: FriendPR[] = (friendRes.data ?? []).map((pr: any) => ({
+      const friendPRs: FriendPR[] = (friendPrRes.data ?? []).map((pr: any) => ({
         display_name: prProfileMap[pr.user_id]?.display_name ?? 'Friend',
         exercise_name: pr.exercises.name,
         weight: pr.weight,
