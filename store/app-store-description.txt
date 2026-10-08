@@ -1,0 +1,34 @@
+STR is built for people who actually lift. Not a wellness app. Not a step counter. A fast, precise training tracker for powerlifters, bodybuilders, and anyone ready to get stronger.
+
+RANKED AGAINST REAL LIFTERS
+Your Squat, Bench, and Deadlift are scored against strength standards built from 2025 competition results of 58,154 drug-tested raw powerlifters (OpenPowerlifting data), scaled to your bodyweight. Not other app users' self-reported numbers — people who stepped on a platform. Six tiers with four sub-ranks each: MORTAL, AWAKENED, ASCENDANT, PHANTOM, SOVEREIGN, GODHAND. Your weakest lift holds your rank, so you can't hide a broken bench behind a big squat. Hit a PR and watch your rank move.
+
+AN AI COACH WHO READS YOUR LOGS
+Not a generic chatbot. Coach reads your actual history — your weights, your RPE, even your per-set notes — and talks like a 20-year veteran who has been at every one of your sessions. Your rank sets Coach's voice: a MORTAL gets a patient mentor, a GODHAND gets surgical precision.
+
+LOG EVERY REP, FAST
+Last session's numbers sit right in the row — tap once to load them, then beat them. Nudge weight and reps with one-tap steppers, no keyboard mid-set. The rest timer starts itself and floats where you can see it. Supersets, warmup sets, RPE, plate math, lbs or kg. Your workout lives on your Lock Screen with Live Activities. And it works when your gym has zero signal: every set saves to your phone and syncs when you're back.
+
+NEW TO THE GYM? START HERE.
+No guesswork, no intimidation. Pick a starter program — Full Body or Push Pull Legs — and every session comes loaded with the exercises, sets, and reps. Ask Coach the questions you might be nervous to ask out loud: How do I brace for a squat? How sore is too sore? What's the etiquette for sharing a rack? Every question is a real question here.
+
+EVERY EXERCISE, EXPLAINED
+A full library across powerlifting, bodybuilding, and calisthenics. Exercises show a movement demo, a muscle diagram, your estimated 1RM trend, and a percentage-based loading guide. Squat, bench, and deadlift also show exactly where you sit on the standards ladder.
+
+BRING YOUR HISTORY
+Paste logs from your notes app, or import a CSV export from Hevy or Strong. Imported PRs count toward your rank from day one.
+
+A SOCIAL LAYER THAT RESPECTS THE WORK
+Your crew's PRs and sessions in a clean feed, plus a global feed of lifters worldwide. Newest first — no algorithm deciding what you see. Go public or keep your profile friends-only with one switch.
+
+STR PRO
+• Unlimited AI coaching (free plan: 5 questions a week)
+• The live in-workout coach that reads your set notes between sets
+• Unlimited monthly training analysis (free plan: one a month)
+• Your full workout history, forever (free plan: last 90 days)
+• CSV export of every set you've logged
+
+STR Pro is an auto-renewing subscription: $7.99 per month or $59.99 per year (USD; local pricing may vary). Payment is charged to your Apple ID at confirmation of purchase. Your subscription renews automatically unless cancelled at least 24 hours before the end of the current period, and your account is charged for renewal within 24 hours before that period ends. Manage or cancel anytime in your App Store account settings.
+
+Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+Privacy Policy: https://blush-fiber-9a2.notion.site/STR-App-Privacy-Policy-28b1cd85d16f47b4aa026f1759d88c22
