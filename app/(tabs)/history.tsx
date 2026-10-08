@@ -9,7 +9,8 @@ import { FlashList } from '@shopify/flash-list';
 import Svg, { Polyline, Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
-import { SheetModal } from '@/components/ui';
+import { IconSymbol, SheetModal } from '@/components/ui';
+import { exportWorkoutHistory } from '@/lib/exportWorkouts';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -774,6 +775,8 @@ function ExerciseProgressModal({
 // Pro means "every session, forever" — so history pages instead of a hard
 // cap (it used to stop at the 60 most recent workouts for everyone).
 const HISTORY_PAGE = 60;
+const HISTORY_PAYWALL_REASON = 'Pro unlocks your complete workout history — every session, forever.';
+const EXPORT_PAYWALL_REASON = 'Pro exports your full workout history as a CSV — your data, anywhere.';
 
 function mapWorkoutRows(rows: any[], unit: ReturnType<typeof unitFromProfile>): WorkoutData[] {
   return rows.map((w: any) => {
@@ -802,7 +805,7 @@ function mapWorkoutRows(rows: any[], unit: ReturnType<typeof unitFromProfile>): 
 
 // ─── Main History Screen ───────────────────────────────────────────────────
 export default function HistoryScreen() {
-  const { isPro, historyLimit } = useSubscription();
+  const { isPro, canExport } = useSubscription();
   const { user, profile } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
   const [workouts, setWorkouts] = useState<WorkoutData[]>([]);
@@ -810,6 +813,8 @@ export default function HistoryScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallReason, setPaywallReason] = useState(HISTORY_PAYWALL_REASON);
+  const [exporting, setExporting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutData | null>(null);
@@ -893,6 +898,24 @@ export default function HistoryScreen() {
     }
   }, [hasMore, loading, workouts.length, fetchPage]);
 
+  const handleExport = async () => {
+    if (!user) return;
+    if (!canExport) {
+      setPaywallReason(EXPORT_PAYWALL_REASON);
+      setShowPaywall(true);
+      return;
+    }
+    setExporting(true);
+    try {
+      const { workouts: count } = await exportWorkoutHistory(user.id);
+      if (count === 0) Alert.alert('Nothing to export yet', 'Finish a workout and it will show up here.');
+    } catch (e: any) {
+      Alert.alert('Export failed', e?.message ?? 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     const today = new Date();
@@ -974,10 +997,26 @@ export default function HistoryScreen() {
         ListHeaderComponent={
         <>
         {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1 }}>
             History
           </Text>
+          <TouchableOpacity
+            onPress={handleExport}
+            disabled={exporting}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Export workout history as CSV"
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 6,
+              paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+              backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+            }}
+          >
+            {exporting
+              ? <ActivityIndicator size="small" color={Colors.accent} />
+              : <IconSymbol name="share" size={15} color={Colors.textSecondary} />}
+            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600' }}>Export</Text>
+          </TouchableOpacity>
         </View>
 
         {/* View toggle */}
@@ -1132,7 +1171,7 @@ export default function HistoryScreen() {
         ListFooterComponent={
           viewMode === 'list' && !isPro && workouts.length > 0 ? (
             <TouchableOpacity
-              onPress={() => setShowPaywall(true)}
+              onPress={() => { setPaywallReason(HISTORY_PAYWALL_REASON); setShowPaywall(true); }}
               style={{
                 backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginTop: 8, marginHorizontal: 20,
                 borderWidth: 1, borderColor: Colors.accent + '40', alignItems: 'center', gap: 4,
@@ -1162,7 +1201,7 @@ export default function HistoryScreen() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        reason="Pro unlocks your complete workout history — every session, forever."
+        reason={paywallReason}
       />
     </SafeAreaView>
   );
