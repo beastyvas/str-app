@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, Alert, Platform, Linking,
+  View, TouchableOpacity, Modal, ScrollView, StyleSheet,
+  Alert, Platform, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/colors';
+import { Colors, Hit, Radius, Spacing, onColor } from '@/constants/theme';
+import { AppText, Button, IconSymbol } from '@/components/ui';
+import { RANK_TIERS } from '@/constants/ranks';
+import { useWorld } from '@/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -41,13 +44,13 @@ const FREE_FEATURES = [
 // everyone; there is no separate "priority" AI tier — don't list them.)
 const PRO_FEATURES = [
   { label: 'Unlimited AI Coach', sub: 'Free plan: 5 questions a week' },
-  { label: 'Live in-workout coach', sub: 'Reads your set notes between sets' },
   { label: 'Unlimited monthly analysis', sub: 'Free plan: one a month' },
   { label: 'Full workout history', sub: 'Every session, forever' },
   { label: 'Workout export', sub: 'CSV of every set you’ve logged' },
 ];
 
 export function PaywallModal({ visible, onClose, reason }: Props) {
+  const world = useWorld();
   const { user, refreshProfile } = useAuth();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
   const [purchasing, setPurchasing] = useState(false);
@@ -67,7 +70,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
       await refreshProfile();
       const active = customerInfo.entitlements.active['pro'] !== undefined;
       Alert.alert(
-        active ? 'Pro restored 🏆' : 'No purchases found',
+        active ? 'Pro restored' : 'No purchases found',
         active
           ? 'Your Pro access is back. Welcome home.'
           : 'No previous Pro purchase found for this Apple ID.'
@@ -130,7 +133,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
             'Your purchase went through. If Pro doesn\'t activate in the next minute, tap "Restore Purchases" below.'
           );
         } else {
-          Alert.alert('Welcome to STR Pro! 🏆', 'You now have unlimited access.');
+          Alert.alert('Welcome to STR Pro', 'You now have unlimited access.');
           onClose();
         }
       }
@@ -143,196 +146,90 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
     }
   };
 
+  // Restyle only — purchase / restore / RevenueCat logic above is unchanged.
+  // Stays an iOS pageSheet: it's the reviewed subscription flow.
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
-          {/* Close */}
-          <TouchableOpacity
-            onPress={onClose}
-            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            style={{
-              alignSelf: 'flex-end', marginBottom: 8,
-              width: 36, height: 36, borderRadius: 18,
-              backgroundColor: Colors.surface2,
-              borderWidth: 1, borderColor: Colors.border,
-              alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
+      <SafeAreaView style={styles.root}>
+        <ScrollView contentContainerStyle={styles.body}>
+          <TouchableOpacity onPress={onClose} style={styles.close} accessibilityLabel="Close">
+            <IconSymbol name="close" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          {/* Header */}
-          <View style={{ alignItems: 'center', marginBottom: 28 }}>
-            <Text style={{ color: Colors.accent, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
-              Upgrade
-            </Text>
-            <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -1, textAlign: 'center' }}>
-              STR Pro
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
-              {reason ?? 'Unlock the full training experience.'}
-            </Text>
+          <View style={styles.head}>
+            <AppText variant="display">STR Pro</AppText>
+            <AppText variant="body" style={styles.center}>{reason ?? 'Unlock the full training experience.'}</AppText>
           </View>
 
-          {/* Tier progression visual */}
-          <View style={{
-            backgroundColor: Colors.surface,
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 24,
-            borderWidth: 1,
-            borderColor: Colors.border,
-          }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 }}>
-              Your rank progression unlocked
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              {['MORTAL', 'AWAKENED', 'ASCENDANT', 'PHANTOM', 'SOVEREIGN', 'GODHAND'].map((tier, i) => {
-                const colors = ['#CD7F32', '#A67C52', '#A8A9AD', '#FFB800', '#9B8FFF', '#B9F2FF'];
-                return (
-                  <View key={i} style={{ alignItems: 'center', flex: 1 }}>
-                    <View style={{
-                      width: 28, height: 28, borderRadius: 14,
-                      backgroundColor: colors[i] + '20',
-                      borderWidth: 1.5,
-                      borderColor: colors[i] + '60',
-                      marginBottom: 4,
-                    }} />
-                    <Text style={{ color: colors[i], fontSize: 7, fontWeight: '800', textAlign: 'center' }}>
-                      {tier}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
+          <View style={styles.worlds}>
+            {RANK_TIERS.map(t => <View key={t.key} style={[styles.world, { backgroundColor: t.color }]} />)}
           </View>
 
-          {/* Pro features */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 }}>
-              Everything in Pro
-            </Text>
+          <View style={styles.features}>
             {PRO_FEATURES.map((f, i) => (
-              <View key={i} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12,
-                marginBottom: 12,
-              }}>
-                <View style={{
-                  width: 28, height: 28, borderRadius: 14,
-                  backgroundColor: Colors.accent + '20',
-                  borderWidth: 1, borderColor: Colors.accent + '40',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Text style={{ color: Colors.accent, fontSize: 14 }}>✓</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>{f.label}</Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 1 }}>{f.sub}</Text>
+              <View key={i} style={styles.feature}>
+                <IconSymbol name="checkCircle" size={20} color={world.aura} />
+                <View style={styles.flex}>
+                  <AppText variant="heading">{f.label}</AppText>
+                  <AppText variant="caption">{f.sub}</AppText>
                 </View>
               </View>
             ))}
           </View>
 
-          {/* Billing toggle */}
-          <View style={{
-            flexDirection: 'row',
-            backgroundColor: Colors.surface,
-            borderRadius: 12,
-            padding: 4,
-            marginBottom: 16,
-            borderWidth: 1,
-            borderColor: Colors.border,
-          }}>
-            {(['annual', 'monthly'] as const).map(period => (
-              <TouchableOpacity
-                key={period}
-                onPress={() => setBillingPeriod(period)}
-                style={{
-                  flex: 1, paddingVertical: 10, borderRadius: 9,
-                  alignItems: 'center',
-                  backgroundColor: billingPeriod === period ? Colors.accent : 'transparent',
-                }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 13 }}>
-                  {period === 'annual' ? 'Annual' : 'Monthly'}
-                </Text>
-                <Text style={{
-                  color: billingPeriod === period ? Colors.text : Colors.textMuted,
-                  fontSize: 11, marginTop: 1,
-                }}>
-                  {period === 'annual' ? '$59.99 / year' : '$7.99 / month'}
-                </Text>
-                {period === 'annual' && (
-                  <View style={{
-                    backgroundColor: Colors.success + '20',
-                    borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, marginTop: 3,
-                  }}>
-                    <Text style={{ color: Colors.success, fontSize: 9, fontWeight: '800' }}>SAVE 37%</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
+          <View style={styles.toggle}>
+            {(['annual', 'monthly'] as const).map(period => {
+              const on = billingPeriod === period;
+              return (
+                <TouchableOpacity
+                  key={period}
+                  onPress={() => setBillingPeriod(period)}
+                  style={[styles.period, on && { backgroundColor: world.aura }]}
+                  accessibilityState={{ selected: on }}
+                >
+                  <AppText variant="heading" color={on ? onColor(world.aura) : Colors.text}>{period === 'annual' ? 'Annual' : 'Monthly'}</AppText>
+                  <AppText variant="caption" color={on ? onColor(world.aura) : Colors.textMuted}>
+                    {period === 'annual' ? '$59.99 / year · save 37%' : '$7.99 / month'}
+                  </AppText>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          {/* Price callout */}
-          <View style={{ alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 13 }}>
-              {billingPeriod === 'annual'
-                ? '$59.99 per year · auto-renews annually'
-                : '$7.99 per month · auto-renews monthly'}
-            </Text>
-          </View>
+          <AppText variant="caption" style={styles.center}>
+            {billingPeriod === 'annual' ? '$59.99 per year · auto-renews annually' : '$7.99 per month · auto-renews monthly'}
+          </AppText>
 
-          {/* CTA */}
-          <TouchableOpacity
-            onPress={handlePurchase}
-            disabled={purchasing}
-            style={{
-              backgroundColor: Colors.accent,
-              borderRadius: 16,
-              paddingVertical: 18,
-              alignItems: 'center',
-              marginBottom: 12,
-            }}
-          >
-            {purchasing
-              ? <ActivityIndicator color={Colors.text} />
-              : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 17, letterSpacing: 0.3 }}>
-                  Start Pro →
-                </Text>
-            }
-          </TouchableOpacity>
+          <Button label="Start Pro" size="lg" fullWidth loading={purchasing} onPress={handlePurchase} haptic="medium" />
 
-          {/* Restore / Redeem */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
-            <TouchableOpacity onPress={handleRestore} disabled={restoring}>
-              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>
-                {restoring ? 'Restoring…' : 'Restore Purchases'}
-              </Text>
+          <View style={styles.links}>
+            <TouchableOpacity onPress={handleRestore} disabled={restoring} style={styles.link}>
+              <AppText variant="label" color={world.aura}>{restoring ? 'Restoring…' : 'Restore purchases'}</AppText>
             </TouchableOpacity>
-            <TouchableOpacity onPress={async () => {
-              try {
-                const Purchases = require('react-native-purchases').default;
-                await Purchases.presentCodeRedemptionSheet();
-              } catch {}
-            }}>
-              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>Redeem Code</Text>
+            <TouchableOpacity
+              style={styles.link}
+              onPress={async () => {
+                try {
+                  const Purchases = require('react-native-purchases').default;
+                  await Purchases.presentCodeRedemptionSheet();
+                } catch {}
+              }}
+            >
+              <AppText variant="label" color={world.aura}>Redeem code</AppText>
             </TouchableOpacity>
           </View>
-          <Text style={{ color: Colors.textMuted, fontSize: 10, textAlign: 'center', lineHeight: 15 }}>
-            Payment is charged to your Apple Account at confirmation of purchase.
-            The subscription auto-renews unless canceled at least 24 hours before
-            the end of the current period. Manage or cancel anytime in
-            Settings → Apple Account → Subscriptions.
-          </Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 }}>
-            <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
-              <Text style={{ color: Colors.textMuted, fontSize: 11, textDecorationLine: 'underline' }}>Terms of Use</Text>
+          <AppText variant="caption" style={styles.center}>
+            Payment is charged to your Apple Account at confirmation of purchase. The subscription auto-renews unless
+            canceled at least 24 hours before the end of the current period. Manage or cancel anytime in Settings →
+            Apple Account → Subscriptions.
+          </AppText>
+          <View style={styles.links}>
+            <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)} style={styles.link}>
+              <AppText variant="caption" style={styles.underline}>Terms of Use</AppText>
             </TouchableOpacity>
             {!!PRIVACY_URL && (
-              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
-                <Text style={{ color: Colors.textMuted, fontSize: 11, textDecorationLine: 'underline' }}>Privacy Policy</Text>
+              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)} style={styles.link}>
+                <AppText variant="caption" style={styles.underline}>Privacy Policy</AppText>
               </TouchableOpacity>
             )}
           </View>
@@ -341,3 +238,24 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  body: { padding: Spacing.xl, paddingBottom: 48, gap: Spacing.xl },
+  close: { alignSelf: 'flex-end', width: Hit.min, height: Hit.min, alignItems: 'center', justifyContent: 'center' },
+  head: { alignItems: 'center', gap: Spacing.sm },
+  center: { textAlign: 'center' },
+  worlds: { flexDirection: 'row', gap: 4 },
+  world: { flex: 1, height: 6 },
+  features: { gap: Spacing.md },
+  feature: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  flex: { flex: 1, gap: 2 },
+  toggle: { flexDirection: 'row', gap: Spacing.sm },
+  period: {
+    flex: 1, alignItems: 'center', gap: 2, paddingVertical: Spacing.md, minHeight: 64, justifyContent: 'center',
+    borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+  },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
+  link: { minHeight: Hit.min, justifyContent: 'center' },
+  underline: { textDecorationLine: 'underline' },
+});
