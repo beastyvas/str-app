@@ -27,6 +27,14 @@ export interface LastWorkout {
   sets_count: number;
   total_volume: number;
   exercises: string[];
+  /** PRs set during this workout */
+  prCount: number;
+}
+
+export interface FriendToday {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
 }
 
 export interface WorkoutDayData {
@@ -43,7 +51,6 @@ export interface FirstSteps {
 }
 
 export interface Celebration {
-  emoji: string;
   title: string;
   sub: string;
 }
@@ -64,6 +71,8 @@ export interface HomeData {
     endedAt: string;
   } | null;
   workoutDays: Record<number, WorkoutDayData>;
+  /** Friends who finished a workout today (Home's activity row) */
+  friendsToday: FriendToday[];
 }
 
 // Module-level stale-while-revalidate cache: returning to the Home tab
@@ -159,18 +168,20 @@ export function useHomeData() {
       const firstSteps = allDone ? null : { hasWorkout, hasFriend, hasCoach };
 
       // Celebrations — AsyncStorage-flag based, reliable across sessions
+      // The onboarding reveal and the first workout's summary already have
+      // cameos, so those flags are just marked seen; the toast covers the rest.
       if (onboardingDone === 'pending') {
         await AsyncStorage.setItem(`onboarding_done_${uid}`, 'shown');
-        setCelebration({ emoji: '🎉', title: "You're in the system!", sub: 'Your arc officially begins. Go crush it.' });
-      } else if (planPending === 'pending') {
-        await AsyncStorage.setItem(`celebrated_plan_${uid}`, 'shown');
-        setCelebration({ emoji: '⚡', title: 'Plan is being built!', sub: 'Coach is on it. Check the Insights tab.' });
-      } else if (hasWorkout && !workoutCelebrated) {
+      }
+      if (hasWorkout && !workoutCelebrated) {
         await AsyncStorage.setItem(`celebrated_workout_${uid}`, 'true');
-        setCelebration({ emoji: '🔥', title: 'First workout logged!', sub: 'Your arc has officially begun.' });
+      }
+      if (planPending === 'pending') {
+        await AsyncStorage.setItem(`celebrated_plan_${uid}`, 'shown');
+        setCelebration({ title: 'Your plan is being built', sub: 'Your coach is on it. Check the Coach tab.' });
       } else if (hasFriend && !friendCelebrated) {
         await AsyncStorage.setItem(`celebrated_friend_${uid}`, 'true');
-        setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
+        setCelebration({ title: 'First friend added', sub: 'Your crew is building.' });
       }
 
       // Power Level + rank — always computed fresh from every relevant set,
@@ -198,6 +209,7 @@ export function useHomeData() {
           sets_count: sets.length,
           total_volume: sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0),
           exercises: [...new Set(sets.map((s: any) => s.exercises?.name).filter(Boolean))] as string[],
+          prCount: 0,
         };
       }
 
@@ -209,7 +221,9 @@ export function useHomeData() {
       // Friend PRs must be filtered to actual friends: since migration 028,
       // RLS exposes every public profile's PRs, so the old neq(uid) query
       // filled "your crew" with strangers.
-      const [friendPrRes, prProfilesRes, recentPostRes] = await Promise.all([
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const [friendPrRes, prProfilesRes, recentPostRes, lastPrRes, friendsTodayRes] = await Promise.all([
         friendIds.length > 0
           ? supabase
               .from('personal_records')
@@ -219,7 +233,7 @@ export function useHomeData() {
               .limit(8)
           : Promise.resolve({ data: [] as any[] }),
         friendIds.length > 0
-          ? supabase.from('public_profiles').select('id, display_name, unit_pref').in('id', friendIds)
+          ? supabase.from('public_profiles').select('id, display_name, unit_pref, avatar_url').in('id', friendIds)
           : Promise.resolve({ data: [] as any[] }),
         friendIds.length > 0
           ? supabase
@@ -231,7 +245,22 @@ export function useHomeData() {
               .limit(1)
               .maybeSingle()
           : Promise.resolve({ data: null as any }),
+        // PRs set during the last workout ("Push · Thu · 52 min · 3 PRs")
+        lastWorkout
+          ? supabase.from('personal_records').select('id', { count: 'exact', head: true })
+              .eq('user_id', uid)
+              .gte('achieved_at', lastWorkout.started_at)
+              .lte('achieved_at', lastWorkout.ended_at)
+          : Promise.resolve({ count: 0 } as any),
+        // Who trained today
+        friendIds.length > 0
+          ? supabase.from('workouts').select('user_id')
+              .in('user_id', friendIds)
+              .not('ended_at', 'is', null)
+              .gte('ended_at', todayStart.toISOString())
+          : Promise.resolve({ data: [] as any[] }),
       ]);
+      if (lastWorkout) lastWorkout.prCount = (lastPrRes as any).count ?? 0;
 
       const prProfileMap: Record<string, any> = {};
       (prProfilesRes.data ?? []).forEach((p: any) => { prProfileMap[p.id] = p; });
@@ -302,6 +331,9 @@ export function useHomeData() {
         };
       });
 
+      const friendsToday: FriendToday[] = [...new Set<string>(((friendsTodayRes as any).data ?? []).map((w: any) => w.user_id as string))]
+        .map(id => ({ id, name: prProfileMap[id]?.display_name ?? 'Friend', avatarUrl: prProfileMap[id]?.avatar_url }));
+
       const fresh: HomeData = {
         firstSteps,
         creatorId: creator?.id ?? null,
@@ -311,6 +343,7 @@ export function useHomeData() {
         friendPRs,
         recentFriendPost,
         workoutDays,
+        friendsToday,
       };
       cache = { userId: uid, data: fresh };
       setData(fresh);

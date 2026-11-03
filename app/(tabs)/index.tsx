@@ -1,115 +1,50 @@
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCameoStore } from '@/components/cameo';
-import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Colors, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 import { CelebrationToast } from '@/components/CelebrationToast';
 import { TierLadderModal } from '@/components/TierLadderModal';
-import { useSubscription } from '@/hooks/useSubscription';
-import { toLbs, unitFromProfile } from '@/lib/units';
+import { useCameoStore } from '@/components/cameo';
+import { PowerHero } from '@/components/power/PowerHero';
+import { unitFromProfile } from '@/lib/units';
 import { useHomeData, WorkoutDayData } from '@/hooks/useHomeData';
 import {
-  FirstStepsCard,
-  FriendActivityCard,
-  HomeHeader,
-  HomeSkeleton,
-  LastWorkoutCard,
-  SbdEntrySheet,
-  SbdInputs,
-  StartWorkoutCTA,
-  TodayPlanCard,
-  WeekdayDetailSheet,
-  WeeklyPlanSheet,
-  getSmartGreetingLine,
+  FirstStepsRow, FriendsTodayRow, GreetingBar, HomeSkeleton, LastWorkoutRow, TodayBlock,
+  WeekdayDetailSheet, WeeklyPlanSheet, getSmartGreetingLine,
 } from '@/components/home';
-import { PowerHero } from '@/components/power/PowerHero';
 
+/**
+ * Home: one greeting line, the Power Level hero, a single "Today" block with
+ * Start workout inside, then one row each for the last workout and friends.
+ * Data is SWR-cached in useHomeData (skeleton only on a true first load).
+ */
 export default function HomeScreen() {
   const { profile, user } = useAuth();
+  const world = useWorld();
   const unit = unitFromProfile(profile?.unit_pref);
   const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
-  const { isPro, aiAsksRemaining } = useSubscription();
   const router = useRouter();
-
-  // All Home data (SWR-cached: instant render on refocus, silent background
-  // refresh, skeleton only on true first load) lives in useHomeData.
   const { data, loading, celebration, clearCelebration, refetch, markCoachStepDone } = useHomeData();
+
+  const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
+  const [trainingDays, setTrainingDays] = useState('4');
+  const [selectedDay, setSelectedDay] = useState<(WorkoutDayData & { dow: number }) | null>(null);
+  const [showTierLadder, setShowTierLadder] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const firstName = profile?.display_name?.split(' ')[0] ?? 'lifter';
 
   // Random Home drop-in: ~20% once a day, never on a rank-up day.
   const weakest = data?.power?.weakest ?? undefined;
   useFocusEffect(useCallback(() => {
     if (!data) return;
-    useCameoStore.getState().maybeHomeDropin({
-      name: profile?.display_name?.split(' ')[0] ?? 'lifter',
-      weakest,
-    });
+    useCameoStore.getState().maybeHomeDropin({ name: firstName, weakest });
   }, [!!data, weakest]));
 
-  const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
-  const [trainingDays, setTrainingDays] = useState('4');
-  const [selectedDayWorkout, setSelectedDayWorkout] = useState<(WorkoutDayData & { dow: number }) | null>(null);
-  const [showTierLadder, setShowTierLadder] = useState(false);
-  const [sbdModalOpen, setSbdModalOpen] = useState(false);
-  const [sbdInputs, setSbdInputs] = useState<SbdInputs>({ sq: '', bp: '', dl: '' });
-  const [sbdSaving, setSbdSaving] = useState(false);
-
-  const saveSBD = async () => {
-    if (!user) return;
-    const entries = [
-      { key: 'barbell back squats', val: sbdInputs.sq, name: 'Barbell Back Squats' },
-      { key: 'barbell bench press', val: sbdInputs.bp, name: 'Barbell Bench Press' },
-      { key: 'deadlifts',           val: sbdInputs.dl, name: 'Deadlifts' },
-    ].filter(e => parseFloat(e.val) > 0);
-
-    if (entries.length === 0) { Alert.alert('Enter at least one lift'); return; }
-    setSbdSaving(true);
-    try {
-      const { data: exRows } = await supabase
-        .from('exercises')
-        .select('id, name')
-        .in('name', entries.map(e => e.name));
-      if (!exRows?.length) throw new Error('Exercises not found');
-
-      for (const entry of entries) {
-        const ex = exRows.find(e => e.name.toLowerCase() === entry.key);
-        if (!ex) continue;
-        await supabase.from('personal_records').upsert({
-          user_id: user.id,
-          exercise_id: ex.id,
-          // Typed in the user's display unit — stored canonical lbs
-          weight: toLbs(parseFloat(entry.val), unit),
-          reps: 1,
-          achieved_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,exercise_id' });
-      }
-
-      setSbdModalOpen(false);
-      setSbdInputs({ sq: '', bp: '', dl: '' });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      refetch();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSbdSaving(false);
-    }
-  };
-
-  const goToCoachWithQuestion = (question: string) => {
-    if (isPro) {
-      (global as any).__coachPreFill = question;
-      router.push('/(tabs)/insights');
-    } else {
-      Alert.alert('Ask Coach', `Uses 1 of your ${aiAsksRemaining} weekly asks.`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Ask', onPress: () => { (global as any).__coachPreFill = question; router.push('/(tabs)/insights'); } },
-      ]);
-    }
-  };
-
+  // First Steps "coach" task — completion semantics unchanged.
   const handleCoachStep = () => {
     if (data?.firstSteps?.hasCoach) return;
     if (isNewLifter) {
@@ -136,92 +71,69 @@ export default function HomeScreen() {
       await supabase.from('users').update({ weekly_plan_done: true }).eq('id', user.id);
     }
     markCoachStepDone();
-    const msg = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;
-    (global as any).__coachPreFill = msg;
+    (global as any).__coachPreFill = `Build me a personalized ${trainingDays}-day per week workout program. I'm ${profile?.experience_level ?? 'intermediate'} level, training for ${profile?.primary_goal ?? 'general fitness'}, with a ${profile?.training_style ?? 'hybrid'} style. Give me specific days (e.g. Monday/Wednesday/Friday), exercises with sets and reps, and rest days. Make it progressive and realistic.`;
     router.push('/(tabs)/insights');
   };
 
-  // Skeleton only on true first load — refocus renders cached data instantly.
-  if (loading && !data) {
-    return <HomeSkeleton />;
-  }
+  if (loading && !data) return <HomeSkeleton />;
 
-  const rankResult = data?.rankResult ?? null;
-  const firstSteps = data?.firstSteps ?? null;
   const lastWorkout = data?.lastWorkout ?? null;
   const workoutDays = data?.workoutDays ?? {};
-
-  // Today's planned session from the configured split; once today's workout is
-  // logged we fall through to the weekly recap instead of nagging.
   const todayDow = new Date().getDay();
-  const todaySession: string | null = workoutDays[todayDow]
-    ? null
-    : ((profile as any)?.split_schedule as Record<string, string> | null)?.[String(todayDow)] ?? null;
+  const split = (profile as any)?.split_schedule as Record<string, string> | null;
+  const trainedToday = !!workoutDays[todayDow];
+  const todaySession = trainedToday ? null : split?.[String(todayDow)] ?? null;
+  const goTrain = () => router.push('/(tabs)/workout');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ padding: Spacing.screenH, paddingBottom: 48 }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={world.aura}
+            onRefresh={async () => { setRefreshing(true); await refetch(); setRefreshing(false); }}
+          />
+        }
       >
-        <HomeHeader
-          firstName={profile?.display_name?.split(' ')[0] ?? 'Athlete'}
+        <GreetingBar
+          greeting={getSmartGreetingLine(firstName, lastWorkout, todaySession)}
           avatarUrl={profile?.avatar_url}
-          greeting={getSmartGreetingLine(lastWorkout, todaySession)}
+          initial={firstName.charAt(0).toUpperCase()}
           onAvatarPress={() => router.push('/(tabs)/profile')}
         />
 
-        <PowerHero
-          reading={data?.power ?? null}
-          onOpenLadder={() => setShowTierLadder(true)}
-          onStartWorkout={() => router.push('/(tabs)/workout')}
-        />
+        <PowerHero reading={data?.power ?? null} onOpenLadder={() => setShowTierLadder(true)} onStartWorkout={goTrain} />
 
-        <TodayPlanCard
+        <TodayBlock
           todaySession={todaySession}
+          trainedToday={trainedToday}
+          hasSplit={!!split && Object.keys(split).length > 0}
           workoutDays={workoutDays}
-          onStartWorkout={() => router.push('/(tabs)/workout')}
-          onSelectDay={setSelectedDayWorkout}
+          onStartWorkout={goTrain}
+          onSelectDay={setSelectedDay}
         />
 
-        {firstSteps && (
-          <FirstStepsCard
-            firstSteps={firstSteps}
+        {data?.firstSteps && (
+          <FirstStepsRow
+            firstSteps={data.firstSteps}
             isNewLifter={isNewLifter}
-            onStartFirstWorkout={() => {
-              (global as any).__startFirstWorkout = true;
-              router.push('/(tabs)/workout');
-            }}
+            onStartFirstWorkout={() => { (global as any).__startFirstWorkout = true; goTrain(); }}
             onCoachStep={handleCoachStep}
             onAddFriend={() => {
-              if (firstSteps.hasFriend) return;
-              if (data?.creatorId) {
-                (global as any).__openFriendProfile = data.creatorId;
-              }
+              if (data.firstSteps?.hasFriend) return;
+              if (data.creatorId) (global as any).__openFriendProfile = data.creatorId;
               router.push('/(tabs)/friends');
             }}
           />
         )}
 
-        <StartWorkoutCTA onPress={() => router.push('/(tabs)/workout')} />
-
-        {lastWorkout && (
-          <LastWorkoutCard
-            lastWorkout={lastWorkout}
-            unit={unit}
-            onPress={() => router.push('/(tabs)/history')}
-          />
-        )}
-
-        <FriendActivityCard
-          post={data?.recentFriendPost ?? null}
-          onPress={() => router.push('/(tabs)/friends')}
-        />
-
-        <View style={{ height: Spacing.sm }} />
+        {lastWorkout && <LastWorkoutRow lastWorkout={lastWorkout} onPress={() => router.push('/(tabs)/history')} />}
+        <FriendsTodayRow friends={data?.friendsToday ?? []} onPress={() => router.push('/(tabs)/friends')} />
       </ScrollView>
 
-      {/* Sheets & overlays */}
       <WeeklyPlanSheet
         visible={weeklyPlanModal}
         trainingDays={trainingDays}
@@ -232,31 +144,17 @@ export default function HomeScreen() {
       <TierLadderModal
         visible={showTierLadder}
         onClose={() => setShowTierLadder(false)}
-        result={rankResult}
+        result={data?.rankResult ?? null}
         bodyweightLbs={profile?.bodyweight_lbs ?? 185}
         gender={profile?.gender}
       />
-      <SbdEntrySheet
-        visible={sbdModalOpen}
-        unit={unit}
-        inputs={sbdInputs}
-        saving={sbdSaving}
-        onChange={setSbdInputs}
-        onSave={saveSBD}
-        onClose={() => setSbdModalOpen(false)}
-      />
-      <WeekdayDetailSheet
-        day={selectedDayWorkout}
-        unit={unit}
-        onClose={() => setSelectedDayWorkout(null)}
-      />
-      <CelebrationToast
-        visible={!!celebration}
-        emoji={celebration?.emoji ?? '🎉'}
-        title={celebration?.title ?? ''}
-        sub={celebration?.sub}
-        onDone={clearCelebration}
-      />
+      <WeekdayDetailSheet day={selectedDay} unit={unit} onClose={() => setSelectedDay(null)} />
+      <CelebrationToast visible={!!celebration} title={celebration?.title ?? ''} sub={celebration?.sub} onDone={clearCelebration} />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  content: { padding: Spacing.screenH, paddingBottom: 48, gap: Spacing.group },
+});

@@ -1,7 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { AppText, SheetModal } from '@/components/ui';
-import { SESSION_EMOJI } from '@/lib/sessionType';
 import { WorkoutDayData } from '@/hooks/useHomeData';
 import { toDisplay } from '@/lib/units';
 
@@ -19,7 +18,6 @@ export function WeekdayDetailSheet({ day, unit, onClose }: WeekdayDetailSheetPro
       {day && (
         <View style={styles.body}>
           <View style={styles.headerRow}>
-            <AppText style={styles.emoji}>{SESSION_EMOJI[day.sessionType] ?? '🏋️'}</AppText>
             <View style={styles.headerText}>
               <AppText variant="label" style={styles.dayLabel}>{DAY_LABELS[day.dow]}</AppText>
               <AppText variant="heading" numberOfLines={1}>{day.name}</AppText>
@@ -34,11 +32,11 @@ export function WeekdayDetailSheet({ day, unit, onClose }: WeekdayDetailSheetPro
 
           {day.topLifts.length > 0 && (
             <View style={styles.liftsBlock}>
-              <AppText variant="label" style={styles.liftsLabel}>Top Lifts</AppText>
+              <AppText variant="label" style={styles.liftsLabel}>Top lifts</AppText>
               <View style={styles.chips}>
                 {day.topLifts.map((lift, i) => (
                   <View key={i} style={styles.chip}>
-                    <AppText variant="caption" color={Colors.text} style={styles.chipName}>{lift.name}</AppText>
+                    <AppText variant="label" color={Colors.text}>{lift.name}</AppText>
                     <AppText variant="caption" style={styles.chipStat}>
                       {toDisplay(lift.weight, unit)} {unit} × {lift.reps}
                     </AppText>
@@ -56,12 +54,11 @@ export function WeekdayDetailSheet({ day, unit, onClose }: WeekdayDetailSheetPro
 const styles = StyleSheet.create({
   body: { gap: Spacing.md, paddingBottom: Spacing.sm },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md + 2 },
-  emoji: { fontSize: 48 },
   headerText: { flex: 1, gap: 2 },
-  dayLabel: { fontSize: 10, letterSpacing: 1.5 },
+  dayLabel: {},
   meta: { marginTop: 1 },
   liftsBlock: { marginTop: Spacing.xs },
-  liftsLabel: { fontSize: 10, letterSpacing: 2, marginBottom: Spacing.sm },
+  liftsLabel: { marginBottom: Spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip: {
     backgroundColor: Colors.surface2,
@@ -69,6 +66,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  chipName: { fontWeight: '700' },
   chipStat: { marginTop: 2 },
 });

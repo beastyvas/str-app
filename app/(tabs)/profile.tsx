@@ -33,7 +33,7 @@ import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units'
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
 import { IconSymbol } from '@/components/ui';
-import { SbdEntrySheet } from '@/components/home/SbdEntrySheet';
+import { SbdEntrySheet } from '@/components/profile/SbdEntrySheet';
 
 const SCREEN_W = Dimensions.get('window').width;
 

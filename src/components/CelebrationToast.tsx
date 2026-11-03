@@ -1,138 +1,54 @@
-import { useEffect, useRef } from 'react';
-import { Animated, View, Text, Dimensions } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/colors';
+import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText } from '@/components/ui/AppText';
+import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Colors, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 
 interface Props {
   visible: boolean;
-  emoji: string;
   title: string;
   sub?: string;
   onDone: () => void;
 }
 
-const { width } = Dimensions.get('window');
-
-export function CelebrationToast({ visible, emoji, title, sub, onDone }: Props) {
-  const slideAnim = useRef(new Animated.Value(-140)).current;
-  const scaleAnim = useRef(new Animated.Value(0.85)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-
+/**
+ * Small milestone toast for moments no cameo covers (first friend, plan
+ * requested). Onboarding and first-workout celebrations are cameos now.
+ */
+export function CelebrationToast({ visible, title, sub, onDone }: Props) {
+  const world = useWorld();
+  const insets = useSafeAreaInsets();
   useEffect(() => {
     if (!visible) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    slideAnim.setValue(-140);
-    scaleAnim.setValue(0.85);
-    opacityAnim.setValue(0);
-
-    Animated.sequence([
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 56,
-          tension: 90,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 90,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(2800),
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: -140,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start(() => onDone());
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    const t = setTimeout(onDone, 3600);
+    return () => clearTimeout(t);
   }, [visible]);
-
   if (!visible) return null;
-
   return (
-    <Animated.View style={{
-      position: 'absolute',
-      top: 0,
-      left: 14,
-      right: 14,
-      zIndex: 9999,
-      transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-      opacity: opacityAnim,
-    }}>
-      <View style={{
-        backgroundColor: Colors.surface,
-        borderRadius: 20,
-        padding: 18,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        borderWidth: 1.5,
-        borderColor: Colors.accent + '70',
-        shadowColor: Colors.accent,
-        shadowOpacity: 0.45,
-        shadowRadius: 28,
-        shadowOffset: { width: 0, height: 10 },
-        elevation: 16,
-      }}>
-        {/* Accent glow swatch */}
-        <View style={{
-          width: 52,
-          height: 52,
-          borderRadius: 26,
-          backgroundColor: Colors.accent + '25',
-          borderWidth: 1.5,
-          borderColor: Colors.accent + '50',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <Text style={{ fontSize: 28 }}>{emoji}</Text>
-        </View>
-
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={{
-            color: Colors.text,
-            fontSize: 15,
-            fontWeight: '800',
-            letterSpacing: -0.3,
-          }}>
-            {title}
-          </Text>
-          {sub && (
-            <Text style={{
-              color: Colors.textSecondary,
-              fontSize: 12,
-              lineHeight: 17,
-            }}>
-              {sub}
-            </Text>
-          )}
-        </View>
-
-        <View style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: Colors.accent + '20',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '800' }}>✓</Text>
+    <Animated.View
+      entering={FadeInUp.duration(260)}
+      exiting={FadeOutUp.duration(200)}
+      pointerEvents="none"
+      style={[styles.wrap, { top: insets.top + Spacing.sm }]}
+    >
+      <View style={[styles.toast, { borderColor: world.aura }]}>
+        <IconSymbol name="checkCircle" size={22} color={world.aura} />
+        <View style={styles.flex}>
+          <AppText variant="heading">{title}</AppText>
+          {sub ? <AppText variant="caption">{sub}</AppText> : null}
         </View>
       </View>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { position: 'absolute', left: Spacing.screenH, right: Spacing.screenH, zIndex: 100 },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.surface, borderWidth: 2, padding: Spacing.lg },
+  flex: { flex: 1, gap: 2 },
+});
