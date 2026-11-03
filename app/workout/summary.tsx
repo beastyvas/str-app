@@ -1,57 +1,52 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
+import { AppText, Button, Section, StatTile } from '@/components/ui';
+import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 import { fmtVolume, toDisplay, unitFromProfile } from '@/lib/units';
 import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { PowerDeltaReveal } from '@/components/summary/PowerDeltaReveal';
 import { useRankAdvance } from '@/components/summary/useRankAdvance';
-import type { SummaryPower } from '@/components/summary/types';
 import { fireFinishCameo } from '@/components/summary/finishCameo';
+import type { SummaryPower } from '@/components/summary/types';
 import { Cameo } from '@/components/cameo';
 
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function parse(data?: string) {
+  try { return data ? JSON.parse(data) : null; } catch { return null; }
+}
+
+/**
+ * Workout summary. Hero: the Power Level delta reveal. Then one compact row
+ * of stats, the PRs, and the exercise list. Reveal → rank-up screen (if any)
+ * → exactly one cameo.
+ */
 export default function WorkoutSummaryScreen() {
   const { data } = useLocalSearchParams<{ data: string }>();
   const router = useRouter();
+  const world = useWorld();
   const { profile, user } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
+  const summary = parse(data);
+  const power: SummaryPower | null = summary?.power ?? null;
 
-  let summary = null;
-  try { summary = data ? JSON.parse(data) : null; } catch {}
-
-  if (!summary) {
-    router.replace('/(tabs)');
-    return null;
-  }
-
-  const { name, duration, totalSets, totalVolume, prs, exercises } = summary;
-  const power: SummaryPower | null = summary.power ?? null;
-  const hasPRs = prs?.length > 0;
-
-  // Best lift of the session by estimated 1RM (bodyweight sets excluded —
-  // "top lift" is about load on the bar)
-  const bestLift = (() => {
-    let best: { name: string; weight: number; reps: number; e1rm: number } | null = null;
-    for (const ex of exercises ?? []) {
-      for (const s of ex.sets ?? []) {
-        if (!s.weight) continue;
-        const e1rm = s.weight * (1 + s.reps / 30);
-        if (!best || e1rm > best.e1rm) best = { name: ex.name, weight: s.weight, reps: s.reps, e1rm };
-      }
-    }
-    return best;
-  })();
-
-  // Rank-up chains off the Power Level reveal (detected once, on finish).
   const advance = useRankAdvance(power);
   const [showAdvance, setShowAdvance] = useState(false);
   const [advanceDone, setAdvanceDone] = useState(false);
   const cameoFired = useRef(false);
+
   const fireCameo = () => {
-    if (cameoFired.current) return;
+    if (cameoFired.current || !summary) return;
     cameoFired.current = true;
     fireFinishCameo({
       userId: user?.id,
@@ -59,296 +54,76 @@ export default function WorkoutSummaryScreen() {
       power, advance, facts: summary.cameo ?? null,
     });
   };
-  // Reveal → rank-up screen (if any) → one cameo.
   const onRevealed = () => {
     if (advance && !advanceDone) setShowAdvance(true);
     else fireCameo();
   };
 
-  const headerAnim = useRef(new Animated.Value(0)).current;
-  const statsAnim = useRef(new Animated.Value(0)).current;
-  const prAnim = useRef(new Animated.Value(0)).current;
-  const listAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    if (!power || power.after == null) setTimeout(fireCameo, 900);
-    if (hasPRs) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!summary) { router.replace('/(tabs)'); return; }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // No Power Level to reveal — go straight to the cameo.
+    if (!power || power.after == null) {
+      const t = setTimeout(fireCameo, 900);
+      return () => clearTimeout(t);
     }
-
-    Animated.stagger(120, [
-      Animated.spring(headerAnim, { toValue: 1, tension: 70, friction: 9, useNativeDriver: true }),
-      Animated.spring(statsAnim, { toValue: 1, tension: 70, friction: 9, useNativeDriver: true }),
-      Animated.spring(prAnim, { toValue: 1, tension: 70, friction: 9, useNativeDriver: true }),
-      Animated.spring(listAnim, { toValue: 1, tension: 70, friction: 9, useNativeDriver: true }),
-    ]).start();
   }, []);
 
-  const slideUp = (anim: Animated.Value) => ({
-    opacity: anim,
-    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
-  });
+  if (!summary) return null;
+  const { name, duration, totalSets, totalVolume, prs = [], exercises = [] } = summary;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <ScrollView
-        contentContainerStyle={{ padding: 24, paddingBottom: 60 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <Animated.View style={[slideUp(headerAnim), { marginBottom: 32 }]}>
-          <Text style={{
-            color: Colors.accent,
-            fontSize: 11,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            fontWeight: '700',
-            marginBottom: 8,
-          }}>
-            {hasPRs ? '🔥 Session complete' : 'Session complete'}
-          </Text>
-          <Text style={{
-            color: Colors.text,
-            fontSize: 30,
-            fontWeight: '800',
-            letterSpacing: -1.5,
-            lineHeight: 34,
-          }}>
-            {name}
-          </Text>
+    <SafeAreaView style={styles.root}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.head}>
+          <AppText variant="label">Workout complete</AppText>
+          <AppText variant="display" numberOfLines={2}>{name}</AppText>
+        </View>
+
+        {power && <PowerDeltaReveal power={power} onRevealed={onRevealed} />}
+
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.stats}>
+          <StatTile label="Duration" value={formatDuration(duration)} />
+          <StatTile label="Volume" value={fmtVolume(totalVolume, unit)} />
+          <StatTile label="Sets" value={totalSets} />
+          <StatTile label="PRs" value={prs.length} tint={prs.length ? world.aura : undefined} />
         </Animated.View>
 
-        {power && (
-          <View style={{ marginBottom: 24 }}>
-            <PowerDeltaReveal power={power} onRevealed={onRevealed} />
-          </View>
+        {prs.length > 0 && (
+          <Section title="Personal records">
+            <View style={styles.list}>
+              {prs.map((pr: any, i: number) => (
+                <View key={i} style={[styles.row, i > 0 && styles.divider]}>
+                  <View style={[styles.prChip, { backgroundColor: world.aura }]}>
+                    <AppText variant="label" color={Colors.bg}>PR</AppText>
+                  </View>
+                  <AppText variant="heading" numberOfLines={1} style={styles.flex}>{pr.exerciseName}</AppText>
+                  <AppText variant="stat" color={world.aura}>{toDisplay(pr.weight, unit)} × {pr.reps}</AppText>
+                </View>
+              ))}
+            </View>
+          </Section>
         )}
 
-        {/* Stats */}
-        <Animated.View style={[slideUp(statsAnim), { flexDirection: 'row', gap: 12, marginBottom: 24 }]}>
-          {[
-            { label: 'Duration', value: formatDuration(duration) },
-            { label: 'Sets', value: String(totalSets) },
-            { label: 'Volume', value: fmtVolume(totalVolume, unit) },
-          ].map((stat, i) => (
-            <View key={i} style={{
-              flex: 1,
-              backgroundColor: Colors.surface,
-              borderRadius: 16,
-              padding: 16,
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOpacity: 0.25,
-              shadowRadius: 8,
-              shadowOffset: { width: 0, height: 3 },
-              elevation: 3,
-            }}>
-              <Text style={{
-                color: Colors.textMuted,
-                fontSize: 9,
-                letterSpacing: 1.5,
-                textTransform: 'uppercase',
-                fontWeight: '700',
-                marginBottom: 8,
-              }}>
-                {stat.label}
-              </Text>
-              <Text style={{
-                color: Colors.text,
-                fontSize: 22,
-                fontWeight: '800',
-                letterSpacing: -0.5,
-                fontVariant: ['tabular-nums'],
-              }}>
-                {stat.value}
-              </Text>
-            </View>
-          ))}
-        </Animated.View>
-
-        {/* Top lift of the session */}
-        {bestLift && (
-          <Animated.View style={[slideUp(statsAnim), {
-            backgroundColor: Colors.surface,
-            borderRadius: 16,
-            paddingVertical: 14,
-            paddingHorizontal: 18,
-            marginBottom: 24,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            shadowColor: '#000',
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 3 },
-            elevation: 3,
-          }]}>
-            <Text style={{ fontSize: 20 }}>🏋️</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{
-                color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5,
-                textTransform: 'uppercase', fontWeight: '700', marginBottom: 2,
-              }}>
-                Top lift
-              </Text>
-              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
-                {bestLift.name}
-              </Text>
-            </View>
-            <Text style={{
-              color: Colors.accent, fontSize: 18, fontWeight: '800',
-              fontVariant: ['tabular-nums'], letterSpacing: -0.3,
-            }}>
-              {toDisplay(bestLift.weight, unit)} × {bestLift.reps}
-            </Text>
-          </Animated.View>
-        )}
-
-        {/* PRs */}
-        {hasPRs && (
-          <Animated.View style={[slideUp(prAnim), {
-            backgroundColor: Colors.gold + '12',
-            borderRadius: 18,
-            padding: 20,
-            marginBottom: 20,
-            borderWidth: 1.5,
-            borderColor: Colors.gold + '45',
-            shadowColor: Colors.gold,
-            shadowOpacity: 0.18,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 6,
-          }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <Text style={{ fontSize: 22 }}>🏆</Text>
-              <Text style={{
-                color: Colors.gold,
-                fontSize: 13,
-                fontWeight: '800',
-                letterSpacing: 2,
-                textTransform: 'uppercase',
-              }}>
-                New Personal Records
-              </Text>
-            </View>
-            {prs.map((pr: any, i: number) => (
-              <View key={i} style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 10,
-                borderTopWidth: i > 0 ? 1 : 0,
-                borderTopColor: Colors.gold + '25',
-                gap: 10,
-              }}>
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: Colors.gold,
-                  shadowColor: Colors.gold,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 0 },
-                }} />
-                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', flex: 1 }}>
-                  {pr.exerciseName}
-                </Text>
-                <Text style={{ color: Colors.gold, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
-                  {toDisplay(pr.weight, unit)} × {pr.reps}
-                </Text>
+        <Section title="Exercises">
+          <View style={styles.list}>
+            {exercises.map((ex: any, i: number) => (
+              <View key={i} style={[styles.row, i > 0 && styles.divider]}>
+                <View style={styles.flex}>
+                  <AppText variant="heading" numberOfLines={1}>{ex.name}</AppText>
+                  {ex.sets[0] && (
+                    <AppText variant="caption">
+                      Top set {ex.sets[0].weight === 0 ? 'BW' : toDisplay(ex.sets[0].weight, unit)} × {ex.sets[0].reps}
+                    </AppText>
+                  )}
+                </View>
+                <AppText variant="label">{ex.sets.length} sets</AppText>
               </View>
             ))}
-          </Animated.View>
-        )}
+          </View>
+        </Section>
 
-        {/* Exercise Summary */}
-        <Animated.View style={[slideUp(listAnim), {
-          backgroundColor: Colors.surface,
-          borderRadius: 18,
-          padding: 18,
-          marginBottom: 28,
-          shadowColor: '#000',
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 3,
-        }]}>
-          <Text style={{
-            color: Colors.textMuted,
-            fontSize: 10,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
-            fontWeight: '700',
-            marginBottom: 14,
-          }}>
-            Exercises
-          </Text>
-          {exercises?.map((ex: any, i: number) => (
-            <View key={i} style={{
-              paddingVertical: 12,
-              borderTopWidth: i > 0 ? 1 : 0,
-              borderTopColor: Colors.border,
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={{
-                  color: Colors.text,
-                  fontSize: 14,
-                  fontWeight: '800',
-                  flex: 1,
-                  marginRight: 8,
-                  letterSpacing: -0.2,
-                }}>
-                  {ex.name}
-                </Text>
-                <View style={{
-                  backgroundColor: Colors.surface2,
-                  borderRadius: 6,
-                  paddingHorizontal: 8,
-                  paddingVertical: 3,
-                }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700' }}>
-                    {ex.sets.length} sets
-                  </Text>
-                </View>
-              </View>
-              {ex.sets[0] && (
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                  Top set: {ex.sets[0].weight === 0 ? 'BW' : toDisplay(ex.sets[0].weight, unit)} × {ex.sets[0].reps}
-                </Text>
-              )}
-            </View>
-          ))}
-        </Animated.View>
-
-        {/* Done button */}
-        <Animated.View style={slideUp(listAnim)}>
-          <TouchableOpacity
-            onPress={() => router.replace('/(tabs)')}
-            activeOpacity={0.88}
-            style={{
-              backgroundColor: Colors.accent,
-              borderRadius: 16,
-              paddingVertical: 18,
-              alignItems: 'center',
-              shadowColor: Colors.accent,
-              shadowOpacity: 0.4,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 8,
-            }}
-          >
-            <Text style={{
-              color: Colors.text,
-              fontWeight: '800',
-              fontSize: 16,
-              letterSpacing: 1,
-            }}>
-              DONE
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
+        <Button label="Done" size="lg" fullWidth onPress={() => router.replace('/(tabs)')} />
       </ScrollView>
 
       <TierAdvancementScreen
@@ -366,8 +141,14 @@ export default function WorkoutSummaryScreen() {
   );
 }
 
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  if (m < 60) return `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  content: { padding: Spacing.screenH, paddingBottom: 60, gap: Spacing.group },
+  head: { gap: Spacing.xs },
+  stats: { flexDirection: 'row', gap: Spacing.md },
+  list: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, minHeight: 56, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
+  prChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  flex: { flex: 1, gap: 2 },
+});
