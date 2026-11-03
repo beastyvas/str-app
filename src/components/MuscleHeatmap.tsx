@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import Svg, { Ellipse, Rect, Path } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, Fonts } from '@/constants/theme';
 
 // Separate from MuscleMap (which highlights a single exercise's muscles on the
 // exercise-detail screen). This one shades the WHOLE body by how much volume
@@ -74,7 +74,7 @@ export function MuscleHeatmap({ volumeByGroup }: MuscleHeatmapProps) {
       <View style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
         {/* FRONT VIEW */}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: Fonts.bodyMedium, marginBottom: 6 }}>
             Front
           </Text>
           <Svg width={W} height={244} viewBox="0 0 100 185">
@@ -135,7 +135,7 @@ export function MuscleHeatmap({ volumeByGroup }: MuscleHeatmapProps) {
 
         {/* BACK VIEW */}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: Fonts.bodyMedium, marginBottom: 6 }}>
             Back
           </Text>
           <Svg width={W} height={244} viewBox="0 0 100 185">

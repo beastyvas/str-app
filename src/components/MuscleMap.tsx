@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import Svg, { Ellipse, Rect, Path, G } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, Fonts } from '@/constants/theme';
 
 interface MuscleMapProps {
   primaryMuscle: string;
@@ -71,7 +71,7 @@ export function MuscleMap({ primaryMuscle, secondaryMuscle }: MuscleMapProps) {
       <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
         {/* FRONT VIEW */}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: Fonts.bodyMedium, marginBottom: 6 }}>
             Front
           </Text>
           <Svg width={W} height={300} viewBox="0 0 100 185">
@@ -154,7 +154,7 @@ export function MuscleMap({ primaryMuscle, secondaryMuscle }: MuscleMapProps) {
 
         {/* BACK VIEW */}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: Fonts.bodyMedium, marginBottom: 6 }}>
             Back
           </Text>
           <Svg width={W} height={300} viewBox="0 0 100 185">
