@@ -1,5 +1,7 @@
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText } from '@/components/ui/AppText';
+import { IconSymbol, type IconName } from '@/components/ui/IconSymbol';
+import { Colors, Fonts } from '@/constants/theme';
 
 interface Props {
   isOwner?: boolean;
@@ -9,64 +11,32 @@ interface Props {
   onPressPro?: () => void;
 }
 
-export function UserBadges({ isOwner, isOg, isPro, size = 'md', onPressPro }: Props) {
-  if (!isOwner && !isOg && !isPro) return null;
-  const fontSize = size === 'sm' ? 9 : 10;
-  const px = size === 'sm' ? 5 : 7;
-  const py = size === 'sm' ? 2 : 3;
-
-  const ProBadge = () => (
-    <View style={{
-      backgroundColor: '#818CF825',
-      borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-      borderWidth: 1, borderColor: '#818CF860',
-    }}>
-      <Text style={{ color: '#818CF8', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
-        ⚡ PRO
-      </Text>
-    </View>
-  );
-
+function Badge({ label, icon, color, size }: { label: string; icon: IconName; color: string; size: 'sm' | 'md' }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
-      {isPro && !isOwner && (
-        onPressPro
-          ? <TouchableOpacity onPress={onPressPro} activeOpacity={0.7}><ProBadge /></TouchableOpacity>
-          : <ProBadge />
-      )}
-      {isOwner && (
-        <View style={{
-          backgroundColor: Colors.gold + '25',
-          borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-          borderWidth: 1, borderColor: Colors.gold + '50',
-        }}>
-          <Text style={{ color: Colors.gold, fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
-            👑 CREATOR
-          </Text>
-        </View>
-      )}
-      {isOg && !isOwner && (
-        <View style={{
-          backgroundColor: '#D9A44125',
-          borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-          borderWidth: 1, borderColor: '#D9A44160',
-        }}>
-          <Text style={{ color: '#D9A441', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
-            ⚡ OG
-          </Text>
-        </View>
-      )}
-      {isOg && isOwner && (
-        <View style={{
-          backgroundColor: '#D9A44125',
-          borderRadius: 6, paddingHorizontal: px, paddingVertical: py,
-          borderWidth: 1, borderColor: '#D9A44160',
-        }}>
-          <Text style={{ color: '#D9A441', fontSize, fontWeight: '800', letterSpacing: 0.3 }}>
-            ⚡ OG
-          </Text>
-        </View>
-      )}
+    <View style={[styles.badge, size === 'sm' && styles.sm, { borderColor: color + '66', backgroundColor: color + '1F' }]}>
+      <IconSymbol name={icon} size={size === 'sm' ? 10 : 12} color={color} />
+      <AppText style={[styles.text, size === 'sm' && styles.textSm, { color }]}>{label}</AppText>
     </View>
   );
 }
+
+/** Pro / Creator / OG chips. */
+export function UserBadges({ isOwner, isOg, isPro, size = 'md', onPressPro }: Props) {
+  if (!isOwner && !isOg && !isPro) return null;
+  const pro = <Badge label="Pro" icon="flash" color={Colors.badgePro} size={size} />;
+  return (
+    <View style={styles.row}>
+      {isPro && !isOwner && (onPressPro ? <TouchableOpacity onPress={onPressPro} activeOpacity={0.7}>{pro}</TouchableOpacity> : pro)}
+      {isOwner && <Badge label="Creator" icon="crown" color={Colors.gold} size={size} />}
+      {isOg && <Badge label="OG" icon="medal" color={Colors.badgeOg} size={size} />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 },
+  sm: { paddingHorizontal: 5, paddingVertical: 2 },
+  text: { fontFamily: Fonts.bodySemi, fontSize: 11, lineHeight: 14 },
+  textSm: { fontSize: 10, lineHeight: 13 },
+});

@@ -1,5 +1,5 @@
 // Session-type vocabulary shared by Home, Profile, and the friend profile.
-// One palette, one emoji set, and the two classifiers that previously lived
+// One palette and the two classifiers that previously lived
 // as duplicated module-level copies in those screens.
 
 export const SESSION_COLORS: Record<string, string> = {
@@ -13,16 +13,6 @@ export const SESSION_COLORS: Record<string, string> = {
   Training: '#888888',
 };
 
-export const SESSION_EMOJI: Record<string, string> = {
-  Push: '💪',
-  Pull: '🎯',
-  Legs: '🦵',
-  Upper: '⬆️',
-  Lower: '🔽',
-  'Full Body': '🔥',
-  Core: '🧘',
-  Training: '🏋️',
-};
 
 export const SESSION_TYPES = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Core'];
 

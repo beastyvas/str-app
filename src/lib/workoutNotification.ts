@@ -62,7 +62,7 @@ export async function notifyWorkoutStarted(workoutName: string) {
   await N.scheduleNotificationAsync({
     identifier: WORKOUT_NOTIF_ID,
     content: {
-      title: `🏋️ ${workoutName}`,
+      title: workoutName,
       body: 'Workout started — tap to log sets',
       data: { url: '/(tabs)/workout' },
       categoryIdentifier: 'workout',
@@ -119,7 +119,7 @@ async function _updateActiveNotif(elapsedSeconds: number) {
   await N.scheduleNotificationAsync({
     identifier: WORKOUT_NOTIF_ID,
     content: {
-      title: `🏋️ ${_workoutName}`,
+      title: _workoutName,
       body,
       data: { url: '/(tabs)/workout' },
       sticky: true,

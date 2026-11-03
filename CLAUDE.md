@@ -9,15 +9,15 @@ RevenueCat (subscriptions) · Zustand (workout store).
 
 ---
 
-## Branches & versions
+## Status & branches
 
-| Branch | Version | Purpose |
-|---|---|---|
-| `main` | 1.0.6 build 14 | The App Store line. Hotfixes only. |
-| `redesign/v2` | 1.1.0 build 1 | **Active development.** Premium redesign, 12 commits ahead of main (contains everything main has). |
+**Personal app, TestFlight only.** One user (the owner). It is not on the App
+Store and won't be soon, so App Store review concerns (3.1.2(c), EULA in the
+description, "Apple-reviewed flows") are not blockers.
 
-Work on `redesign/v2`. Once 1.0.6 is approved, collapsing them is one command:
-`git checkout main && git merge --ff-only redesign/v2`.
+`main` is 1.1.0 build 2. The anime rehaul (Power Level, worlds, cameos,
+onboarding, every screen) landed on `claude/str-anime-rehaul-sllidq`. There
+is no `redesign/v2` branch anymore — it was merged into `main` before 1.1.0.
 
 ## Release model — read before shipping anything
 
@@ -34,6 +34,13 @@ The redesign added **native modules** — `react-native-worklets`,
   version bump exists specifically to prevent that.
 - After 1.1.0 is live, JS-only changes (restyles, copy, logic) ship instantly
   with `eas update`. Only touch `eas build` again when a native dep changes.
+- The anime rehaul added **no native modules**: the `@expo-google-fonts/*`
+  packages are JS + TTF assets loaded through `expo-font` (already in the
+  binary). Fonts are imported per weight in `app/_layout.tsx` — the package
+  roots `require` every weight and would bloat every update. Cameo images
+  are assets too. So the rehaul ships as an `eas update` on the 1.1.0 lane.
+- Cameo tooling (`sharp`, `@imgly/background-removal-node`) lives in
+  `scripts/package.json`, NOT the app's package.json, so EAS never installs it.
 
 Locally, `npx expo start` against an old dev client will crash for the same
 reason — build fresh: `npx expo run:ios --device`.
@@ -88,6 +95,18 @@ Full rules in `src/components/ui/README.md`. The short version:
   host="local" />`). Art lives in `assets/cameos/<id>/` — see its README.
   **Never draw or generate character art**; placeholders only.
 
+## Power Level & rank
+
+Spec + hand-checked examples at the top of `src/lib/powerLevel.ts` (pure;
+`powerLevelSelfCheck()` runs in `__DEV__`). Epley e1RM from every squat /
+bench / deadlift set in 180 days (proxies via a tunable coefficient table;
+dumbbell bench is logged per hand → 2.4), continuous position on the 24
+scaled thresholds, `power = mean(p) × 375` (9,000 = Godhand IV average).
+Rank uses the same e1RMs with the weakest-link rule. Fetching / saving is
+`src/lib/powerData.ts`; migration `029_power_level.sql` stores `power_level`,
+`power_confidence`, `rank_tier_key`, `rank_sub_tier` and exposes them via
+`public_profiles` (the app tolerates 029 not having run).
+
 ## Architecture notes
 
 - **Data hooks are stale-while-revalidate.** `useHomeData`,
@@ -120,21 +139,19 @@ Full rules in `src/components/ui/README.md`. The short version:
 
 ## Open threads
 
+- **Run migration `029_power_level.sql`** (friends' Power Levels and stored
+  ranks depend on it; the app works without it). Also confirm `026`–`028`.
+- **Redeploy `ai-coach`** — its tier personalities now add each world lead's
+  flavor (`supabase functions deploy ai-coach`).
 - **`coach-nudge` is dead.** The mid-workout coach banner (`WorkoutCoach`) was
-  deleted; nothing calls this edge function anymore. Safe to delete it and
-  `supabase functions delete coach-nudge` whenever.
-- **Supabase:** confirm migrations `026`–`028` have run; deploy the
-  `monthly-analysis` edge function (`supabase functions
-  deploy <name>`; both need the `ANTHROPIC_API_KEY` secret).
+  deleted; nothing calls this edge function. Delete it whenever
+  (`supabase functions delete coach-nudge`).
+- **Cameo art:** 39 placeholder portraits ship in `assets/cameos/`. Real art
+  goes through `node scripts/process-cameos.mjs` (see that folder's README and
+  `CAST_CHECKLIST.md`). Never generate character art.
 - **`is_owner` is unset** for the creator account. It gates the creator
   showcase, auto-accept-friend (migration 012), and the owner badge — all
   silently no-op until someone runs
   `UPDATE public.users SET is_owner = true, is_og = true WHERE email = '...'`.
-- **App Store 3.1.2(c):** the Terms of Use (EULA) link must appear in the App
-  Store *description* (the in-app paywall already has it). Apple's standard
-  EULA URL is fine.
-- **Redesign remainder (pure JS → OTA-able after 1.1.0 ships):** profile and
-  insights visual restyle onto primitives, plus the `Modal` → `SheetModal`
-  sweep for the finish / name / note / edit-set modals.
-- The redesign is **device-unverified** — it passed typecheck and bundling but
+- The rehaul is **device-unverified** — typecheck and bundling pass, but it
   has never run on a phone. First job on a real device is the smoke test.

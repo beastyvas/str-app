@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useWorld } from '@/theme';
 import { View, Text } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function ExerciseAnimation({ exerciseName, muscleGroup, equipmentType }: Props) {
+  const aura = useWorld().aura;
   const poseKey = getPoseKey(exerciseName, muscleGroup, equipmentType);
   const pose = EXERCISE_POSES[poseKey] ?? EXERCISE_POSES['generic_push'];
   const { start, end, speed = 1 } = pose;
@@ -91,7 +93,7 @@ export function ExerciseAnimation({ exerciseName, muscleGroup, equipmentType }: 
               key={`far-${i}`}
               x1={joints[a][0]} y1={joints[a][1]}
               x2={joints[b][0]} y2={joints[b][1]}
-              stroke={Colors.accent} strokeWidth={2.5}
+              stroke={aura} strokeWidth={2.5}
               strokeLinecap="round" opacity={0.3}
             />
           ))}
@@ -102,25 +104,25 @@ export function ExerciseAnimation({ exerciseName, muscleGroup, equipmentType }: 
               key={`bone-${i}`}
               x1={joints[a][0]} y1={joints[a][1]}
               x2={joints[b][0]} y2={joints[b][1]}
-              stroke={Colors.accent} strokeWidth={3.5}
+              stroke={aura} strokeWidth={3.5}
               strokeLinecap="round"
             />
           ))}
 
           {/* Head */}
           <Circle cx={joints[0][0]} cy={joints[0][1]} r={10}
-            fill={Colors.accent} />
+            fill={aura} />
 
           {/* Key joints */}
           {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
             <Circle key={i} cx={joints[i][0]} cy={joints[i][1]}
-              r={3} fill={Colors.accent} />
+              r={3} fill={aura} />
           ))}
 
           {/* Far arm joints */}
           {[10, 11, 12].map(i => (
             <Circle key={i} cx={joints[i][0]} cy={joints[i][1]}
-              r={2.5} fill={Colors.accent} opacity={0.3} />
+              r={2.5} fill={aura} opacity={0.3} />
           ))}
         </Svg>
       </View>

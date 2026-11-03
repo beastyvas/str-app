@@ -1,4 +1,5 @@
 import { View, Text } from 'react-native';
+import { useWorld } from '@/theme';
 import Svg, { Ellipse, Rect, Path, G } from 'react-native-svg';
 import { Colors, Fonts } from '@/constants/theme';
 
@@ -47,18 +48,19 @@ function getMuscleRegions(muscleStr: string): string[] {
 }
 
 export function MuscleMap({ primaryMuscle, secondaryMuscle }: MuscleMapProps) {
+  const aura = useWorld().aura;
   const primary = new Set(getMuscleRegions(primaryMuscle));
   const secondary = new Set(getMuscleRegions(secondaryMuscle ?? ''));
 
   const fill = (region: string): string => {
-    if (primary.has(region)) return Colors.accent;
-    if (secondary.has(region)) return Colors.accent + '50';
+    if (primary.has(region)) return aura;
+    if (secondary.has(region)) return aura + '50';
     return Colors.surface3;
   };
 
   const stroke = (region: string): string => {
-    if (primary.has(region)) return Colors.accent;
-    if (secondary.has(region)) return Colors.accent + '80';
+    if (primary.has(region)) return aura;
+    if (secondary.has(region)) return aura + '80';
     return Colors.border;
   };
 
@@ -223,12 +225,12 @@ export function MuscleMap({ primaryMuscle, secondaryMuscle }: MuscleMapProps) {
       {/* Legend */}
       <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: Colors.accent }} />
+          <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: aura }} />
           <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Primary</Text>
         </View>
         {secondaryMuscle && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: Colors.accent + '50' }} />
+            <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: aura + '50' }} />
             <Text style={{ color: Colors.textMuted, fontSize: 10 }}>Secondary</Text>
           </View>
         )}

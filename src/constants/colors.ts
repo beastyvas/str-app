@@ -35,6 +35,10 @@ export const Colors = {
   danger: '#F25555',
   dangerDim: '#F255551F',
 
+  // Profile badges
+  badgePro: '#818CF8',
+  badgeOg: '#D9A441',
+
   // Strength tier colors (legacy per-lift tiers — unchanged)
   tiers: {
     beginner: '#6D6862',

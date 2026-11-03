@@ -1,4 +1,5 @@
 import { View, Text } from 'react-native';
+import { useWorld } from '@/theme';
 import Svg, { Ellipse, Rect, Path } from 'react-native-svg';
 import { Colors, Fonts } from '@/constants/theme';
 
@@ -43,6 +44,7 @@ function alphaHex(t: number): string {
 }
 
 export function MuscleHeatmap({ volumeByGroup }: MuscleHeatmapProps) {
+  const aura = useWorld().aura;
   // Normalize against the busiest mapped group so the scale is relative to the
   // user's own training, not an absolute number.
   const mapped = Object.entries(volumeByGroup).filter(([g]) => GROUP_REGIONS[g]);
@@ -61,10 +63,10 @@ export function MuscleHeatmap({ volumeByGroup }: MuscleHeatmapProps) {
     const t = intensity[region] ?? 0;
     if (t <= 0) return Colors.surface3; // untrained = dim grey
     // 0.25→1.0 alpha so even light work is visible above the grey base
-    return Colors.accent + alphaHex(0.25 + 0.75 * t);
+    return aura + alphaHex(0.25 + 0.75 * t);
   };
   const stroke = (region: string): string =>
-    (intensity[region] ?? 0) > 0 ? Colors.accent + '90' : Colors.border;
+    (intensity[region] ?? 0) > 0 ? aura + '90' : Colors.border;
   const sw = (region: string): number => ((intensity[region] ?? 0) > 0 ? 1.5 : 1);
 
   const W = 132;
@@ -195,7 +197,7 @@ export function MuscleHeatmap({ volumeByGroup }: MuscleHeatmapProps) {
             key={i}
             style={{
               width: 18, height: 10, borderRadius: 2,
-              backgroundColor: t <= 0 ? Colors.surface3 : Colors.accent + alphaHex(0.25 + 0.75 * t),
+              backgroundColor: t <= 0 ? Colors.surface3 : aura + alphaHex(0.25 + 0.75 * t),
             }}
           />
         ))}

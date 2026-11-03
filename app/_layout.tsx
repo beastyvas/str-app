@@ -6,9 +6,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
-import { ChakraPetch_600SemiBold, ChakraPetch_700Bold } from '@expo-google-fonts/chakra-petch';
-import { Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold } from '@expo-google-fonts/barlow';
+// Per-weight entry points: the package roots require EVERY weight, which
+// would ship ~30 unused TTFs in every bundle / OTA update.
+import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one/400Regular';
+import { ChakraPetch_600SemiBold } from '@expo-google-fonts/chakra-petch/600SemiBold';
+import { ChakraPetch_700Bold } from '@expo-google-fonts/chakra-petch/700Bold';
+import { Barlow_400Regular } from '@expo-google-fonts/barlow/400Regular';
+import { Barlow_500Medium } from '@expo-google-fonts/barlow/500Medium';
+import { Barlow_600SemiBold } from '@expo-google-fonts/barlow/600SemiBold';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { WorldProvider } from '@/theme';
 import { ImpactFrame } from '@/components/anime';

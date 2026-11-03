@@ -1,4 +1,5 @@
 import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { useWorld } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 
@@ -12,6 +13,7 @@ interface Props {
 // with a zero-tolerance policy for objectionable content/abusive users, accepted
 // before account creation.
 export function EulaModal({ visible, onClose, onAgree }: Props) {
+  const aura = useWorld().aura;
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
@@ -75,7 +77,7 @@ export function EulaModal({ visible, onClose, onAgree }: Props) {
             <TouchableOpacity
               onPress={onAgree}
               style={{
-                backgroundColor: Colors.accent, borderRadius: 14,
+                backgroundColor: aura, borderRadius: 14,
                 paddingVertical: 16, alignItems: 'center', marginTop: 8,
               }}
             >
