@@ -97,7 +97,7 @@ export function useWorkoutTemplates(enabled: boolean) {
         const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][todayDow];
         daySuggestion = {
           name: (pinnedTmpl as any).name,
-          dayLabel: `📌 Your ${dayName} plan`,
+          dayLabel: `Your ${dayName} plan`,
           exercises: (pinnedTmpl as any).exercises,
           isPinned: true,
           pinnedTemplateId: (pinnedTmpl as any).id,

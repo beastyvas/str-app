@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, Modal, FlatList, TextInput, ScrollView,
-  TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  ActivityIndicator, Dimensions, FlatList, ScrollView, StyleSheet, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { Colors } from '@/constants/colors';
+import { AppText, Button, IconSymbol, SheetModal } from '@/components/ui';
+import { Colors, Fonts, Hit, Radius, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
+import { CreateExerciseForm, MUSCLE_GROUPS } from './CreateExerciseForm';
 
 interface Exercise {
   id: string;
@@ -16,15 +17,12 @@ interface Exercise {
   equipment_type?: string;
 }
 
-// DB rows use `null` for absent fields; the local Exercise type uses
-// `undefined` — normalize at the boundary.
+// DB rows use `null` for absent fields; normalize at the boundary.
 const toExercise = (r: {
   id: string; name: string; muscle_group: string;
   secondary_muscle?: string | null; equipment_type?: string | null;
 }): Exercise => ({
-  id: r.id,
-  name: r.name,
-  muscle_group: r.muscle_group,
+  id: r.id, name: r.name, muscle_group: r.muscle_group,
   secondary_muscle: r.secondary_muscle ?? undefined,
   equipment_type: r.equipment_type ?? undefined,
 });
@@ -35,12 +33,6 @@ interface Props {
   onSelect: (exercise: Exercise & { equipment_type?: string }) => void;
   onClose: () => void;
 }
-
-const MUSCLE_GROUPS = [
-  'All', 'Chest', 'Shoulders', 'Triceps', 'Biceps',
-  'Mid-Upper Back', 'Lats', 'Quads', 'Hamstrings', 'Glutes',
-  'Core', 'Calves', 'Forearms', 'Overall',
-];
 
 // Most commonly used per group — shown first
 const FEATURED: Record<string, string[]> = {
@@ -58,22 +50,15 @@ const FEATURED: Record<string, string[]> = {
   'Calves':       ['Standing Calf Raise', 'Seated Calf Raise', 'Leg Press Calf Raise'],
 };
 
-const EQUIPMENT_OPTIONS = ['Barbell', 'Dumbbells', 'Cable Machine', 'Machine', 'Bodyweight', 'Kettlebell', 'Resistance Band', 'Other'];
+const SHEET_H = Math.round(Dimensions.get('window').height * 0.88);
 
 export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }: Props) {
+  const world = useWorld();
   const { user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [filtered, setFiltered] = useState<Exercise[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('All');
+  const [group, setGroup] = useState('All');
   const [loading, setLoading] = useState(true);
-
-  // Create exercise state
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newGroup, setNewGroup] = useState('');
-  const [newEquipment, setNewEquipment] = useState('Barbell');
-  const [newUnit, setNewUnit] = useState<'lbs' | 'kg'>('lbs');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -83,397 +68,138 @@ export function ExercisePickerModal({ visible, alreadyAdded, onSelect, onClose }
       .select('id, name, muscle_group, secondary_muscle, equipment_type')
       .order('muscle_group')
       .order('name')
-      .then(({ data }) => {
-        setExercises((data ?? []).map(toExercise));
-        setLoading(false);
-      });
+      .then(({ data }) => { setExercises((data ?? []).map(toExercise)); setLoading(false); });
   }, [visible]);
 
-  useEffect(() => {
-    let list = exercises;
-    if (selectedGroup !== 'All') {
-      list = list.filter(e => e.muscle_group === selectedGroup);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(e => e.name.toLowerCase().includes(q));
-    }
-
-    // Sort: featured first, then alphabetical
-    const featuredList = selectedGroup !== 'All' ? (FEATURED[selectedGroup] ?? []) : [];
-    const sorted = [...list].sort((a, b) => {
-      const ai = featuredList.findIndex(f => f.toLowerCase() === a.name.toLowerCase());
-      const bi = featuredList.findIndex(f => f.toLowerCase() === b.name.toLowerCase());
+  const featured = group !== 'All' ? (FEATURED[group] ?? []) : [];
+  const filtered = useMemo(() => {
+    let list = group !== 'All' ? exercises.filter(e => e.muscle_group === group) : exercises;
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(e => e.name.toLowerCase().includes(q));
+    const rank = (n: string) => featured.findIndex(f => f.toLowerCase() === n.toLowerCase());
+    return [...list].sort((a, b) => {
+      const ai = rank(a.name), bi = rank(b.name);
       if (ai !== -1 && bi !== -1) return ai - bi;
       if (ai !== -1) return -1;
       if (bi !== -1) return 1;
       return a.name.localeCompare(b.name);
     });
+  }, [exercises, search, group]);
 
-    setFiltered(sorted);
-  }, [exercises, search, selectedGroup]);
+  const close = () => { setSearch(''); setGroup('All'); setCreating(false); onClose(); };
 
-  const handleClose = () => {
-    setSearch('');
-    setSelectedGroup('All');
-    setShowCreate(false);
-    onClose();
-  };
-
-  const handleCreateExercise = async () => {
-    if (!newName.trim() || !user) return;
-    setCreating(true);
-    try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .insert({
-          name: newName.trim(),
-          muscle_group: newGroup,
-          equipment_type: newEquipment,
-          is_custom: true,
-          created_by: user.id,
-          form_cues: null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      // Add to local list and select it
-      const created = toExercise(data);
-      setExercises(prev => [...prev, created]);
-      onSelect(created);
-      setShowCreate(false);
-      setNewName('');
-      handleClose();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const renderItem = useCallback(({ item, index }: { item: Exercise; index: number }) => {
-    const isAdded = alreadyAdded.includes(item.id);
-    const featuredList = selectedGroup !== 'All' ? (FEATURED[selectedGroup] ?? []) : [];
-    const isFeatured = featuredList.some(f => f.toLowerCase() === item.name.toLowerCase());
-
+  const renderItem = useCallback(({ item }: { item: Exercise }) => {
+    const added = alreadyAdded.includes(item.id);
+    const popular = !search.trim() && featured.some(f => f.toLowerCase() === item.name.toLowerCase());
     return (
       <TouchableOpacity
-        onPress={() => { if (!isAdded) { onSelect(item); handleClose(); } }}
-        activeOpacity={isAdded ? 1 : 0.7}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 20,
-          paddingVertical: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.border,
-          opacity: isAdded ? 0.4 : 1,
-          backgroundColor: isFeatured && !search.trim() ? Colors.accent + '06' : 'transparent',
-        }}
+        onPress={() => { if (!added) { onSelect(item); close(); } }}
+        activeOpacity={added ? 1 : 0.7}
+        style={[styles.row, added && styles.added]}
+        accessibilityLabel={`${item.name}${added ? ', already added' : ''}`}
       >
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>
-              {item.name}
-            </Text>
-            {isFeatured && !search.trim() && (
-              <View style={{
-                backgroundColor: Colors.accent + '20',
-                borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1,
-              }}>
-                <Text style={{ color: Colors.accent, fontSize: 9, fontWeight: '800' }}>POPULAR</Text>
-              </View>
-            )}
+        <View style={styles.flex}>
+          <View style={styles.nameRow}>
+            <AppText variant="heading" numberOfLines={1} style={styles.shrink}>{item.name}</AppText>
+            {popular && <AppText variant="caption" color={world.aura}>Popular</AppText>}
           </View>
-          <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-            {item.muscle_group}
-            {item.secondary_muscle ? ` · ${item.secondary_muscle}` : ''}
-            {item.equipment_type ? ` · ${item.equipment_type}` : ''}
-          </Text>
+          <AppText variant="caption" numberOfLines={1}>
+            {[item.muscle_group, item.secondary_muscle, item.equipment_type].filter(Boolean).join(' · ')}
+          </AppText>
         </View>
-        {isAdded ? (
-          <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Added</Text>
-        ) : (
-          <View style={{
-            width: 28, height: 28, borderRadius: 14,
-            backgroundColor: Colors.accentDim,
-            borderWidth: 1, borderColor: Colors.accent + '40',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Text style={{ color: Colors.accent, fontSize: 18, lineHeight: 20, fontWeight: '300' }}>+</Text>
-          </View>
-        )}
+        {added
+          ? <AppText variant="caption">Added</AppText>
+          : <IconSymbol name="add" size={22} color={world.aura} />}
       </TouchableOpacity>
     );
-  }, [alreadyAdded, selectedGroup, search]);
+  }, [alreadyAdded, group, search, world.aura]);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {/* Header */}
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 20,
-            paddingVertical: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: Colors.border,
-          }}>
-            <Text style={{ flex: 1, color: Colors.text, fontSize: 18, fontWeight: '800' }}>
-              Add Exercise
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowCreate(true)}
-              style={{
-                backgroundColor: Colors.accentDim,
-                borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
-                borderWidth: 1, borderColor: Colors.accent + '40',
-                marginRight: 12,
-              }}
-            >
-              <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 13 }}>+ Create</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleClose}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={{
-                width: 36, height: 36, borderRadius: 18,
-                backgroundColor: Colors.surface2,
-                borderWidth: 1, borderColor: Colors.border,
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: Colors.textMuted, fontSize: 18 }}>×</Text>
-            </TouchableOpacity>
+    <SheetModal visible={visible} onClose={close} snapHeight={SHEET_H}>
+      {creating && user ? (
+        <CreateExerciseForm
+          userId={user.id}
+          initialName={search}
+          onBack={() => setCreating(false)}
+          onCreated={row => {
+            const ex = toExercise(row);
+            setExercises(prev => [...prev, ex]);
+            onSelect(ex);
+            close();
+          }}
+        />
+      ) : (
+        <View style={styles.flex}>
+          <View style={styles.head}>
+            <AppText variant="title" style={styles.flex}>Add exercise</AppText>
+            <Button label="New" icon="add" variant="tinted" size="sm" onPress={() => setCreating(true)} />
           </View>
-
-          {/* Search */}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+          <View style={styles.search}>
+            <IconSymbol name="search" size={16} color={Colors.textMuted} />
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search exercises..."
+              placeholder="Search exercises"
               placeholderTextColor={Colors.textMuted}
               autoCorrect={false}
-              style={{
-                backgroundColor: Colors.surface2,
-                borderRadius: 12,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                color: Colors.text,
-                fontSize: 15,
-                borderWidth: 1,
-                borderColor: Colors.border,
-              }}
+              style={styles.searchInput}
             />
           </View>
-
-          {/* Muscle group filter — ScrollView instead of FlatList for reliable pill display */}
           <View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            bounces={false}
-          >
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingLeft: 16,
-              paddingRight: 40,
-              paddingBottom: 10,
-            }}>
-              {MUSCLE_GROUPS.map((group, i) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groups}>
+              {MUSCLE_GROUPS.map(g => (
                 <TouchableOpacity
-                  key={group}
-                  onPress={() => setSelectedGroup(group)}
-                  style={{
-                    paddingHorizontal: 14,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    backgroundColor: selectedGroup === group ? Colors.accent : Colors.surface2,
-                    borderWidth: 1,
-                    borderColor: selectedGroup === group ? Colors.accent : Colors.border,
-                    marginRight: i < MUSCLE_GROUPS.length - 1 ? 8 : 0,
-                  }}
+                  key={g}
+                  onPress={() => setGroup(g)}
+                  style={[styles.group, group === g && { backgroundColor: world.aura + '1F', borderColor: world.aura }]}
                 >
-                  <Text style={{
-                    color: selectedGroup === group ? Colors.text : Colors.textMuted,
-                    fontSize: 12,
-                    fontWeight: '700',
-                  }}>
-                    {group}
-                  </Text>
+                  <AppText variant="label" color={group === g ? world.aura : Colors.textSecondary}>{g}</AppText>
                 </TouchableOpacity>
               ))}
-            </View>
-          </ScrollView>
-          {/* Right fade to signal more pills exist */}
-          <View style={{
-            position: 'absolute', right: 0, top: 0, bottom: 10,
-            width: 32,
-          }}
-            pointerEvents="none"
-          >
-            <View style={{
-              flex: 1,
-              backgroundColor: Colors.bg,
-              opacity: 0.7,
-            }} />
+            </ScrollView>
           </View>
-          </View>
-
-          {/* Exercise list */}
           {loading ? (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <ActivityIndicator color={Colors.accent} />
-            </View>
+            <View style={styles.center}><ActivityIndicator color={world.aura} /></View>
           ) : (
             <FlatList
               data={filtered}
               keyExtractor={item => item.id}
               renderItem={renderItem}
               keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={() => (
-                <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 14 }}>
-                    No exercises found
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => { setNewName(search); setShowCreate(true); }}
-                    style={{
-                      backgroundColor: Colors.accentDim,
-                      borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10,
-                      borderWidth: 1, borderColor: Colors.accent + '40',
-                    }}
-                  >
-                    <Text style={{ color: Colors.accent, fontWeight: '700' }}>
-                      + Create "{search}"
-                    </Text>
-                  </TouchableOpacity>
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <AppText variant="body">No exercises found</AppText>
+                  {!!search.trim() && <Button label={`Create "${search.trim()}"`} variant="tinted" onPress={() => setCreating(true)} />}
                 </View>
-              )}
+              }
             />
           )}
-        </KeyboardAvoidingView>
-
-        {/* Create Exercise — inline full-screen view, no nested Modal */}
-        {showCreate && (
-          <View style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: Colors.bg, zIndex: 10,
-          }}>
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={{
-                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                paddingHorizontal: 20, paddingVertical: 16,
-                borderBottomWidth: 1, borderBottomColor: Colors.border,
-              }}>
-                <TouchableOpacity onPress={() => setShowCreate(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                  <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>← Back</Text>
-                </TouchableOpacity>
-                <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>New Exercise</Text>
-                <View style={{ width: 60 }} />
-              </View>
-
-              <ScrollView contentContainerStyle={{ padding: 24, gap: 20 }} keyboardShouldPersistTaps="handled">
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Exercise Name</Text>
-                  <TextInput
-                    value={newName}
-                    onChangeText={setNewName}
-                    autoFocus
-                    placeholder="e.g. Cable Pullthrough"
-                    placeholderTextColor={Colors.textMuted}
-                    style={{
-                      backgroundColor: Colors.surface, borderRadius: 12,
-                      paddingHorizontal: 16, paddingVertical: 14,
-                      color: Colors.text, fontSize: 16,
-                      borderWidth: 1, borderColor: Colors.border,
-                    }}
-                  />
-                </View>
-
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Muscle Group</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {MUSCLE_GROUPS.filter(g => g !== 'All').map(g => (
-                      <TouchableOpacity
-                        key={g}
-                        onPress={() => setNewGroup(g)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: newGroup === g ? Colors.accent : Colors.surface,
-                          borderWidth: 1, borderColor: newGroup === g ? Colors.accent : Colors.border,
-                        }}
-                      >
-                        <Text style={{ color: newGroup === g ? Colors.text : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>{g}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Equipment</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {EQUIPMENT_OPTIONS.map(eq => (
-                      <TouchableOpacity
-                        key={eq}
-                        onPress={() => setNewEquipment(eq)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: newEquipment === eq ? Colors.accent : Colors.surface,
-                          borderWidth: 1, borderColor: newEquipment === eq ? Colors.accent : Colors.border,
-                        }}
-                      >
-                        <Text style={{ color: newEquipment === eq ? Colors.text : Colors.textMuted, fontSize: 13, fontWeight: '700' }}>{eq}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Default Weight Unit</Text>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    {(['lbs', 'kg'] as const).map(u => (
-                      <TouchableOpacity
-                        key={u}
-                        onPress={() => setNewUnit?.(u)}
-                        style={{
-                          flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                          backgroundColor: (newUnit ?? 'lbs') === u ? Colors.accent : Colors.surface,
-                          borderWidth: 1, borderColor: (newUnit ?? 'lbs') === u ? Colors.accent : Colors.border,
-                        }}
-                      >
-                        <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, textTransform: 'uppercase' }}>{u}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  onPress={handleCreateExercise}
-                  disabled={!newName.trim() || !newGroup || creating}
-                  style={{
-                    backgroundColor: newName.trim() && newGroup && !creating ? Colors.accent : Colors.surface,
-                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    marginTop: 8,
-                  }}
-                >
-                  {creating
-                    ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>Create & Add →</Text>
-                  }
-                </TouchableOpacity>
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </View>
-        )}
-      </SafeAreaView>
-    </Modal>
+        </View>
+      )}
+    </SheetModal>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  shrink: { flexShrink: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingBottom: Spacing.md },
+  search: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, minHeight: 48,
+    backgroundColor: Colors.surface2, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.borderLight,
+  },
+  searchInput: { flex: 1, color: Colors.text, fontFamily: Fonts.body, fontSize: 16, minHeight: 48 },
+  groups: { gap: Spacing.sm, paddingVertical: Spacing.md },
+  group: {
+    minHeight: 36, paddingHorizontal: Spacing.md, justifyContent: 'center',
+    borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface2,
+  },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md, minHeight: 60, paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
+  },
+  added: { opacity: 0.4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl },
+});

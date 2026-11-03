@@ -1,9 +1,13 @@
 import { memo, useState } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
-import { Colors } from '@/constants/colors';
-import { WorkoutExercise, LoggedSet } from '@/hooks/useWorkout';
-import { SetInputRow, LoggedSetRow } from './SetRow';
-import { IconSymbol } from '@/components/ui';
+import { ActionSheetIOS, Alert, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppText, IconSymbol } from '@/components/ui';
+import { Colors, Hit, Radius, Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
+import { useWorld } from '@/theme';
+import { toDisplay, unitFromProfile } from '@/lib/units';
+import type { WorkoutExercise, LoggedSet } from '@/hooks/useWorkout';
+import { SetInputRow } from './SetInputRow';
+import { LoggedSetRow, type SetEdit } from './LoggedSetRow';
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
@@ -18,39 +22,24 @@ interface ExerciseCardProps {
   onRemove: (exerciseId: string) => void;
   onReplace: (exerciseId: string) => void;
   onDeleteSet: (exerciseId: string, localId: string) => void;
-  onEditSet: (exerciseId: string, localId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => void;
+  onEditSet: (exerciseId: string, localId: string, data: SetEdit) => void;
   onNavigateToDetail: (exerciseId: string) => void;
-  // Superset pairing: 'first' | 'second' when this card is half of a pair
+  /** 'first' | 'second' when this card is half of a superset pair */
   supersetRole?: 'first' | 'second' | null;
-  // Show the link button when pairing with the next card is possible (or to unlink)
+  /** Pairing with the next card is possible (or this card can unlink) */
   canToggleSuperset?: boolean;
   onToggleSuperset?: (exerciseId: string) => void;
 }
 
-const MUSCLE_COLORS: Record<string, string> = {
-  'Chest': '#C2566B',
-  'Shoulders': '#9B59B6',
-  'Triceps': '#8E44AD',
-  'Biceps': '#3498DB',
-  'Mid-Upper Back': '#1ABC9C',
-  'Lats': '#16A085',
-  'Quads': '#E67E22',
-  'Hamstrings': '#D35400',
-  'Glutes': '#E74C3C',
-  'Core': '#F39C12',
-  'Calves': '#95A5A6',
-  'Forearms': '#7F8C8D',
-  'Overall': '#ECF0F1',
-};
+const EMPTY: LoggedSet[] = [];
+const EMPTY_MAP: Record<string, boolean> = {};
 
-// memo: the workout screen re-renders on every store change (any set logged
-// anywhere); each card only cares about its own exercise slice + callbacks.
+// memo: the workout screen re-renders on every store change; each card only
+// cares about its own exercise slice + identity-stable callbacks.
 export const ExerciseCard = memo(function ExerciseCard({
   exercise,
-  prevSets = [],
-  prMap = {},
-  workoutId,
-  userId,
+  prevSets = EMPTY,
+  prMap = EMPTY_MAP,
   onLogSet,
   onRemove,
   onReplace,
@@ -61,222 +50,104 @@ export const ExerciseCard = memo(function ExerciseCard({
   onToggleSuperset,
   onNavigateToDetail,
 }: ExerciseCardProps) {
+  const world = useWorld();
+  const { profile } = useAuth();
+  const unit = unitFromProfile(profile?.unit_pref);
   const [collapsed, setCollapsed] = useState(false);
-  const nextSetNumber = exercise.sets.length + 1;
-  const prevSetForNext = prevSets[exercise.sets.length];
-  const accentColor = MUSCLE_COLORS[exercise.muscleGroup] ?? Colors.accent;
+  const id = exercise.exerciseId;
 
-  const handleRemove = () => {
-    Alert.alert(
-      'Remove Exercise',
-      `Remove ${exercise.exerciseName} from this workout?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => onRemove(exercise.exerciseId) },
-      ]
-    );
+  const lastTime = prevSets.length
+    ? 'Last time: ' + prevSets.slice(0, 4).map(s => `${s.weight === 0 ? 'BW' : toDisplay(s.weight, unit)} × ${s.reps}`).join(', ')
+      + (prevSets.length > 4 ? '…' : '')
+    : null;
+
+  const confirmRemove = () => Alert.alert('Remove exercise', `Remove ${exercise.exerciseName} from this workout?`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: () => onRemove(id) },
+  ]);
+
+  // One quiet overflow instead of four icon buttons on every card.
+  const openMenu = () => {
+    const actions: { label: string; run: () => void; destructive?: boolean }[] = [
+      { label: 'Exercise details', run: () => onNavigateToDetail(id) },
+      { label: 'Replace exercise', run: () => onReplace(id) },
+    ];
+    if (canToggleSuperset) actions.push({ label: supersetRole ? 'Unlink superset' : 'Superset with next', run: () => onToggleSuperset?.(id) });
+    actions.push({ label: 'Remove exercise', run: confirmRemove, destructive: true });
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: exercise.exerciseName,
+          options: [...actions.map(a => a.label), 'Cancel'],
+          cancelButtonIndex: actions.length,
+          destructiveButtonIndex: actions.findIndex(a => a.destructive),
+          userInterfaceStyle: 'dark',
+        },
+        i => { if (i < actions.length) actions[i].run(); },
+      );
+    } else {
+      Alert.alert(exercise.exerciseName, undefined, [
+        ...actions.map(a => ({ text: a.label, onPress: a.run, style: a.destructive ? 'destructive' as const : 'default' as const })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
   };
 
   return (
-    <View style={{
-      backgroundColor: Colors.surface,
-      borderRadius: 18,
-      marginHorizontal: 14,
-      // Paired cards sit tight together so the superset reads as one block
-      marginBottom: supersetRole === 'first' ? 4 : 14,
-      overflow: 'hidden',
-      // Elevation instead of a 1px outline — the accent strip carries the color
-      shadowColor: '#000',
-      shadowOpacity: 0.3,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 3,
-    }}>
-      {/* Muscle group accent strip */}
-      <View style={{ height: 3, backgroundColor: accentColor, opacity: 0.7 }} />
-
-      {/* Header */}
-      <TouchableOpacity
-        onPress={() => setCollapsed(!collapsed)}
-        activeOpacity={0.75}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingTop: 14,
-          paddingBottom: 12,
-          gap: 10,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={{
-            color: Colors.text,
-            fontSize: 16,
-            fontWeight: '700',
-            letterSpacing: -0.4,
-          }}>
-            {exercise.exerciseName}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <View style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: accentColor,
-            }} />
-            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-              {exercise.muscleGroup}
-              {exercise.sets.length > 0
-                ? ` · ${exercise.sets.length} set${exercise.sets.length !== 1 ? 's' : ''}`
-                : ''}
-            </Text>
+    <View style={[styles.card, supersetRole === 'first' && styles.pairedTop]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => setCollapsed(c => !c)} style={styles.titleBtn} accessibilityLabel={`${exercise.exerciseName}, ${collapsed ? 'expand' : 'collapse'}`}>
+          <View style={styles.titleRow}>
+            <AppText variant="heading" numberOfLines={1} style={styles.flexShrink}>{exercise.exerciseName}</AppText>
             {supersetRole && (
-              <View style={{
-                backgroundColor: Colors.accentDim, borderRadius: 4,
-                paddingHorizontal: 5, paddingVertical: 1,
-              }}>
-                <Text style={{ color: Colors.accent, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 }}>
-                  SUPERSET {supersetRole === 'first' ? 'A' : 'B'}
-                </Text>
-              </View>
+              <AppText variant="caption" color={world.aura}>Superset {supersetRole === 'first' ? 'A' : 'B'}</AppText>
             )}
           </View>
-        </View>
-
-        {/* Superset link — pair with the next exercise, alternate sets */}
-        {canToggleSuperset && (
-          <TouchableOpacity
-            onPress={() => onToggleSuperset?.(exercise.exerciseId)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 15,
-              backgroundColor: supersetRole ? Colors.accentDim : Colors.surface2,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconSymbol name="link" size={14} color={supersetRole ? Colors.accent : Colors.textMuted} />
-          </TouchableOpacity>
-        )}
-
-        {/* Info button */}
-        <TouchableOpacity
-          onPress={() => onNavigateToDetail(exercise.exerciseId)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: Colors.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconSymbol name="info" size={14} color={Colors.textMuted} />
+          {lastTime && <AppText variant="caption" numberOfLines={1}>{lastTime}</AppText>}
         </TouchableOpacity>
-
-        {/* Replace */}
-        <TouchableOpacity
-          onPress={() => onReplace(exercise.exerciseId)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: Colors.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconSymbol name="swap" size={14} color={Colors.textMuted} />
+        <TouchableOpacity onPress={openMenu} style={styles.menu} accessibilityLabel={`${exercise.exerciseName} options`}>
+          <IconSymbol name="ellipsis" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
-
-        {/* Remove */}
-        <TouchableOpacity
-          onPress={handleRemove}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: Colors.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconSymbol name="close" size={16} color={Colors.textMuted} />
-        </TouchableOpacity>
-
-        {/* Collapse chevron */}
-        <View style={{
-          width: 24,
-          height: 24,
-          borderRadius: 12,
-          backgroundColor: collapsed ? Colors.surface2 : Colors.accentDim,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <IconSymbol
-            name={collapsed ? 'chevronDown' : 'chevronUp'}
-            size={12}
-            color={collapsed ? Colors.textMuted : Colors.accent}
-          />
-        </View>
-      </TouchableOpacity>
+      </View>
 
       {!collapsed && (
         <>
-          {/* Column headers — mirror SetInputRow: SET · LAST · WEIGHT · REPS · ✓ */}
-          <View style={{
-            flexDirection: 'row',
-            paddingHorizontal: 16,
-            paddingBottom: 8,
-            gap: 8,
-          }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 22, textAlign: 'center', fontWeight: '700' }}>
-              SET
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 58, textAlign: 'center', fontWeight: '700' }}>
-              LAST
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1.6, textAlign: 'center', fontWeight: '700' }}>
-              WEIGHT
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 14 }} />
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, flex: 1, textAlign: 'center', fontWeight: '700' }}>
-              REPS
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, width: 48 }} />
-          </View>
-
-          {/* Logged sets */}
           {exercise.sets.map(s => (
             <LoggedSetRow
               key={s.localId}
+              exerciseId={id}
               set={s}
               isPR={prMap[s.localId]}
-              onDelete={(localId) => onDeleteSet(exercise.exerciseId, localId)}
-              onEdit={(localId, data) => onEditSet(exercise.exerciseId, localId, data)}
+              onDelete={onDeleteSet}
+              onEdit={onEditSet}
             />
           ))}
-
-          {/* Divider before input row */}
-          {exercise.sets.length > 0 && (
-            <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 14, marginTop: 4 }} />
-          )}
-
-          {/* Input row for the next set — always open. Logging keeps the row
-              (weight/reps carry over) so the next set is zero extra taps. */}
           <SetInputRow
-            setNumber={nextSetNumber}
-            prevSet={prevSetForNext}
+            setNumber={exercise.sets.length + 1}
+            prevSet={prevSets[exercise.sets.length]}
             equipmentType={exercise.equipmentType}
-            onLog={(data) => onLogSet(exercise.exerciseId, data)}
+            onLog={data => onLogSet(id, data)}
           />
         </>
       )}
     </View>
   );
+});
+
+const styles = StyleSheet.create({
+  card: {
+    marginHorizontal: Spacing.screenH,
+    marginBottom: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  pairedTop: { marginBottom: Spacing.xs },
+  header: { flexDirection: 'row', alignItems: 'center', paddingLeft: Spacing.lg, paddingVertical: Spacing.sm },
+  titleBtn: { flex: 1, gap: 2, minHeight: Hit.min, justifyContent: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  flexShrink: { flexShrink: 1 },
+  menu: { width: Hit.min + 4, height: Hit.min, alignItems: 'center', justifyContent: 'center' },
 });

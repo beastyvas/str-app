@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, Text, Animated, TouchableOpacity } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/colors';
+import { AppText } from '@/components/ui';
+import { Colors, Hit, Radius, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 
 interface RestTimerProps {
   lastSetLoggedAt: Date | null;
@@ -23,17 +25,18 @@ function fmt(secs: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * One compact bar docked above the tab bar — not a modal. Tap −15 / +15 to
+ * adjust the target for this kind of set (warmup or working); the choice
+ * persists. The 1s tick lives here, so only this bar re-renders.
+ */
 export function RestTimer({ lastSetLoggedAt, lastSetWasWarmup = false }: RestTimerProps) {
+  const world = useWorld();
   const [elapsed, setElapsed] = useState(0);
   const [warmupSec, setWarmupSec] = useState(DEFAULT_WARMUP);
   const [workingSec, setWorkingSec] = useState(DEFAULT_WORKING);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hapticFiredRef = useRef<Set<string>>(new Set());
-  const dotPulse = useRef(new Animated.Value(1)).current;
-  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const hapticFired = useRef<Set<string>>(new Set());
 
-  // Load saved rest durations once
   useEffect(() => {
     AsyncStorage.multiGet([WARMUP_KEY, WORKING_KEY]).then(pairs => {
       const map = Object.fromEntries(pairs);
@@ -44,196 +47,75 @@ export function RestTimer({ lastSetLoggedAt, lastSetWasWarmup = false }: RestTim
     });
   }, []);
 
-  // Which target applies to the rest that just started
   const target = lastSetWasWarmup ? warmupSec : workingSec;
 
-  const adjust = (which: 'warmup' | 'working', delta: number) => {
+  const adjust = (delta: number) => {
     Haptics.selectionAsync();
-    if (which === 'warmup') {
-      setWarmupSec(prev => {
-        const next = Math.min(MAX_REST, Math.max(MIN_REST, prev + delta));
-        AsyncStorage.setItem(WARMUP_KEY, String(next));
-        return next;
-      });
-    } else {
-      setWorkingSec(prev => {
-        const next = Math.min(MAX_REST, Math.max(MIN_REST, prev + delta));
-        AsyncStorage.setItem(WORKING_KEY, String(next));
-        return next;
-      });
-    }
+    const setter = lastSetWasWarmup ? setWarmupSec : setWorkingSec;
+    const key = lastSetWasWarmup ? WARMUP_KEY : WORKING_KEY;
+    setter(prev => {
+      const next = Math.min(MAX_REST, Math.max(MIN_REST, prev + delta));
+      AsyncStorage.setItem(key, String(next));
+      return next;
+    });
   };
 
   useEffect(() => {
-    if (!lastSetLoggedAt) {
-      setElapsed(0);
-      setSettingsOpen(false);
-      hapticFiredRef.current.clear();
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      pulseLoop.current?.stop();
-      return;
-    }
-
-    hapticFiredRef.current.clear();
-
-    pulseLoop.current?.stop();
-    dotPulse.setValue(1);
-    pulseLoop.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(dotPulse, { toValue: 0.3, duration: 600, useNativeDriver: true }),
-        Animated.timing(dotPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.current.start();
-
+    hapticFired.current.clear();
+    if (!lastSetLoggedAt) { setElapsed(0); return; }
     const warnAt = Math.round(target * 0.8);
     const tick = () => {
       const secs = Math.floor((Date.now() - lastSetLoggedAt.getTime()) / 1000);
       setElapsed(secs);
-
       // Gentle nudge approaching the target, firmer one when rest is up
-      if (secs >= warnAt && secs < target && !hapticFiredRef.current.has('warn')) {
-        hapticFiredRef.current.add('warn');
+      if (secs >= warnAt && secs < target && !hapticFired.current.has('warn')) {
+        hapticFired.current.add('warn');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
-      if (secs >= target && !hapticFiredRef.current.has('done')) {
-        hapticFiredRef.current.add('done');
+      if (secs >= target && !hapticFired.current.has('done')) {
+        hapticFired.current.add('done');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     };
     tick();
-    intervalRef.current = setInterval(tick, 1000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      pulseLoop.current?.stop();
-    };
-    // re-run if the target changes (different set type or edited duration)
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [lastSetLoggedAt, target]);
 
   if (!lastSetLoggedAt) return null;
 
   const done = elapsed >= target;
-  const almost = !done && elapsed >= target * 0.8;
-  const timerColor = done ? Colors.danger : almost ? Colors.gold : Colors.success;
   const progress = Math.min(1, target > 0 ? elapsed / target : 0);
+  const color = done ? Colors.success : world.aura;
 
-  // Floating pill anchored above the tab bar — out of the content flow, always
-  // visible while scrolling. Settings open as a small panel above the pill.
   return (
-    <View
-      pointerEvents="box-none"
-      style={{ position: 'absolute', left: 0, right: 0, bottom: 14, alignItems: 'center' }}
-    >
-      {/* Inline duration settings — tap the pill to open */}
-      {settingsOpen && (
-        <View style={{
-          backgroundColor: Colors.surface,
-          borderWidth: 1, borderColor: Colors.borderLight,
-          borderRadius: 16,
-          marginBottom: 8,
-          marginHorizontal: 24,
-          paddingHorizontal: 20, paddingVertical: 12, gap: 10,
-          shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 18,
-          shadowOffset: { width: 0, height: 8 }, elevation: 8,
-        }}>
-          {([
-            { label: 'Warmup rest', which: 'warmup' as const, value: warmupSec },
-            { label: 'Working rest', which: 'working' as const, value: workingSec },
-          ]).map(row => (
-            <View key={row.which} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>{row.label}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <TouchableOpacity
-                  onPress={() => adjust(row.which, -STEP)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{
-                    width: 30, height: 30, borderRadius: 8,
-                    backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>−</Text>
-                </TouchableOpacity>
-                <Text style={{
-                  color: Colors.text, fontSize: 14, fontWeight: '800',
-                  fontVariant: ['tabular-nums'], minWidth: 48, textAlign: 'center',
-                }}>
-                  {fmt(row.value)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => adjust(row.which, STEP)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{
-                    width: 30, height: 30, borderRadius: 8,
-                    backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-          <Text style={{ color: Colors.textMuted, fontSize: 11, lineHeight: 16 }}>
-            Warmup sets use the shorter rest automatically. The timer still starts on its own after every set.
-          </Text>
+    <View pointerEvents="box-none" style={styles.dock}>
+      <View style={styles.bar} accessibilityRole="timer" accessibilityLabel={`Rest ${fmt(elapsed)} of ${fmt(target)}`}>
+        <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: color + '33' }]} />
+        <TouchableOpacity onPress={() => adjust(-STEP)} style={styles.adj} accessibilityLabel="Rest 15 seconds shorter">
+          <AppText variant="stat" color={Colors.textSecondary} style={styles.adjText}>−15</AppText>
+        </TouchableOpacity>
+        <View style={styles.center}>
+          <AppText variant="label">{done ? 'Rest done' : lastSetWasWarmup ? 'Warmup rest' : 'Rest'}</AppText>
+          <AppText variant="stat" color={color}>{fmt(elapsed)}</AppText>
+          <AppText variant="label" color={Colors.textMuted}>/ {fmt(target)}</AppText>
         </View>
-      )}
-
-      {/* The pill */}
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => setSettingsOpen(o => !o)}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingVertical: 10,
-          paddingHorizontal: 18,
-          backgroundColor: Colors.surface,
-          borderWidth: 1,
-          borderColor: timerColor + '55',
-          borderRadius: 999,
-          gap: 10,
-          overflow: 'hidden',
-          shadowColor: '#000',
-          shadowOpacity: 0.45,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 8,
-        }}
-      >
-        {/* Progress sweep toward the target */}
-        <View style={{
-          position: 'absolute', left: 0, top: 0, bottom: 0,
-          width: `${progress * 100}%`,
-          backgroundColor: timerColor + '1A',
-        }} />
-        <Animated.View style={{
-          width: 7, height: 7, borderRadius: 3.5,
-          backgroundColor: timerColor, opacity: dotPulse,
-        }} />
-        <Text style={{
-          color: Colors.textMuted, fontSize: 10, letterSpacing: 2,
-          textTransform: 'uppercase', fontWeight: '700',
-        }}>
-          {lastSetWasWarmup ? 'Warmup Rest' : 'Rest'}
-        </Text>
-        <Text style={{
-          color: timerColor, fontSize: 18, fontWeight: '800',
-          fontVariant: ['tabular-nums'], letterSpacing: 1.5,
-          textShadowColor: timerColor, textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: done ? 8 : 0,
-        }}>
-          {fmt(elapsed)}
-        </Text>
-        <Text style={{ color: Colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
-          / {fmt(target)}
-        </Text>
-        <Text style={{ color: Colors.textMuted, fontSize: 11, opacity: 0.6 }}>
-          {settingsOpen ? '▼' : '⚙'}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => adjust(STEP)} style={styles.adj} accessibilityLabel="Rest 15 seconds longer">
+          <AppText variant="stat" color={Colors.textSecondary} style={styles.adjText}>+15</AppText>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: Spacing.screenH, paddingBottom: Spacing.sm },
+  bar: {
+    flexDirection: 'row', alignItems: 'center', minHeight: Hit.log, overflow: 'hidden',
+    backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.borderLight,
+  },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  center: { flex: 1, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: Spacing.sm },
+  adj: { width: 64, minHeight: Hit.log, alignItems: 'center', justifyContent: 'center' },
+  adjText: { fontSize: 16, lineHeight: 20 },
+});

@@ -53,7 +53,7 @@ export function TemplateBuilderSheet({ visible, onClose, onSaved }: TemplateBuil
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
-          <AppText variant="title" style={styles.headerTitle}>New Template</AppText>
+          <AppText variant="title" style={styles.headerTitle}>New template</AppText>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <AppText variant="caption" style={styles.cancel}>Cancel</AppText>
           </TouchableOpacity>

@@ -1,97 +1,59 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  TextInput, Modal, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Animated,
-} from 'react-native';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkoutStore } from '@/hooks/useWorkout';
-import { Colors } from '@/constants/colors';
-import { RestTimer } from '@/components/workout/RestTimer';
+import { useWorkoutTemplates } from '@/hooks/useWorkoutTemplates';
+import { Colors, Spacing } from '@/constants/theme';
+import { Button, EmptyState } from '@/components/ui';
+import { fireImpact } from '@/components/anime';
+import { useWorld } from '@/theme';
 import { WorkoutLiveActivity } from '../../modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
-import { ElapsedTime, formatElapsed } from '@/components/workout/ElapsedTime';
+import { formatElapsed } from '@/components/workout/ElapsedTime';
+import { RestTimer } from '@/components/workout/RestTimer';
 import { WorkoutIdleScreen } from '@/components/workout/WorkoutIdleScreen';
 import { TemplateBuilderSheet } from '@/components/workout/TemplateBuilderSheet';
-import { useWorkoutTemplates } from '@/hooks/useWorkoutTemplates';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
-import { computePowerReading, type LiftSet, type PowerReading } from '@/lib/powerLevel';
-import { fetchPowerInputs, savePowerReading } from '@/lib/powerData';
-import { useWorldStore } from '@/theme/useWorldStore';
-import {
-  afterSetLogged, fetchSessionCameoContext, finishFacts, freshSessionCameoState, type SessionCameoState,
-} from '@/lib/workoutCameos';
-import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
-import { fmtVolume, unitFromProfile } from '@/lib/units';
+import { WorkoutHeader } from '@/components/workout/WorkoutHeader';
+import { OfflineBanner } from '@/components/workout/OfflineBanner';
+import { NameWorkoutSheet } from '@/components/workout/NameWorkoutSheet';
+import { TemplatesSheet } from '@/components/workout/TemplatesSheet';
+import { FinishSheet, type FinishDraft } from '@/components/workout/FinishSheet';
+import { useWorkoutSession, uploadWorkoutPhotoInBackground } from '@/components/workout/useWorkoutSession';
+import { useIdleActions } from '@/components/workout/useIdleActions';
+import { unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
 import { useStableCallback } from '@/lib/useStableCallback';
 import {
-  requestNotificationPermissions,
-  setupNotificationChannels,
-  notifyWorkoutStarted,
-  notifySetLogged,
-  clearWorkoutNotifications,
+  requestNotificationPermissions, setupNotificationChannels, notifyWorkoutStarted,
+  notifySetLogged, clearWorkoutNotifications,
 } from '@/lib/workoutNotification';
 
-// PR localId → isPR lookup, built as sets come in
-type PRMap = Record<string, boolean>;
-
-// Fire-and-forget: the recap screen should never wait on a photo upload.
-// Failures just mean the feed post has no photo — logged, never surfaced.
-async function uploadWorkoutPhotoInBackground(uri: string, workoutId: string, userId: string) {
-  try {
-    const ext = (uri.split('.').pop()?.split('?')[0]?.toLowerCase().replace('jpeg', 'jpg')) ?? 'jpg';
-    const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-    const fileName = `${userId}/${workoutId}.${ext}`;
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
-    const binaryStr = atob(base64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-    const { error: uploadErr } = await supabase.storage
-      .from('workout-photos').upload(fileName, bytes, { upsert: true, contentType });
-    if (uploadErr) throw uploadErr;
-    const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(fileName);
-    await supabase.from('workout_photos').insert({
-      workout_id: workoutId,
-      user_id: userId,
-      photo_url: urlData.publicUrl,
-    });
-  } catch (e: any) {
-    console.warn('[workout] background photo upload failed:', e?.message);
-  }
-}
+type Ex = { id: string; name: string; muscle_group: string; equipment_type?: string };
+type TutorialStep = 'add_exercise' | 'log_set' | 'finish' | 'done';
+const EMPTY_DRAFT: FinishDraft = { notes: '', photo: null, saveAsTemplate: false, templateName: '' };
+const REST_ALERT_SECONDS = 120;
+const dayName = () => new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
 export default function WorkoutTab() {
   const router = useRouter();
+  const world = useWorld();
   const { user, profile } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
   const {
-    activeWorkout,
-    lastSetLoggedAt,
-    lastSetWasWarmup,
-    newPRs,
-    startWorkout,
-    addExercise,
-    replaceExercise,
-    removeExercise,
-    logSet,
-    updateSet,
-    deleteSet,
-    finishWorkout,
-    discardWorkout,
-    clearPRs,
-    restoreWorkout,
-    syncPending,
-    syncFailed,
-    toggleSupersetWithNext,
+    activeWorkout, lastSetLoggedAt, lastSetWasWarmup, newPRs,
+    startWorkout, addExercise, replaceExercise, removeExercise, logSet, updateSet, deleteSet,
+    finishWorkout, discardWorkout, restoreWorkout, syncPending, syncFailed, toggleSupersetWithNext,
   } = useWorkoutStore();
+
+  const session = useWorkoutSession({
+    userId: user?.id, bodyweightLbs: profile?.bodyweight_lbs, gender: profile?.gender, unit,
+    firstName: profile?.display_name?.split(' ')[0] ?? 'lifter',
+  });
 
   // Restore any in-progress workout from Supabase when the app reopens
   const [restoring, setRestoring] = useState(true);
@@ -99,238 +61,95 @@ export default function WorkoutTab() {
     if (!user) { setRestoring(false); return; }
     restoreWorkout(user.id).then(restored => {
       if (restored) {
-        const name = useWorkoutStore.getState().activeWorkout?.name ?? 'Workout';
-        notifyWorkoutStarted(name);
-        seedCurrentTier();
+        notifyWorkoutStarted(useWorkoutStore.getState().activeWorkout?.name ?? 'Workout');
+        session.seed();
       }
-      // Push anything logged offline last session now that we may be back online
-      syncPending();
+      syncPending(); // push anything logged offline last session
     }).finally(() => setRestoring(false));
   }, [user]);
 
-  // Rest alert target (seconds) — 0 = no alert
-  const [restAlertSeconds, setRestAlertSeconds] = useState(120); // default 2 min
+  useEffect(() => { setupNotificationChannels(); requestNotificationPermissions(); }, []);
 
-  // Request notification permissions on mount
-  useEffect(() => {
-    setupNotificationChannels();
-    requestNotificationPermissions();
-  }, []);
-
-  // Local state
   const [showPicker, setShowPicker] = useState(false);
   const [replacingExerciseId, setReplacingExerciseId] = useState<string | null>(null);
-  const [showMidWorkoutTemplates, setShowMidWorkoutTemplates] = useState(false);
-  const [prMap, setPrMap] = useState<PRMap>({});
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [prMap, setPrMap] = useState<Record<string, boolean>>({});
   const [finishing, setFinishing] = useState(false);
-  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameSheet, setNameSheet] = useState<'start' | 'rename' | null>(null);
   const [workoutName, setWorkoutName] = useState('');
-  const [showFinishModal, setShowFinishModal] = useState(false);
-  const [finishNotes, setFinishNotes] = useState('');
-  const [finishPhoto, setFinishPhoto] = useState<string | null>(null);
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-  const [templateName, setTemplateName] = useState('');
+  const [showFinish, setShowFinish] = useState(false);
+  const [draft, setDraft] = useState<FinishDraft>(EMPTY_DRAFT);
   const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
   const [prevSetsCache, setPrevSetsCache] = useState<Record<string, any[]>>({});
-
-  // First workout tutorial
   const [isFirstWorkout, setIsFirstWorkout] = useState(false);
-  type TutorialStep = 'add_exercise' | 'log_set' | 'finish' | 'done';
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>('add_exercise');
 
-  // Power Level: read once at workout start (history inputs cached), then
-  // recomputed locally on finish with this session's sets — never per set,
-  // and it works offline. Rank-up detection happens on the summary screen.
-  const powerInputsRef = useRef<LiftSet[] | null>(null);
-  const powerBeforeRef = useRef<PowerReading | null>(null);
-  // Cameo bookkeeping for this session (max 2 in-workout cameos)
-  const cameoRef = useRef<SessionCameoState>(freshSessionCameoState());
-
-  // Smart suggestion + templates — SWR-cached hook; no reload flash on every
-  // return to the idle tab.
   const {
-    daySuggestion, templates, savedTemplates, lastWorkoutExercises,
+    daySuggestion, templates, savedTemplates,
     loadingTemplates, refetch: refetchTemplates, setDaySuggestion,
   } = useWorkoutTemplates(!activeWorkout);
 
-  // Duration ticking lives inside <ElapsedTime /> so the per-second interval
-  // re-renders one leaf <Text>, not this whole screen.
+  const promptStart = () => { setWorkoutName(`${dayName()} workout`); setNameSheet('start'); };
 
-  // Auto-start first workout when coming from First Steps task
+  // Auto-start first workout when coming from the First Steps task
   useFocusEffect(useCallback(() => {
     if ((global as any).__startFirstWorkout && !activeWorkout && user) {
       (global as any).__startFirstWorkout = false;
-      const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-      setWorkoutName(`${day} Workout`);
-      setShowNameModal(true);
+      promptStart();
     }
   }, [activeWorkout, user]));
 
-  // Flash PR banner then clear
-  useEffect(() => {
-    if (newPRs.length > 0) {
-      const t = setTimeout(() => clearPRs(), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [newPRs]);
-
-  // ─── START WORKOUT ────────────────────────────────────────────────────────
-  const handleStartPress = () => {
-    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    setWorkoutName(`${day} Workout`);
-    setShowNameModal(true);
-  };
-
-  const handleRepeatLast = async () => {
-    if (!user || lastWorkoutExercises.length === 0) return;
-    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    setWorkoutName(`${day} Workout`);
-    setShowNameModal(true);
-  };
-
-  // Start directly from a template — no name modal
-  // Seed current tier ref when starting a workout
-  const saveTemplate = async (name: string, exercises: any[]) => {
-    if (!user || !name.trim() || exercises.length === 0) return;
-    await supabase.from('workout_templates').insert({
-      user_id: user.id,
-      name: name.trim(),
-      exercises: exercises.map(e => ({
-        id: e.exerciseId,
-        name: e.exerciseName,
-        muscle_group: e.muscleGroup,
-        equipment_type: e.equipmentType,
-      })),
-    });
-    await refetchTemplates();
-  };
-
-  const deleteTemplate = async (templateId: string) => {
-    await supabase.from('workout_templates').delete().eq('id', templateId);
-    refetchTemplates();
-  };
-
-  const startFromSavedTemplate = async (tmpl: any) => {
+  const startWith = async (name: string, exercises: Ex[], liveActivity = false) => {
     if (!user) return;
-    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const wName = `${day} · ${tmpl.name}`;
     try {
-      await seedCurrentTier();
-      await startWorkout(wName, user.id);
-      (tmpl.exercises as any[]).forEach(ex => addExercise({
-        id: ex.id, name: ex.name,
-        muscle_group: ex.muscle_group,
-        equipment_type: ex.equipment_type,
-      }));
-      await supabase.from('workout_templates')
-        .update({ last_used_at: new Date().toISOString() })
-        .eq('id', tmpl.id);
-      notifyWorkoutStarted(wName);
+      await session.seed();
+      await startWorkout(name, user.id);
+      exercises.forEach(ex => addExercise(ex));
+      notifyWorkoutStarted(name);
+      if (liveActivity) {
+        WorkoutLiveActivity.startActivity(name, { exerciseName: '', setNumber: 0, weight: 0, reps: 0, totalSets: 0 });
+      }
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message ?? 'Could not start workout');
     }
   };
 
-  // Start a starter-program day: resolve exercise names to library ids, then
-  // reuse the template start path so the whole flow behaves identically.
-  const startStarterDay = async (day: StarterProgramDay) => {
-    const { data } = await supabase
-      .from('exercises')
-      .select('id, name, muscle_group, equipment_type')
-      .in('name', day.exerciseNames)
-      .eq('is_custom', false);
-    const byName = new Map((data ?? []).map((e: any) => [e.name.toLowerCase(), e]));
-    const resolved = day.exerciseNames
-      .map(n => byName.get(n.toLowerCase()))
-      .filter(Boolean) as { id: string; name: string; muscle_group: string; equipment_type?: string }[];
-    if (resolved.length === 0) {
-      Alert.alert('Error', 'Could not load the program exercises. Check your connection and try again.');
+  const idle = useIdleActions({
+    userId: user?.id, daySuggestion, setDaySuggestion, refetchTemplates,
+    startWith: (name, exercises) => startWith(name, exercises),
+  });
+
+  const confirmName = async () => {
+    const name = workoutName.trim();
+    if (!name) return;
+    if (nameSheet === 'rename' && activeWorkout) {
+      // Rename without touching useWorkout internals: patch the store and the
+      // row (a still-queued offline create picks the new name up on sync).
+      useWorkoutStore.setState(s => (s.activeWorkout ? { activeWorkout: { ...s.activeWorkout, name } } : {}));
+      if (activeWorkout.id) supabase.from('workouts').update({ name }).eq('id', activeWorkout.id).then(() => {});
+      setNameSheet(null);
       return;
     }
-    await startFromTemplate(day.name, resolved);
-  };
-
-  const seedCurrentTier = async () => {
-    if (!user) return;
-    cameoRef.current = freshSessionCameoState();
-    fetchSessionCameoContext(user.id).then(c => { Object.assign(cameoRef.current, c); });
-    try {
-      const inputs = await fetchPowerInputs(user.id);
-      powerInputsRef.current = inputs;
-      powerBeforeRef.current = computePowerReading(
-        inputs, profile?.bodyweight_lbs, profile?.gender, unit,
-      );
-    } catch {
-      // Offline at start: the summary just skips the Power Level delta.
-      powerInputsRef.current = null;
-      powerBeforeRef.current = null;
+    setNameSheet(null);
+    if (user) {
+      const { count } = await supabase.from('workouts').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).not('ended_at', 'is', null);
+      if ((count ?? 0) === 0) { setIsFirstWorkout(true); setTutorialStep('add_exercise'); }
     }
+    await startWith(name, [], true);
   };
 
-  const checkFirstWorkout = async () => {
-    if (!user) return;
-    const { count } = await supabase
-      .from('workouts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .not('ended_at', 'is', null);
-    if ((count ?? 0) === 0) {
-      setIsFirstWorkout(true);
-      setTutorialStep('add_exercise');
-    }
-  };
-
-  const startFromTemplate = async (
-    name: string,
-    exercises: { id: string; name: string; muscle_group: string; equipment_type?: string }[]
-  ) => {
-    if (!user) return;
-    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const wName = `${day} · ${name}`;
-    try {
-      await seedCurrentTier();
-      await startWorkout(wName, user.id);
-      exercises.forEach(ex => addExercise({ ...ex, equipment_type: ex.equipment_type }));
-      notifyWorkoutStarted(wName);
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not start workout');
-    }
-  };
-
-  const handleStartConfirm = async (repeatLast = false) => {
-    if (!user || !workoutName.trim()) return;
-    setShowNameModal(false);
-    try {
-      await checkFirstWorkout();
-      await seedCurrentTier();
-      await startWorkout(workoutName.trim(), user.id);
-      if (repeatLast && lastWorkoutExercises.length > 0) {
-        lastWorkoutExercises.forEach(ex => addExercise(ex));
-      }
-      notifyWorkoutStarted(workoutName.trim());
-      WorkoutLiveActivity.startActivity(workoutName.trim(), {
-        exerciseName: '', setNumber: 0, weight: 0, reps: 0, totalSets: 0,
-      });
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not start workout');
-    }
-  };
-
-  // ─── ADD EXERCISE ─────────────────────────────────────────────────────────
-  const handlePickExercise = async (exercise: { id: string; name: string; muscle_group: string; equipment_type?: string }) => {
+  // ─── Exercises ─────────────────────────────────────────────────────────────
+  const handlePickExercise = async (exercise: Ex) => {
     if (replacingExerciseId) {
       await replaceExercise(replacingExerciseId, exercise);
       setReplacingExerciseId(null);
     } else {
       addExercise(exercise);
     }
-    if (isFirstWorkout && tutorialStep === 'add_exercise') {
-      setTutorialStep('log_set');
-    }
-    // Previous session's sets for this exercise — the LAST column / prefill.
-    // Must be scoped to this user: RLS also exposes friends' and public
-    // profiles' sets (for the feed), so an exercise_id-only query returned
-    // whoever lifted most recently. Then keep only the latest session, in set
+    if (isFirstWorkout && tutorialStep === 'add_exercise') setTutorialStep('log_set');
+    // Previous session's sets for this exercise — must be scoped to this user
+    // (RLS also exposes friends' sets). Keep only the latest session, in set
     // order, since ExerciseCard indexes prevSets by sets-logged-so-far.
     if (user && !prevSetsCache[exercise.id]) {
       const { data } = await supabase
@@ -341,19 +160,12 @@ export default function WorkoutTab() {
         .order('logged_at', { ascending: false })
         .limit(20);
       if (data && data.length > 0) {
-        const lastWorkoutId = data[0].workout_id;
-        const lastSession = data
-          .filter(s => s.workout_id === lastWorkoutId)
-          .sort((a, b) => a.set_number - b.set_number)
+        const lastId = data[0].workout_id;
+        const last = data.filter(s => s.workout_id === lastId).sort((a, b) => a.set_number - b.set_number)
           .map(({ set_number, weight, reps, rpe, note }) => ({ set_number, weight, reps, rpe, note }));
-        setPrevSetsCache(prev => ({ ...prev, [exercise.id]: lastSession }));
+        setPrevSetsCache(prev => ({ ...prev, [exercise.id]: last }));
       }
     }
-  };
-
-  const handleReplaceExercise = (exerciseId: string) => {
-    setReplacingExerciseId(exerciseId);
-    setShowPicker(true);
   };
 
   const handleAddTemplateExercises = (tmpl: any) => {
@@ -362,166 +174,75 @@ export default function WorkoutTab() {
         addExercise({ id: ex.id, name: ex.name, muscle_group: ex.muscle_group, equipment_type: ex.equipment_type });
       }
     });
-    setShowMidWorkoutTemplates(false);
+    setShowTemplates(false);
   };
 
-  // ─── LOG SET ──────────────────────────────────────────────────────────────
-  // Stable identity (useStableCallback below) so memo'd ExerciseCards don't
-  // re-render when this screen does.
-  const handleLogSet = async (
-    exerciseId: string,
-    data: { weight: number; reps: number; rpe?: number; note?: string }
-  ) => {
+  // ─── Log set ───────────────────────────────────────────────────────────────
+  const handleLogSet = async (exerciseId: string, data: { weight: number; reps: number; rpe?: number; note?: string }) => {
     if (!activeWorkout || !user) return { isPR: false };
     const result = await logSet(exerciseId, data, activeWorkout.id, user.id);
+    if (isFirstWorkout && tutorialStep === 'log_set') setTutorialStep('finish');
 
-    // Advance first workout tutorial
-    if (isFirstWorkout && tutorialStep === 'log_set') {
-      setTutorialStep('finish');
-    }
-
-    // Tag the most recently logged set with isPR
     const ex = useWorkoutStore.getState().activeWorkout?.exercises.find(e => e.exerciseId === exerciseId);
     if (ex && ex.sets.length > 0) {
-      const lastSet = ex.sets[ex.sets.length - 1];
-      setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
-      afterSetLogged(cameoRef.current, {
-        exerciseName: ex.exerciseName, weight: data.weight, reps: data.reps, isPR: result.isPR,
-      }, {
-        name: profile?.display_name?.split(' ')[0] ?? 'lifter', unit, restSeconds: restAlertSeconds,
-      });
+      setPrMap(prev => ({ ...prev, [ex.sets[ex.sets.length - 1].localId]: result.isPR }));
+      // PR: the anime "hit" — impact frame with ドン — then (first PR only) a cameo.
+      if (result.isPR) fireImpact(world.aura, world.sfx.pr);
+      session.onSetLogged({ exerciseName: ex.exerciseName, weight: data.weight, reps: data.reps, isPR: result.isPR }, REST_ALERT_SECONDS);
     }
 
-    // Lock screen notification + Live Activity update
     const exName = ex?.exerciseName ?? '';
     const setNum = ex?.sets.length ?? 1;
-    notifySetLogged(exName, setNum, restAlertSeconds);
+    notifySetLogged(exName, setNum, REST_ALERT_SECONDS);
     WorkoutLiveActivity.updateActivity({
-      exerciseName: exName,
-      setNumber: setNum,
-      weight: data.weight,
-      reps: data.reps,
-      totalSets: ex?.sets.length ?? 0,
-      restSeconds: restAlertSeconds,
+      exerciseName: exName, setNumber: setNum, weight: data.weight, reps: data.reps,
+      totalSets: ex?.sets.length ?? 0, restSeconds: REST_ALERT_SECONDS,
     });
-
     return result;
   };
 
-  // Identity-stable wrappers for props of memo'd ExerciseCards. Store actions
-  // (removeExercise/deleteSet/updateSet/toggleSupersetWithNext) are already
-  // stable zustand references; these cover the screen-level handlers.
+  // Identity-stable wrappers for memo'd ExerciseCards (store actions are already stable)
   const stableLogSet = useStableCallback(handleLogSet);
-  const stableReplaceExercise = useStableCallback(handleReplaceExercise);
-  const navigateToExerciseDetail = useStableCallback((id: string) => router.push(`/exercise/${id}`));
+  const stableReplace = useStableCallback((id: string) => { setReplacingExerciseId(id); setShowPicker(true); });
+  const stableDetail = useStableCallback((id: string) => router.push(`/exercise/${id}`));
 
-  // ─── FINISH WORKOUT ───────────────────────────────────────────────────────
-  const handleFinishPress = () => {
+  // ─── Finish / discard ─────────────────────────────────────────────────────
+  const openFinish = () => {
     if (!activeWorkout) return;
-    const totalSets = activeWorkout.exercises.reduce((n, e) => n + e.sets.length, 0);
-    if (totalSets === 0) {
+    if (activeWorkout.exercises.every(e => e.sets.length === 0)) {
       Alert.alert('No sets logged', 'Log at least one set before finishing.');
       return;
     }
-    setShowFinishModal(true);
+    setShowFinish(true);
   };
 
-  const pickFinishPhoto = async () => {
-    Alert.alert('Add Photo', 'Choose a source', [
-      {
-        text: '📷 Take Photo',
-        onPress: async () => {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
-          const result = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [4, 3], quality: 0.7,
-          });
-          if (!result.canceled && result.assets[0]) setFinishPhoto(result.assets[0].uri);
-        },
-      },
-      {
-        text: '🖼️ Choose from Library',
-        onPress: async () => {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) { Alert.alert('Photo library permission needed'); return; }
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [4, 3], quality: 0.7,
-          });
-          if (!result.canceled && result.assets[0]) setFinishPhoto(result.assets[0].uri);
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
-  const handleFinishConfirm = async (quick = false) => {
-    // Screen the shared workout note for objectionable content (Guideline 1.2)
+  const finish = async (quick: boolean) => {
     if (!quick) {
-      const noteIssue = screenText(finishNotes, 'workout note');
-      if (noteIssue) { Alert.alert('Not allowed', noteIssue); return; }
+      const issue = screenText(draft.notes, 'workout note'); // Guideline 1.2
+      if (issue) { Alert.alert('Not allowed', issue); return; }
     }
     setFinishing(true);
-    setShowFinishModal(false);
+    setShowFinish(false);
     try {
-      if (saveAsTemplate && activeWorkout && templateName.trim()) {
-        await saveTemplate(templateName.trim(), activeWorkout.exercises);
+      if (draft.saveAsTemplate && activeWorkout && draft.templateName.trim()) {
+        await idle.saveTemplate(draft.templateName.trim(), activeWorkout.exercises);
       }
-      setSaveAsTemplate(false);
-      setTemplateName('');
+      const { sets, facts } = session.captureSession(activeWorkout);
+      const summary = await finishWorkout(quick ? undefined : (draft.notes.trim() || undefined));
+      const power = session.finishPower(sets);
 
-      // This session's sets, captured before the store clears them.
-      const sessionSets: LiftSet[] = (activeWorkout?.exercises ?? []).flatMap(e =>
-        e.sets.map(st => ({
-          exerciseName: e.exerciseName, weight: st.weight, reps: st.reps,
-          achievedAt: st.loggedAt, isWarmup: st.isWarmup,
-        })),
-      );
-
-      const sessionVolume = sessionSets.filter(st => !st.isWarmup).reduce((n, st) => n + st.weight * st.reps, 0);
-      const cameo = finishFacts(cameoRef.current, sessionVolume);
-
-      const summary = await finishWorkout(quick ? undefined : (finishNotes.trim() || undefined));
-
-      // Power Level after = history (cached at start) + this session.
-      let power: any = null;
-      if (powerInputsRef.current && user) {
-        const before = powerBeforeRef.current;
-        const after = computePowerReading(
-          [...powerInputsRef.current, ...sessionSets], profile?.bodyweight_lbs, profile?.gender, unit,
-        );
-        savePowerReading(user.id, after);
-        if (after.confidence !== 'calibrating') useWorldStore.getState().setRank(after.rank.tier.key, after.rank.subTier);
-        power = {
-          before: before && before.confidence !== 'calibrating' ? before.power : null,
-          after: after.confidence !== 'calibrating' ? after.power : null,
-          confidence: after.confidence,
-          beforeRank: before && before.confidence !== 'calibrating'
-            ? { key: before.rank.tier.key, sub: before.rank.subTier, lifts: before.rank.lifts.map(l => l.tier) }
-            : null,
-          afterRank: after.confidence !== 'calibrating'
-            ? { key: after.rank.tier.key, sub: after.rank.subTier, lifts: after.rank.lifts.map(l => l.tier) }
-            : null,
-        };
-      }
-      powerInputsRef.current = null;
-      powerBeforeRef.current = null;
-
-      // Recap first, everything else after — the transition should feel instant.
       setPrMap({});
       setPrevSetsCache({});
       setIsFirstWorkout(false);
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
-      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify({ ...summary, power, cameo }) } });
+      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify({ ...summary, power, cameo: facts }) } });
 
-      // Photo uploads quietly in the background while the recap is on screen
-      if (!quick && finishPhoto && summary?.workoutId && user) {
-        uploadWorkoutPhotoInBackground(finishPhoto, summary.workoutId, user.id);
+      if (!quick && draft.photo && summary?.workoutId && user) {
+        uploadWorkoutPhotoInBackground(draft.photo, summary.workoutId, user.id);
       }
-      setFinishNotes('');
-      setFinishPhoto(null);
+      setDraft(EMPTY_DRAFT);
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not finish workout');
     } finally {
@@ -529,675 +250,158 @@ export default function WorkoutTab() {
     }
   };
 
-  const handleDiscard = () => {
-    Alert.alert(
-      'Discard Workout',
-      'This will delete the workout and all logged sets. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: async () => {
-            await discardWorkout();
-            clearWorkoutNotifications();
-            WorkoutLiveActivity.endActivity();
-            setPrMap({});
-            setPrevSetsCache({});
-          },
-        },
-      ]
-    );
-  };
+  const discard = () => Alert.alert('Discard workout', 'This deletes the workout and every logged set.', [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Discard', style: 'destructive', onPress: async () => {
+        await discardWorkout();
+        clearWorkoutNotifications();
+        WorkoutLiveActivity.endActivity();
+        setPrMap({});
+        setPrevSetsCache({});
+      },
+    },
+  ]);
 
-  // ─── NO ACTIVE WORKOUT ────────────────────────────────────────────────────
-  // Starter programs are pitched at new lifters (no experience set reads as new)
-  const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
-
+  // ─── Render ───────────────────────────────────────────────────────────────
   if (restoring) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={Colors.accent} />
-      </SafeAreaView>
-    );
+    return <SafeAreaView style={styles.loading}><ActivityIndicator color={world.aura} /></SafeAreaView>;
   }
 
+  const nameSheetEl = (
+    <NameWorkoutSheet
+      visible={nameSheet != null}
+      title={nameSheet === 'rename' ? 'Rename workout' : 'Name this workout'}
+      confirmLabel={nameSheet === 'rename' ? 'Save name' : 'Start workout'}
+      name={workoutName}
+      onChange={setWorkoutName}
+      onConfirm={confirmName}
+      onClose={() => setNameSheet(null)}
+    />
+  );
+
   if (!activeWorkout) {
+    // Starter programs are pitched at new lifters (no experience set reads as new)
+    const isNewLifter = !profile?.experience_level || profile.experience_level === 'beginner';
     return (
-      <View style={{ flex: 1 }}>
+      <View style={styles.flex}>
         <WorkoutIdleScreen
           isNewLifter={isNewLifter}
           daySuggestion={daySuggestion}
           templates={templates}
           savedTemplates={savedTemplates}
           loadingTemplates={loadingTemplates}
-          onStartBlank={handleStartPress}
-          onStartFromTemplate={startFromTemplate}
-          onStartFromSavedTemplate={startFromSavedTemplate}
-          onStartStarterDay={startStarterDay}
-          onDeleteTemplate={deleteTemplate}
-          onPinSuggestion={() => {
-            if (!daySuggestion) return;
-            const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
-            Alert.alert(
-              `Pin as ${dayName} template?`,
-              `Every ${dayName}, this workout will be your default suggestion.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: `Pin for ${dayName}`,
-                  onPress: async () => {
-                    if (!user) return;
-                    await supabase.from('workout_templates').insert({
-                      user_id: user.id,
-                      name: daySuggestion.name,
-                      exercises: daySuggestion.exercises as any,
-                      day_of_week: new Date().getDay(),
-                    });
-                    setDaySuggestion(prev => prev ? { ...prev, isPinned: true, dayLabel: `📌 Your ${dayName} plan` } : null);
-                  },
-                },
-              ]
-            );
-          }}
-          onUnpinSuggestion={() => {
-            if (!daySuggestion?.pinnedTemplateId) return;
-            Alert.alert('Unpin?', 'Remove this as your pinned template for this day?', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Unpin', style: 'destructive', onPress: async () => {
-                await supabase.from('workout_templates').update({ day_of_week: null }).eq('id', daySuggestion.pinnedTemplateId!);
-                setDaySuggestion(() => null);
-              }},
-            ]);
-          }}
+          onStartBlank={promptStart}
+          onStartFromTemplate={idle.startFromTemplate}
+          onStartFromSavedTemplate={idle.startFromSavedTemplate}
+          onStartStarterDay={idle.startStarterDay}
+          onDeleteTemplate={idle.deleteTemplate}
+          onPinSuggestion={idle.pinSuggestion}
+          onUnpinSuggestion={idle.unpinSuggestion}
           onCreateTemplate={() => setShowTemplateBuilder(true)}
         />
-
-        {/* Template builder */}
-        <TemplateBuilderSheet
-          visible={showTemplateBuilder}
-          onClose={() => setShowTemplateBuilder(false)}
-          onSaved={refetchTemplates}
-        />
-
-        {/* Name modal for blank workouts */}
-        <Modal visible={showNameModal} transparent animationType="fade">
-          <KeyboardAvoidingView
-            style={{ flex: 1, justifyContent: 'center', padding: 32, backgroundColor: 'rgba(0,0,0,0.7)' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            <View style={{
-              backgroundColor: Colors.surface,
-              borderRadius: 20,
-              padding: 24,
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}>
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', marginBottom: 16 }}>
-                Name this workout
-              </Text>
-              <TextInput
-                value={workoutName}
-                onChangeText={setWorkoutName}
-                autoFocus
-                selectTextOnFocus
-                returnKeyType="done"
-                onSubmitEditing={() => handleStartConfirm(false)}
-                style={{
-                  backgroundColor: Colors.surface2,
-                  borderRadius: 12,
-                  paddingHorizontal: 16,
-                  paddingVertical: 14,
-                  color: Colors.text,
-                  fontSize: 17,
-                  fontWeight: '700',
-                  borderWidth: 1,
-                  borderColor: Colors.border,
-                  marginBottom: 16,
-                }}
-              />
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity
-                  onPress={() => setShowNameModal(false)}
-                  style={{
-                    flex: 1, paddingVertical: 14, borderRadius: 12,
-                    backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: Colors.textMuted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleStartConfirm(false)}
-                  disabled={!workoutName.trim()}
-                  style={{
-                    flex: 2, paddingVertical: 14, borderRadius: 12,
-                    backgroundColor: workoutName.trim() ? Colors.accent : Colors.surface2,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Let's Go</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+        <TemplateBuilderSheet visible={showTemplateBuilder} onClose={() => setShowTemplateBuilder(false)} onSaved={refetchTemplates} />
+        {nameSheetEl}
       </View>
     );
   }
 
-  // ─── ACTIVE WORKOUT ───────────────────────────────────────────────────────
-  const totalSets = activeWorkout.exercises.reduce((n, e) => n + e.sets.length, 0);
-  const totalVolume = activeWorkout.exercises
-    .flatMap(e => e.sets)
-    .reduce((n, s) => n + s.weight * s.reps, 0);
-  // Sets without a DB id are queued on-device (logged offline)
-  const pendingSyncCount = activeWorkout.exercises
-    .flatMap(e => e.sets)
-    .filter(s => !s.id).length;
-  // Progressive disclosure: supersets are an intermediate+ tool. Day-one
-  // lifters get a clean card — no chain icons to decode.
+  const allSets = activeWorkout.exercises.flatMap(e => e.sets);
+  const totalVolume = allSets.reduce((n, s) => n + s.weight * s.reps, 0);
+  const pendingSyncCount = allSets.filter(s => !s.id).length; // queued on-device
+  // Supersets are an intermediate+ tool; day-one lifters get a clean card.
   const showSupersetControls = !!profile?.experience_level && profile.experience_level !== 'beginner';
+  const elapsed = formatElapsed(Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt as any).getTime()) / 1000)));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }} edges={['top']}>
-      {/* Sticky header */}
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 13,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor: Colors.bg,
-        gap: 10,
-      }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{
-            color: Colors.text,
-            fontSize: 17,
-            fontWeight: '800',
-            letterSpacing: -0.4,
-          }} numberOfLines={1}>
-            {activeWorkout.name}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 14, marginTop: 4, alignItems: 'center' }}>
-            <ElapsedTime
-              startedAt={activeWorkout.startedAt}
-              style={{
-                color: Colors.accent,
-                fontSize: 13,
-                fontWeight: '700',
-                fontVariant: ['tabular-nums'],
-                letterSpacing: 0.5,
-              }}
-            />
-            <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
-            <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-              {totalSets} set{totalSets !== 1 ? 's' : ''}
-            </Text>
-            {totalVolume > 0 && (
-              <>
-                <View style={{ width: 1, height: 10, backgroundColor: Colors.border }} />
-                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                  {fmtVolume(totalVolume, unit)}
-                </Text>
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* Overflow — templates + discard live behind ⋯ so Finish is the only
-            loud header action */}
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert(activeWorkout.name, undefined, [
-              { text: '📋 View templates', onPress: () => setShowMidWorkoutTemplates(true) },
-              { text: 'Discard workout', style: 'destructive', onPress: handleDiscard },
-              { text: 'Cancel', style: 'cancel' },
-            ]);
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            backgroundColor: Colors.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ color: Colors.textMuted, fontSize: 16, fontWeight: '800', lineHeight: 18 }}>⋯</Text>
-        </TouchableOpacity>
-
-        {/* Finish — brass, dark label per the primary-button convention */}
-        <TouchableOpacity
-          onPress={handleFinishPress}
-          disabled={finishing}
-          style={{
-            paddingHorizontal: 18,
-            paddingVertical: 9,
-            borderRadius: 10,
-            backgroundColor: Colors.accent,
-            shadowColor: Colors.accent,
-            shadowOpacity: 0.35,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 3 },
-            elevation: 5,
-          }}
-        >
-          {finishing ? (
-            <ActivityIndicator color="#141210" size="small" />
-          ) : (
-            <Text style={{ color: '#141210', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>FINISH</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Offline queue banner — only after a sync attempt actually failed,
-          never during the normal in-flight moment of an online log */}
-      {syncFailed && pendingSyncCount > 0 && (
-        <TouchableOpacity
-          onPress={() => syncPending()}
-          activeOpacity={0.8}
-          style={{
-            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-            backgroundColor: Colors.goldDim, paddingVertical: 8, paddingHorizontal: 16,
-            borderBottomWidth: 1, borderBottomColor: Colors.gold + '30',
-          }}
-        >
-          <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: '700' }}>
-            Offline — {pendingSyncCount === 1 ? '1 set' : `${pendingSyncCount} sets`} saved on this phone
-          </Text>
-          <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Tap to retry sync</Text>
-        </TouchableOpacity>
-      )}
-
-
-      {/* PR Flash Banner */}
-      {newPRs.length > 0 && (
-        <View style={{
-          backgroundColor: Colors.gold + '14',
-          paddingHorizontal: 18,
-          paddingVertical: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.gold + '30',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          shadowColor: Colors.gold,
-          shadowOpacity: 0.2,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-        }}>
-          <View style={{
-            width: 38,
-            height: 38,
-            borderRadius: 19,
-            backgroundColor: Colors.gold + '20',
-            borderWidth: 1,
-            borderColor: Colors.gold + '50',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Text style={{ fontSize: 20 }}>🏆</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{
-              color: Colors.gold,
-              fontSize: 11,
-              fontWeight: '800',
-              letterSpacing: 2,
-              textTransform: 'uppercase',
-            }}>
-              Personal Record
-            </Text>
-            <Text style={{
-              color: Colors.gold,
-              fontSize: 13,
-              fontWeight: '700',
-              marginTop: 2,
-              opacity: 0.9,
-            }}>
-              {newPRs.map(p => `${p.exerciseName}  ${p.weight} × ${p.reps}`).join('  ·  ')}
-            </Text>
-          </View>
-        </View>
-      )}
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <WorkoutHeader
+        name={activeWorkout.name}
+        startedAt={activeWorkout.startedAt}
+        finishing={finishing}
+        onRename={() => { setWorkoutName(activeWorkout.name); setNameSheet('rename'); }}
+        onFinish={openFinish}
+        onShowTemplates={() => setShowTemplates(true)}
+        onDiscard={discard}
+      />
+      {syncFailed && pendingSyncCount > 0 && <OfflineBanner count={pendingSyncCount} onRetry={() => syncPending()} />}
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 160 }}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets={true}
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
       >
         {activeWorkout.exercises.length === 0 && (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <Text style={{ color: Colors.textMuted, fontSize: 15, textAlign: 'center' }}>
-              No exercises yet.{'\n'}Add your first lift. Every PR starts here.
-            </Text>
-          </View>
+          <EmptyState icon="lift" title="No exercises yet" body="Add your first lift." />
         )}
-
-        {activeWorkout.exercises.map((exercise, exIdx) => {
-          const next = activeWorkout.exercises[exIdx + 1];
-          const prev = activeWorkout.exercises[exIdx - 1];
+        {activeWorkout.exercises.map((exercise, i) => {
+          const next = activeWorkout.exercises[i + 1];
+          const prev = activeWorkout.exercises[i - 1];
           const pairedWithNext = !!exercise.supersetId && exercise.supersetId === next?.supersetId;
           const pairedWithPrev = !!exercise.supersetId && exercise.supersetId === prev?.supersetId;
           return (
             <ExerciseCard
               key={exercise.exerciseId}
               exercise={exercise}
-              prevSets={prevSetsCache[exercise.exerciseId] ?? []}
+              prevSets={prevSetsCache[exercise.exerciseId]}
               prMap={prMap}
               workoutId={activeWorkout.id!}
               userId={user!.id}
               onLogSet={stableLogSet}
               onRemove={removeExercise}
-              onReplace={stableReplaceExercise}
+              onReplace={stableReplace}
               onDeleteSet={deleteSet}
               onEditSet={updateSet}
-              onNavigateToDetail={navigateToExerciseDetail}
+              onNavigateToDetail={stableDetail}
               supersetRole={pairedWithNext ? 'first' : pairedWithPrev ? 'second' : null}
               canToggleSuperset={showSupersetControls && (pairedWithNext || (!exercise.supersetId && !!next && !next.supersetId))}
               onToggleSuperset={toggleSupersetWithNext}
             />
           );
         })}
+        <View style={styles.add}>
+          <Button label="Add exercise" icon="add" variant="tinted" size="lg" fullWidth onPress={() => setShowPicker(true)} />
+        </View>
       </ScrollView>
 
-      {/* First workout tutorial tooltips */}
-      <FirstWorkoutTooltip
-        visible={isFirstWorkout && tutorialStep === 'add_exercise'}
-        emoji="💪"
-        message="Tap + ADD EXERCISE below to add your first lift"
-        position="bottom"
-      />
-      <FirstWorkoutTooltip
-        visible={isFirstWorkout && tutorialStep === 'log_set'}
-        emoji="🎯"
-        message="Enter weight × reps, then tap LOG to record your set"
-        position="bottom"
-      />
-      <FirstWorkoutTooltip
-        visible={isFirstWorkout && tutorialStep === 'finish'}
-        emoji="✅"
-        message="Nice work! Tap FINISH at the top right to save"
-        position="bottom"
-      />
+      <FirstWorkoutTooltip visible={isFirstWorkout && tutorialStep === 'add_exercise'} message="Tap Add exercise to add your first lift." />
+      <FirstWorkoutTooltip visible={isFirstWorkout && tutorialStep === 'log_set'} message="Enter weight and reps, then tap the check to log the set." />
+      <FirstWorkoutTooltip visible={isFirstWorkout && tutorialStep === 'finish'} message="Nice. Tap Finish at the top when you're done." />
 
-      {/* Add Exercise FAB */}
-      <View style={{
-        position: 'absolute',
-        bottom: 32,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-        pointerEvents: 'box-none',
-      }}>
-        <TouchableOpacity
-          onPress={() => setShowPicker(true)}
-          style={{
-            backgroundColor: Colors.accent,
-            borderRadius: 30,
-            paddingHorizontal: 28,
-            paddingVertical: 14,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            shadowColor: Colors.accent,
-            shadowOpacity: 0.4,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 8,
-          }}
-        >
-          <Text style={{ color: Colors.text, fontSize: 22, lineHeight: 24, fontWeight: '300' }}>+</Text>
-          <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 }}>
-            ADD EXERCISE
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Rest timer — floating pill above the tab bar, appears after first set */}
       <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
 
-
-      {/* Exercise Picker */}
       <ExercisePickerModal
         visible={showPicker}
         alreadyAdded={activeWorkout.exercises.map(e => e.exerciseId)}
         onSelect={handlePickExercise}
         onClose={() => { setShowPicker(false); setReplacingExerciseId(null); }}
       />
-
-      {/* Templates — viewable mid-workout without leaving the session */}
-      <Modal visible={showMidWorkoutTemplates} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setShowMidWorkoutTemplates(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <View style={{
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            paddingHorizontal: 20, paddingVertical: 16,
-            borderBottomWidth: 1, borderBottomColor: Colors.border,
-          }}>
-            <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Your Templates</Text>
-            <TouchableOpacity onPress={() => setShowMidWorkoutTemplates(false)}>
-              <Text style={{ color: Colors.accent, fontWeight: '700' }}>Done</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
-            {savedTemplates.length === 0 && (
-              <Text style={{ color: Colors.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 }}>
-                No saved templates yet.
-              </Text>
-            )}
-            {savedTemplates.map(tmpl => (
-              <View
-                key={tmpl.id}
-                style={{
-                  backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
-                  borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
-                }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1}>
-                    {tmpl.name}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleAddTemplateExercises(tmpl)}
-                    style={{
-                      backgroundColor: Colors.accentDim, borderRadius: 8,
-                      paddingHorizontal: 10, paddingVertical: 6,
-                      borderWidth: 1, borderColor: Colors.accent + '40',
-                    }}
-                  >
-                    <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 12 }}>+ Add exercises</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {(tmpl.exercises as any[]).map((ex: any, i: number) => (
-                    <View key={i} style={{
-                      backgroundColor: Colors.surface2, borderRadius: 6,
-                      paddingHorizontal: 8, paddingVertical: 4,
-                    }}>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{ex.name}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Finish Modal — social post style */}
-      <Modal visible={showFinishModal} animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={() => setShowFinishModal(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            {/* Header */}
-            <View style={{
-              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-              paddingHorizontal: 20, paddingVertical: 16,
-              borderBottomWidth: 1, borderBottomColor: Colors.border,
-            }}>
-              <TouchableOpacity onPress={() => setShowFinishModal(false)}>
-                <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Finish Workout</Text>
-              <TouchableOpacity onPress={() => handleFinishConfirm(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ color: Colors.textMuted, fontWeight: '600', fontSize: 13 }}>Quick Save</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
-              {/* Workout name */}
-              <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.8 }}>
-                {activeWorkout?.name}
-              </Text>
-
-              {/* Stats row */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {[
-                  { label: 'Duration', value: activeWorkout ? formatElapsed(Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt as any).getTime()) / 1000))) : '0:00' },
-                  { label: 'Sets', value: String(totalSets) },
-                  { label: 'Volume', value: fmtVolume(totalVolume, unit) },
-                ].map((s, i) => (
-                  <View key={i} style={{
-                    flex: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
-                    alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
-                  }}>
-                    <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                    <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>{s.value}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* PR callout */}
-              {newPRs.length > 0 && (
-                <View style={{
-                  backgroundColor: Colors.gold + '15', borderRadius: 14, padding: 16,
-                  borderWidth: 1, borderColor: Colors.gold + '40',
-                  flexDirection: 'row', alignItems: 'center', gap: 12,
-                }}>
-                  <Text style={{ fontSize: 26 }}>🏆</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.gold, fontWeight: '800', fontSize: 14 }}>
-                      {newPRs.length === 1 ? 'New Personal Record!' : `${newPRs.length} New PRs!`}
-                    </Text>
-                    <Text style={{ color: Colors.gold, fontSize: 12, opacity: 0.8, marginTop: 2 }}>
-                      {newPRs.map(p => p.exerciseName).join(', ')}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Photo — large and prominent */}
-              <TouchableOpacity
-                onPress={pickFinishPhoto}
-                activeOpacity={0.85}
-                style={{
-                  borderRadius: 16, overflow: 'hidden',
-                  borderWidth: 1.5,
-                  borderColor: finishPhoto ? Colors.accent + '50' : Colors.border,
-                  borderStyle: finishPhoto ? 'solid' : 'dashed',
-                  height: finishPhoto ? 260 : 110,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: Colors.surface2,
-                }}
-              >
-                {finishPhoto ? (
-                  <Image source={{ uri: finishPhoto }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                ) : (
-                  <View style={{ alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 28 }}>📸</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 14, fontWeight: '700' }}>Add a photo</Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Show your crew what you're working with</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              {finishPhoto && (
-                <TouchableOpacity onPress={() => setFinishPhoto(null)} style={{ alignSelf: 'flex-end', marginTop: -6 }}>
-                  <Text style={{ color: Colors.danger, fontSize: 12 }}>Remove photo</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Caption */}
-              <TextInput
-                value={finishNotes}
-                onChangeText={setFinishNotes}
-                placeholder="Add a caption... (optional)"
-                placeholderTextColor={Colors.textMuted}
-                multiline
-                style={{
-                  backgroundColor: Colors.surface, borderRadius: 14,
-                  paddingHorizontal: 16, paddingVertical: 14,
-                  color: Colors.text, fontSize: 15, lineHeight: 22,
-                  minHeight: 80, maxHeight: 140, textAlignVertical: 'top',
-                  borderWidth: 1, borderColor: Colors.border,
-                }}
-              />
-
-              {/* Save as template */}
-              <TouchableOpacity
-                onPress={() => {
-                  setSaveAsTemplate(!saveAsTemplate);
-                  if (!saveAsTemplate) setTemplateName(activeWorkout?.name ?? '');
-                }}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 10,
-                  backgroundColor: saveAsTemplate ? Colors.accentDim : Colors.surface2,
-                  borderRadius: 12, padding: 14,
-                  borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent + '40' : Colors.border,
-                }}
-              >
-                <View style={{
-                  width: 22, height: 22, borderRadius: 6,
-                  backgroundColor: saveAsTemplate ? Colors.accent : Colors.surface,
-                  borderWidth: 1, borderColor: saveAsTemplate ? Colors.accent : Colors.border,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {saveAsTemplate && <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>✓</Text>}
-                </View>
-                <Text style={{ color: saveAsTemplate ? Colors.text : Colors.textMuted, fontWeight: '600', flex: 1 }}>
-                  Save as template
-                </Text>
-              </TouchableOpacity>
-              {saveAsTemplate && (
-                <TextInput
-                  value={templateName}
-                  onChangeText={setTemplateName}
-                  placeholder="Template name (e.g. Push Day)"
-                  placeholderTextColor={Colors.textMuted}
-                  style={{
-                    backgroundColor: Colors.surface2, borderRadius: 12,
-                    paddingHorizontal: 14, paddingVertical: 12,
-                    color: Colors.text, fontSize: 15,
-                    borderWidth: 1, borderColor: Colors.border,
-                  }}
-                />
-              )}
-
-              {/* Post button */}
-              <TouchableOpacity
-                onPress={() => handleFinishConfirm(false)}
-                disabled={finishing}
-                style={{
-                  backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 18,
-                  alignItems: 'center', marginTop: 4,
-                  shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 16,
-                  shadowOffset: { width: 0, height: 6 }, elevation: 8,
-                }}
-              >
-                {finishing
-                  ? <ActivityIndicator color={Colors.text} />
-                  : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 17, letterSpacing: 0.3 }}>
-                      Post Workout →
-                    </Text>
-                }
-              </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
+      <TemplatesSheet visible={showTemplates} templates={savedTemplates} onAdd={handleAddTemplateExercises} onClose={() => setShowTemplates(false)} />
+      <FinishSheet
+        visible={showFinish}
+        workoutName={activeWorkout.name}
+        duration={elapsed}
+        totalSets={allSets.length}
+        totalVolume={totalVolume}
+        prs={newPRs}
+        unit={unit}
+        draft={draft}
+        onChange={patch => setDraft(d => ({ ...d, ...patch }))}
+        finishing={finishing}
+        onFinish={finish}
+        onClose={() => setShowFinish(false)}
+      />
+      {nameSheetEl}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  root: { flex: 1, backgroundColor: Colors.bg },
+  loading: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' },
+  // Room at the bottom for the docked rest bar
+  scroll: { paddingTop: Spacing.lg, paddingBottom: 120 },
+  add: { paddingHorizontal: Spacing.screenH, paddingTop: Spacing.sm },
+});

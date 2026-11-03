@@ -1,69 +1,28 @@
-import { useEffect, useRef } from 'react';
-import { View, Text, Animated } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
+import { AppText } from '@/components/ui';
+import { Colors, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 
 interface Props {
   message: string;
-  emoji?: string;
   visible: boolean;
-  position?: 'top' | 'bottom';
 }
 
-export function FirstWorkoutTooltip({ message, emoji = '👆', visible, position = 'bottom' }: Props) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(position === 'bottom' ? 20 : -20)).current;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    }
-  }, [visible]);
-
+/** First-workout coaching hint. Never takes touches. */
+export function FirstWorkoutTooltip({ message, visible }: Props) {
+  const world = useWorld();
   if (!visible) return null;
-
   return (
-    <Animated.View style={{
-      opacity: fadeAnim,
-      transform: [{ translateY: slideAnim }],
-      position: 'absolute',
-      left: 16, right: 16,
-      ...(position === 'bottom' ? { bottom: 100 } : { top: 120 }),
-      zIndex: 1000,
-      pointerEvents: 'none',
-    }}>
-      <View style={{
-        backgroundColor: Colors.accent,
-        borderRadius: 16,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        shadowColor: Colors.accent,
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 8,
-      }}>
-        <Text style={{ fontSize: 24 }}>{emoji}</Text>
-        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1, lineHeight: 20 }}>
-          {message}
-        </Text>
+    <Animated.View entering={FadeInDown.duration(260)} exiting={FadeOut.duration(160)} style={styles.wrap} pointerEvents="none">
+      <View style={[styles.panel, { borderColor: world.aura }]}>
+        <AppText variant="heading">{message}</AppText>
       </View>
-      {/* Arrow */}
-      <View style={{
-        alignSelf: 'center',
-        width: 0, height: 0,
-        borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 10,
-        borderLeftColor: 'transparent', borderRightColor: 'transparent',
-        borderTopColor: Colors.accent,
-        marginTop: -1,
-        display: position === 'bottom' ? 'flex' : 'none',
-      }} />
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { position: 'absolute', left: Spacing.screenH, right: Spacing.screenH, bottom: 88, zIndex: 10 },
+  panel: { backgroundColor: Colors.surface, borderWidth: 2, padding: Spacing.lg },
+});
