@@ -106,8 +106,10 @@ Full rules in `src/components/ui/README.md`. The short version:
 
 ## Don't touch without asking
 
-- Apple-reviewed flows beyond restyling: paywall (`PaywallModal`), EULA,
-  onboarding, First Steps completion semantics, RevenueCat wiring.
+- Paywall (`PaywallModal`) and RevenueCat wiring: restyle only. EULA and
+  First Steps completion semantics: don't change. **Onboarding is freely
+  editable** (rewritten to 3 screens + a Power Level reveal; components in
+  `src/components/onboarding/`).
 - Supabase schema/RLS — always via a new numbered migration.
 - **RLS lesson (migrations 026→027):** a policy must never subquery
   `public.users` directly. Own-row RLS applies *inside* policy subqueries, so

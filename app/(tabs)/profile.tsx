@@ -28,6 +28,7 @@ import { fetchPowerInputs } from '@/lib/powerData';
 import { PowerBreakdown } from '@/components/power/PowerBreakdown';
 import { CastGallery } from '@/components/profile/CastGallery';
 import { CameoSettings } from '@/components/profile/CameoSettings';
+import { TrainingProfile } from '@/components/profile/TrainingProfile';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
@@ -1088,24 +1089,17 @@ export default function ProfileScreen() {
 
           {loadingStats && <ActivityIndicator color={Colors.textMuted} />}
 
-          {/* ── LIFTER DNA ───────────────────────────────────────────────────── */}
-          <TouchableOpacity
-            onPress={() => { setDnaText(profile?.training_notes ?? ''); setDnaModalOpen(true); }}
-            style={{
-              backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1,
-              borderColor: profile?.training_notes ? Colors.accent + '50' : Colors.border,
-            }}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '800' }}>Lifter DNA</Text>
-              <Text style={{ color: Colors.accent, fontSize: 12, fontWeight: '700' }}>{profile?.training_notes ? 'Edit' : 'Add →'}</Text>
-            </View>
-            <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
-              {profile?.training_notes
-                ? profile.training_notes.slice(0, 120) + (profile.training_notes.length > 120 ? '…' : '')
-                : 'Injuries, goals, what works. Coach reads this before every response.'}
-            </Text>
-          </TouchableOpacity>
+          {/* ── TRAINING PROFILE (goal / style / DNA — moved from onboarding) ── */}
+          {user && (
+            <TrainingProfile
+              userId={user.id}
+              goal={profile?.primary_goal}
+              style={profile?.training_style}
+              dna={profile?.training_notes}
+              onEditDna={() => { setDnaText(profile?.training_notes ?? ''); setDnaModalOpen(true); }}
+              onSaved={refreshProfile}
+            />
+          )}
 
           {/* ── SUBSCRIPTION ─────────────────────────────────────────────────── */}
           <TouchableOpacity

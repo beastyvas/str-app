@@ -1,823 +1,131 @@
-import { useState, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView,
-  Platform, ScrollView, Animated, Linking,
-} from 'react-native';
+import { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
-import { Colors } from '@/constants/colors';
-import { getRankResult, ROMAN } from '@/constants/ranks';
-import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
-import { screenText } from '@/lib/contentFilter';
+import { Colors, Spacing } from '@/constants/theme';
+import { IconSymbol, PressableScale } from '@/components/ui';
+import { useWorld } from '@/theme';
+import type { PowerReading } from '@/lib/powerLevel';
+import { NameStep } from '@/components/onboarding/NameStep';
+import { BodyStep, type Standards } from '@/components/onboarding/BodyStep';
+import { LiftStep, type LiftEntry } from '@/components/onboarding/LiftStep';
+import { RevealStep } from '@/components/onboarding/RevealStep';
+import { useOnboardingSave } from '@/components/onboarding/useOnboardingSave';
 
-type Step = 'welcome' | 'identity' | 'gender' | 'bodyweight' | 'goals' | 'sbd' | 'dna' | 'done';
-const STEPS: Step[] = ['welcome', 'identity', 'gender', 'bodyweight', 'goals', 'sbd', 'dna', 'done'];
+type Step = 'name' | 'body' | 'lift' | 'reveal';
+const FORM_STEPS: Step[] = ['name', 'body', 'lift'];
 
-const EXPERIENCE_OPTIONS = [
-  { key: 'beginner', label: 'Just starting', sub: 'Under 1 year' },
-  { key: 'intermediate', label: 'Getting serious', sub: '1–3 years' },
-  { key: 'advanced', label: 'Been in the game', sub: '3+ years' },
-  { key: 'competitive', label: 'I compete', sub: 'PL, BB, or CrossFit' },
-];
-
-const GOAL_OPTIONS = [
-  { key: 'strength', label: 'Get stronger', emoji: '🏋️' },
-  { key: 'muscle', label: 'Build muscle', emoji: '💪' },
-  { key: 'fat_loss', label: 'Lose fat', emoji: '🔥' },
-  { key: 'compete', label: 'Compete', emoji: '🥇' },
-  { key: 'athletic', label: 'Stay athletic', emoji: '⚡' },
-];
-
-const STYLE_OPTIONS = [
-  { key: 'powerlifting', label: 'Powerlifting' },
-  { key: 'bodybuilding', label: 'Bodybuilding' },
-  { key: 'hybrid', label: 'Hybrid' },
-  { key: 'calisthenics', label: 'Calisthenics' },
-  { key: 'athletic', label: 'Athletic' },
-];
-
+/**
+ * Three screens + a reveal: name → body → one lift you know → first Power
+ * Level reading. Goal / style / training DNA moved to Profile → Training
+ * profile; experience level is inferred from the reading.
+ */
 export default function OnboardingScreen() {
   const { user, profile, refreshProfile } = useAuth();
-  const [step, setStep] = useState<Step>('welcome');
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const world = useWorld();
+  const { save, saving } = useOnboardingSave();
 
-  // Form state
+  const [step, setStep] = useState<Step>('name');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [username, setUsername] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
   const [bodyweight, setBodyweight] = useState('');
   const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
-  const [experience, setExperience] = useState('');
-  const [goal, setGoal] = useState('');
-  const [style, setStyle] = useState('');
-  const [sbd, setSbd] = useState({ sq: '', bp: '', dl: '' });
-  const [dnaText, setDnaText] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [standards, setStandards] = useState<Standards>('male');
+  const [entries, setEntries] = useState<LiftEntry[]>([{ lift: 'squat', weight: '', reps: '' }]);
+  const [reading, setReading] = useState<PowerReading | null>(null);
+  const started = useRef(false);
 
-  // Tier reveal
-  const [showTierReveal, setShowTierReveal] = useState(false);
-  const [revealTier, setRevealTier] = useState<any>(null);
-
-  // Beginners skip the "what are your best lifts?" step — a day-one lifter
-  // doesn't know their 1RMs, and asking is exactly the overwhelm we're
-  // trying to remove. Their rank starts at Mortal and grows from real logs.
-  const activeSteps = experience === 'beginner' ? STEPS.filter(s => s !== 'sbd') : STEPS;
-  const stepIndex = activeSteps.indexOf(step);
-  const progress = stepIndex / (activeSteps.length - 1);
-  const totalLabeled = activeSteps.length - 2; // exclude welcome + done
-  const stepLabel = `Step ${stepIndex} of ${totalLabeled}`;
-
-  const animateNext = (nextStep: Step) => {
-    // Fade to 0.15 not 0 — prevents black flash
-    Animated.timing(fadeAnim, { toValue: 0.15, duration: 120, useNativeDriver: true }).start(() => {
-      setStep(nextStep);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+  const finish = async (withLifts: boolean) => {
+    const r = await save({
+      userId: user?.id, displayName, username, bodyweight, unit, standards,
+      entries: withLifts ? entries : null,
     });
+    if (r) { setReading(r); setStep('reveal'); }
   };
 
-  const next = () => {
-    const nextStep = activeSteps[stepIndex + 1];
-    if (nextStep) animateNext(nextStep);
-  };
-
-  const back = () => {
-    const prevStep = activeSteps[stepIndex - 1];
-    if (prevStep) animateNext(prevStep);
-  };
-
-  const skip = () => next();
-
-  const handleFinish = async () => {
-    const bw = parseFloat(bodyweight);
-    if (!bw) { Alert.alert('Enter your bodyweight to continue'); return; }
-    const nameIssue = screenText(displayName, 'display name') || screenText(username, 'username');
-    if (nameIssue) { Alert.alert('Not allowed', nameIssue); return; }
-    setSaving(true);
+  // Navigation to the tabs happens when the refreshed profile has a
+  // bodyweight — so we only refresh once the reveal has played.
+  const startTraining = async () => {
+    if (started.current) return;
+    started.current = true;
     try {
-      // The auth context's user can be null here if the session token was
-      // refreshed or dropped mid-onboarding (App Review hit this: "Cannot
-      // read property 'id' of null"). Re-resolve it before touching .id.
-      let uid = user?.id;
-      if (!uid) {
-        const { data } = await supabase.auth.getUser();
-        uid = data.user?.id;
-      }
-      if (!uid) {
-        Alert.alert('Connection issue', "Couldn't verify your session. Check your connection and tap Let's go again.");
-        return;
-      }
-
-      const bwLbs = unit === 'kg' ? bw * 2.205 : bw;
-      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
-
-      // Check for duplicate username before saving
-      if (cleanUsername) {
-        const { data: taken } = await supabase
-          .from('public_profiles').select('id').eq('username', cleanUsername).neq('id', uid).maybeSingle();
-        if (taken) {
-          Alert.alert('Username taken', `@${cleanUsername} is already in use. Pick a different handle.`);
-          setSaving(false);
-          return;
-        }
-      }
-
-      await supabase.from('users').update({
-        display_name: displayName.trim() || null,
-        username: cleanUsername || null,
-        bodyweight_lbs: Math.round(bwLbs * 10) / 10,
-        unit_pref: unit,
-        gender: gender || null,
-        experience_level: experience || null,
-        primary_goal: goal || null,
-        training_style: style || null,
-        training_notes: dnaText.trim() || null,
-      }).eq('id', uid);
-
-      // Save SBD maxes as PRs
-      const sbdEntries = [
-        { name: 'Barbell Back Squats', val: sbd.sq },
-        { name: 'Barbell Bench Press', val: sbd.bp },
-        { name: 'Deadlifts',           val: sbd.dl },
-      ].filter(e => parseFloat(e.val) > 0);
-
-      if (sbdEntries.length > 0) {
-        const { data: exRows } = await supabase
-          .from('exercises').select('id, name').in('name', sbdEntries.map(e => e.name));
-        for (const entry of sbdEntries) {
-          const ex = (exRows ?? []).find((e: any) => e.name === entry.name);
-          if (!ex) continue;
-          await supabase.from('personal_records').upsert({
-            user_id: uid, exercise_id: ex.id,
-            // Typed in the chosen unit — stored canonical lbs
-            weight: unit === 'kg' ? Math.round(parseFloat(entry.val) * 2.2046226218 * 100) / 100 : parseFloat(entry.val),
-            reps: 1,
-            achieved_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,exercise_id' });
-        }
-        const prs = sbdEntries.map(e => ({
-          exerciseName: e.name,
-          weight: unit === 'kg' ? parseFloat(e.val) * 2.2046226218 : parseFloat(e.val),
-          reps: 1,
-        }));
-        const result = getRankResult(prs, Math.round(bwLbs * 10) / 10, false, (gender || 'male') as any);
-        setRevealTier(result.tier);
-        setShowTierReveal(true);
-        // Note: refreshProfile() is called on the done screen's "Let's get it →"
-        // so navigation doesn't fire before the tier reveal animates
-      } else {
-        // No lifts entered (beginners skip that step) — no rank theater.
-        // Land straight on the done screen, which hands them their path.
-        animateNext('done');
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSaving(false);
-    }
+      const AS = (await import('@react-native-async-storage/async-storage')).default;
+      if (user?.id) await AS.setItem('onboarding_done_' + user.id, 'pending');
+    } catch {}
+    refreshProfile();
   };
+
+  if (step === 'reveal') {
+    return (
+      <SafeAreaView style={styles.root}>
+        <RevealStep reading={reading} name={displayName.trim().split(' ')[0] || 'lifter'} onStart={startTraining} />
+      </SafeAreaView>
+    );
+  }
+
+  const idx = FORM_STEPS.indexOf(step);
+  const back = () => setStep(FORM_STEPS[Math.max(0, idx - 1)]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      {/* Progress bar + back button */}
-      {step !== 'welcome' && step !== 'done' && (
-        <>
-          <View style={{ height: 3, backgroundColor: Colors.surface2, marginTop: 8 }}>
-            <View style={{
-              height: '100%',
-              width: `${progress * 100}%`,
-              backgroundColor: Colors.accent,
-              borderRadius: 2,
-            }} />
-          </View>
-          <TouchableOpacity
-            onPress={back}
-            style={{ paddingHorizontal: 20, paddingVertical: 12, alignSelf: 'flex-start' }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={{ color: Colors.textMuted, fontSize: 15, fontWeight: '600' }}>← Back</Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, padding: 28, paddingTop: step === 'welcome' ? 60 : 36 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Animated.View style={{ flex: 1, opacity: fadeAnim, gap: 24 }}>
-
-            {/* ── WELCOME ─────────────────────────────────────────────── */}
-            {step === 'welcome' && (
-              <View style={{ flex: 1, justifyContent: 'space-between' }}>
-                <View style={{ gap: 12 }}>
-                  <Text style={{
-                    color: Colors.accent, fontSize: 72, fontWeight: '800',
-                    letterSpacing: -4, lineHeight: 72,
-                  }}>
-                    STR
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13, letterSpacing: 3, textTransform: 'uppercase' }}>
-                    Strength Tracker
-                  </Text>
-                </View>
-
-                <View style={{ gap: 8, paddingVertical: 40 }}>
-                  <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '800', letterSpacing: -1, lineHeight: 38 }}>
-                    Your arc{'\n'}starts now.
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: 8 }}>
-                    Log every rep. Track every PR.{'\n'}Know exactly where you stand.
-                  </Text>
-                </View>
-
-                <View style={{ gap: 12 }}>
-                  <TouchableOpacity
-                    onPress={next}
-                    style={{
-                      backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center',
-                      shadowColor: Colors.accent, shadowOpacity: 0.45, shadowRadius: 18,
-                      shadowOffset: { width: 0, height: 6 }, elevation: 10,
-                    }}
-                  >
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.5 }}>
-                      Let's go →
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, textAlign: 'center' }}>
-                    Takes about 2 minutes
-                  </Text>
-                </View>
-              </View>
+    <SafeAreaView style={styles.root}>
+      {/* Thin aura progress bar — no "Step 2 of 6" text */}
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${((idx + 1) / (FORM_STEPS.length + 1)) * 100}%`, backgroundColor: world.aura }]} />
+      </View>
+      <View style={styles.nav}>
+        {idx > 0 && (
+          <PressableScale onPress={back} style={styles.back} accessibilityLabel="Back">
+            <IconSymbol name="chevronBack" size={22} color={Colors.textSecondary} />
+          </PressableScale>
+        )}
+      </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <Animated.View key={step} entering={FadeIn.duration(180)} exiting={FadeOut.duration(100)} style={styles.flex}>
+            {step === 'name' && (
+              <NameStep
+                displayName={displayName}
+                username={username}
+                onChangeName={setDisplayName}
+                onChangeUsername={setUsername}
+                onNext={() => setStep('body')}
+              />
             )}
-
-            {/* ── IDENTITY ────────────────────────────────────────────── */}
-            {step === 'identity' && (
-              <View style={{ gap: 24 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    What do we call you?
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Your name shows on your profile and in the feed. Pick a username so friends can find you.
-                  </Text>
-                </View>
-
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Display Name</Text>
-                  <TextInput
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    placeholder="Nick Vasquez Jr"
-                    placeholderTextColor={Colors.textMuted}
-                    style={{
-                      backgroundColor: Colors.surface, borderRadius: 12,
-                      paddingHorizontal: 16, paddingVertical: 14,
-                      color: Colors.text, fontSize: 18, fontWeight: '700',
-                      borderWidth: 1, borderColor: Colors.border,
-                    }}
-                  />
-                </View>
-
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Username</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border }}>
-                    <Text style={{ color: Colors.textMuted, fontSize: 16, paddingLeft: 16 }}>@</Text>
-                    <TextInput
-                      value={username}
-                      onChangeText={v => setUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
-                      placeholder="nickjr"
-                      placeholderTextColor={Colors.textMuted}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 14, color: Colors.text, fontSize: 17, fontWeight: '700' }}
-                    />
-                  </View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 6 }}>
-                    Friends can find you with @{username || 'yourhandle'}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  onPress={next}
-                  disabled={!displayName.trim()}
-                  style={{
-                    backgroundColor: displayName.trim() ? Colors.accent : Colors.surface,
-                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    borderWidth: !displayName.trim() ? 1 : 0, borderColor: Colors.border,
-                    shadowColor: Colors.accent, shadowOpacity: displayName.trim() ? 0.4 : 0,
-                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: displayName.trim() ? 7 : 0,
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={next} style={{ alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Set later in profile</Text>
-                </TouchableOpacity>
-              </View>
+            {step === 'body' && (
+              <BodyStep
+                bodyweight={bodyweight}
+                unit={unit}
+                standards={standards}
+                onChangeBodyweight={setBodyweight}
+                onChangeUnit={setUnit}
+                onChangeStandards={setStandards}
+                onNext={() => setStep('lift')}
+              />
             )}
-
-            {/* ── GENDER ──────────────────────────────────────────────── */}
-            {step === 'gender' && (
-              <View style={{ gap: 24 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    Who's training?
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Strength standards differ for men and women. This makes your rank accurate.
-                  </Text>
-                </View>
-
-                <View style={{ gap: 10 }}>
-                  {([
-                    { key: 'male', label: 'Male' },
-                    { key: 'female', label: 'Female' },
-                    { key: 'other', label: 'Prefer not to say' },
-                  ] as const).map(opt => (
-                    <TouchableOpacity
-                      key={opt.key}
-                      onPress={() => setGender(opt.key)}
-                      style={{
-                        backgroundColor: gender === opt.key ? Colors.accent + '15' : Colors.surface,
-                        borderRadius: 14, padding: 18,
-                        borderWidth: 1.5,
-                        borderColor: gender === opt.key ? Colors.accent : Colors.border,
-                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                      }}
-                    >
-                      <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>{opt.label}</Text>
-                      {gender === opt.key && <Text style={{ color: Colors.accent, fontSize: 20 }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <TouchableOpacity
-                  onPress={next}
-                  disabled={!gender}
-                  style={{
-                    backgroundColor: gender ? Colors.accent : Colors.surface,
-                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    borderWidth: !gender ? 1 : 0, borderColor: Colors.border,
-                    shadowColor: Colors.accent, shadowOpacity: gender ? 0.4 : 0,
-                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: gender ? 7 : 0,
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip</Text>
-                </TouchableOpacity>
-              </View>
+            {step === 'lift' && (
+              <LiftStep
+                entries={entries}
+                unit={unit}
+                saving={saving}
+                onChange={setEntries}
+                onFinish={() => finish(true)}
+                onSkip={() => finish(false)}
+              />
             )}
-
-            {/* ── BODYWEIGHT ──────────────────────────────────────────── */}
-            {step === 'bodyweight' && (
-              <View style={{ gap: 24 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    Your bodyweight.
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Powers the strength tier calculations. Update it anytime.
-                  </Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {(['lbs', 'kg'] as const).map(u => (
-                    <TouchableOpacity
-                      key={u}
-                      onPress={() => setUnit(u)}
-                      style={{
-                        flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                        backgroundColor: unit === u ? Colors.accent : Colors.surface,
-                        borderWidth: 1, borderColor: unit === u ? Colors.accent : Colors.border,
-                      }}
-                    >
-                      <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, textTransform: 'uppercase', letterSpacing: 1 }}>{u}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <TextInput
-                  value={bodyweight}
-                  onChangeText={setBodyweight}
-                  keyboardType="decimal-pad"
-                  placeholder={unit === 'lbs' ? '185' : '84'}
-                  placeholderTextColor={Colors.textMuted}
-                  style={{
-                    backgroundColor: Colors.surface, borderColor: Colors.border,
-                    borderWidth: 1, borderRadius: 14,
-                    paddingHorizontal: 20, paddingVertical: 18,
-                    color: Colors.text, fontSize: 40, fontWeight: '800', letterSpacing: -1,
-                    textAlign: 'center',
-                  }}
-                />
-
-                <TouchableOpacity
-                  onPress={next}
-                  disabled={!bodyweight}
-                  style={{
-                    backgroundColor: bodyweight ? Colors.accent : Colors.surface,
-                    borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    borderWidth: !bodyweight ? 1 : 0, borderColor: Colors.border,
-                    shadowColor: Colors.accent, shadowOpacity: bodyweight ? 0.4 : 0,
-                    shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: bodyweight ? 7 : 0,
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* ── GOALS ───────────────────────────────────────────────── */}
-            {step === 'goals' && (
-              <View style={{ gap: 20 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    What are you training for?
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8 }}>
-                    Coach speaks your language based on this.
-                  </Text>
-                </View>
-
-                {/* Experience */}
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Experience</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {EXPERIENCE_OPTIONS.map(opt => (
-                      <TouchableOpacity
-                        key={opt.key}
-                        onPress={() => setExperience(opt.key)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
-                          backgroundColor: experience === opt.key ? Colors.accent + '20' : Colors.surface,
-                          borderWidth: 1, borderColor: experience === opt.key ? Colors.accent : Colors.border,
-                        }}
-                      >
-                        <Text style={{ color: experience === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
-                          {opt.label}
-                        </Text>
-                        <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 2 }}>{opt.sub}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Goal */}
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Primary Goal</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {GOAL_OPTIONS.map(opt => (
-                      <TouchableOpacity
-                        key={opt.key}
-                        onPress={() => setGoal(opt.key)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
-                          backgroundColor: goal === opt.key ? Colors.accent + '20' : Colors.surface,
-                          borderWidth: 1, borderColor: goal === opt.key ? Colors.accent : Colors.border,
-                          flexDirection: 'row', alignItems: 'center', gap: 8,
-                        }}
-                      >
-                        <Text style={{ fontSize: 16 }}>{opt.emoji}</Text>
-                        <Text style={{ color: goal === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Style */}
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Training Style</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {STYLE_OPTIONS.map(opt => (
-                      <TouchableOpacity
-                        key={opt.key}
-                        onPress={() => setStyle(opt.key)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
-                          backgroundColor: style === opt.key ? Colors.accent + '20' : Colors.surface,
-                          borderWidth: 1, borderColor: style === opt.key ? Colors.accent : Colors.border,
-                        }}
-                      >
-                        <Text style={{ color: style === opt.key ? Colors.accent : Colors.text, fontWeight: '700', fontSize: 13 }}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  onPress={next}
-                  style={{
-                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 5 }, elevation: 7,
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip for now</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* ── SBD RANK SETUP ──────────────────────────────────────── */}
-            {step === 'sbd' && (
-              <View style={{ gap: 24 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    What are your{'\n'}best lifts?
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Enter your best single or a heavy set. This sets your starting rank.
-                  </Text>
-                </View>
-
-                {/* Live tier preview */}
-                {(parseFloat(sbd.sq) > 0 || parseFloat(sbd.bp) > 0 || parseFloat(sbd.dl) > 0) && (() => {
-                  const bwLbs = unit === 'kg' ? parseFloat(bodyweight || '185') * 2.205 : parseFloat(bodyweight || '185');
-                  const prs = [
-                    { exerciseName: 'Barbell Back Squats', weight: parseFloat(sbd.sq) || 0, reps: 1 },
-                    { exerciseName: 'Barbell Bench Press', weight: parseFloat(sbd.bp) || 0, reps: 1 },
-                    { exerciseName: 'Deadlifts', weight: parseFloat(sbd.dl) || 0, reps: 1 },
-                  ].filter(p => p.weight > 0);
-                  if (prs.length === 0) return null;
-                  const result = getRankResult(prs, bwLbs, false, (gender || 'male') as any);
-                  return (
-                    <View style={{
-                      backgroundColor: result.tier.color + '15',
-                      borderRadius: 14, padding: 16,
-                      borderWidth: 1, borderColor: result.tier.color + '40',
-                      alignItems: 'center', gap: 4,
-                    }}>
-                      <Text style={{ color: result.tier.color, fontSize: 22, fontWeight: '800', letterSpacing: 1.5 }}>
-                        {result.tier.label} {ROMAN[result.subTier]}
-                      </Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 12, fontStyle: 'italic' }}>
-                        "{result.tier.tagline}"
-                      </Text>
-                    </View>
-                  );
-                })()}
-
-                {[
-                  { label: 'Squat', key: 'sq' as const, placeholder: '315' },
-                  { label: 'Bench', key: 'bp' as const, placeholder: '225' },
-                  { label: 'Deadlift', key: 'dl' as const, placeholder: '405' },
-                ].map(({ label, key, placeholder }) => (
-                  <View key={key}>
-                    <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
-                      {label} ({unit})
-                    </Text>
-                    <TextInput
-                      value={sbd[key]}
-                      onChangeText={v => setSbd(prev => ({ ...prev, [key]: v }))}
-                      keyboardType="number-pad"
-                      placeholder={placeholder}
-                      placeholderTextColor={Colors.textMuted}
-                      style={{
-                        backgroundColor: Colors.surface, borderRadius: 12,
-                        paddingHorizontal: 16, paddingVertical: 14,
-                        color: Colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -1,
-                        borderWidth: 1, borderColor: Colors.border,
-                      }}
-                    />
-                  </View>
-                ))}
-
-                <TouchableOpacity
-                  onPress={next}
-                  style={{
-                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    shadowColor: Colors.accent, shadowOpacity: 0.4, shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 5 }, elevation: 7,
-                  }}
-                >
-                  <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Continue →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={skip} style={{ alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip — I'll set this later</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* ── LIFTER DNA ───────────────────────────────────────────── */}
-            {step === 'dna' && (
-              <View style={{ gap: 24 }}>
-                <View>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {stepLabel}
-                  </Text>
-                  <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 }}>
-                    Your Lifter DNA.
-                  </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 21 }}>
-                    Injuries, history, what works for you — this lives on your profile and gives Coach full context every session.
-                  </Text>
-                </View>
-
-                {/* Example prompts */}
-                <View style={{
-                  backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-                  borderWidth: 1, borderColor: Colors.border,
-                }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 1 }}>
-                    EXAMPLE
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 12, lineHeight: 18 }}>
-                    {experience === 'beginner'
-                      ? '"Brand new to this — honestly a little nervous. Desk job, knees feel stiff. Can realistically train 3 days a week. Main thing is building the habit without hurting myself."'
-                      : '"3 years training, mostly bodybuilding. Left shoulder impingement — flat pressing hurts at the bottom. Bench has always been behind. Goal is to compete in 2 years. Sleep is inconsistent..."'}
-                  </Text>
-                </View>
-
-                <TextInput
-                  value={dnaText}
-                  onChangeText={setDnaText}
-                  multiline
-                  placeholder="What should Coach know about you?"
-                  placeholderTextColor={Colors.textMuted}
-                  style={{
-                    backgroundColor: Colors.surface, borderRadius: 14,
-                    padding: 16, color: Colors.text, fontSize: 15,
-                    minHeight: 140, textAlignVertical: 'top',
-                    borderWidth: 1, borderColor: Colors.border, lineHeight: 22,
-                  }}
-                />
-
-                <TouchableOpacity
-                  onPress={handleFinish}
-                  disabled={saving}
-                  style={{
-                    backgroundColor: Colors.accent, borderRadius: 14, paddingVertical: 18, alignItems: 'center',
-                    shadowColor: Colors.accent, shadowOpacity: saving ? 0 : 0.4, shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 5 }, elevation: saving ? 0 : 7,
-                  }}
-                >
-                  {saving
-                    ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>Let's go 🏋️</Text>
-                  }
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleFinish} disabled={saving} style={{ alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>Skip — enter later in profile</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* ── DONE ────────────────────────────────────────────────── */}
-            {step === 'done' && (
-              <View style={{ flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 40 }}>
-                <View />
-                <View style={{ alignItems: 'center', gap: 20, width: '100%' }}>
-                  <Text style={{ fontSize: 72 }}>🏆</Text>
-
-                  <View style={{ alignItems: 'center', gap: 8 }}>
-                    <Text style={{ color: Colors.text, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -1 }}>
-                      You're in.
-                    </Text>
-                    <Text style={{ color: Colors.accent, fontSize: 15, fontWeight: '700', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase' }}>
-                      Your arc begins now
-                    </Text>
-                  </View>
-
-                  {/* Rank callout */}
-                  {revealTier && (
-                    <View style={{
-                      backgroundColor: revealTier.color + '15',
-                      borderRadius: 16, padding: 20,
-                      borderWidth: 1.5, borderColor: revealTier.color + '50',
-                      width: '100%', alignItems: 'center', gap: 6,
-                      shadowColor: revealTier.color,
-                      shadowOpacity: 0.25, shadowRadius: 20,
-                      shadowOffset: { width: 0, height: 4 }, elevation: 8,
-                    }}>
-                      <Text style={{ color: Colors.textMuted, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>Your Starting Rank</Text>
-                      <Text style={{
-                        color: revealTier.color, fontSize: 28, fontWeight: '800', letterSpacing: 2,
-                        textShadowColor: revealTier.color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10,
-                      }}>
-                        {revealTier.label} I
-                      </Text>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', textAlign: 'center' }}>
-                        "{revealTier.tagline}"
-                      </Text>
-                    </View>
-                  )}
-
-                  {experience === 'beginner' ? (
-                    <View style={{
-                      backgroundColor: Colors.accentDim, borderRadius: 14, padding: 16,
-                      width: '100%', gap: 4,
-                    }}>
-                      <Text style={{ color: Colors.accent, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: '800' }}>
-                        Your path is ready
-                      </Text>
-                      <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700' }}>
-                        Full Body Starter · 3 days a week
-                      </Text>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
-                        It's waiting in your Workout tab — exercises picked, sets and reps suggested. Just show up. Your coach handles the rest.
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                      Log workouts to earn PRs.{'\n'}Every lift moves your rank. Every rank is earned.
-                    </Text>
-                  )}
-                </View>
-
-                <View style={{ width: '100%', gap: 12 }}>
-                  {/* Creator shoutout */}
-                  <View style={{
-                    backgroundColor: Colors.surface,
-                    borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: Colors.border,
-                    flexDirection: 'row', alignItems: 'center', gap: 14,
-                  }}>
-                    <Text style={{ fontSize: 32 }}>👋</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '800', marginBottom: 2 }}>
-                        Built by Nick Vasquez Jr
-                      </Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 11, lineHeight: 16 }}>
-                        If STR helps your training, follow along — I post updates, features, and lifting content.
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => Linking.openURL('https://instagram.com/beastyvas')}
-                    style={{
-                      backgroundColor: Colors.surface,
-                      borderRadius: 12, paddingVertical: 14,
-                      alignItems: 'center', flexDirection: 'row',
-                      justifyContent: 'center', gap: 10,
-                      borderWidth: 1, borderColor: Colors.border,
-                    }}
-                  >
-                    <Text style={{ fontSize: 20 }}>📸</Text>
-                    <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 14 }}>
-                      Follow @beastyvas on Instagram
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; if (user?.id) await AS.setItem('onboarding_done_' + user.id, 'pending'); } catch {} refreshProfile(); }}
-                    style={{
-                      backgroundColor: Colors.accent, borderRadius: 16, paddingVertical: 20, alignItems: 'center',
-                      shadowColor: Colors.accent, shadowOpacity: 0.5, shadowRadius: 20,
-                      shadowOffset: { width: 0, height: 7 }, elevation: 12,
-                    }}
-                  >
-                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.3 }}>
-                      Let's get it →
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Tier reveal animation */}
-      <TierAdvancementScreen
-        visible={showTierReveal}
-        tier={revealTier}
-        subTier={1}
-        isSubTierAdvance={false}
-        onDismiss={() => {
-          setShowTierReveal(false);
-          animateNext('done');
-        }}
-      />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  flex: { flex: 1 },
+  track: { height: 3, backgroundColor: Colors.surface2 },
+  fill: { height: '100%' },
+  nav: { height: 48, paddingHorizontal: Spacing.md, justifyContent: 'center' },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  scroll: { flexGrow: 1, paddingHorizontal: Spacing.screenH, paddingBottom: Spacing.xl },
+});

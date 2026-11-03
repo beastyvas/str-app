@@ -45,6 +45,7 @@ const ICONS = {
   check: { family: 'ion', glyph: 'checkmark' },
   checkCircle: { family: 'ion', glyph: 'checkmark-circle' },
   chevronRight: { family: 'ion', glyph: 'chevron-forward' },
+  chevronBack: { family: 'ion', glyph: 'chevron-back' },
   chevronDown: { family: 'ion', glyph: 'chevron-down' },
   chevronUp: { family: 'ion', glyph: 'chevron-up' },
   ellipsis: { family: 'ion', glyph: 'ellipsis-horizontal' },
