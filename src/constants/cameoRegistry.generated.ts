@@ -11,12 +11,12 @@ export interface CameoImages {
 }
 
 export const CAMEO_IMAGES: Record<CharacterId, CameoImages> = {
-  urokodaki: { portrait: require('../../assets/cameos/urokodaki/portrait.png'), hype: null, placeholder: true },
-  tanjiro: { portrait: require('../../assets/cameos/tanjiro/portrait.png'), hype: null, placeholder: true },
-  zenitsu: { portrait: require('../../assets/cameos/zenitsu/portrait.png'), hype: null, placeholder: true },
+  urokodaki: { portrait: require('../../assets/cameos/urokodaki/portrait.png'), hype: require('../../assets/cameos/urokodaki/hype.png'), placeholder: false },
+  tanjiro: { portrait: require('../../assets/cameos/tanjiro/portrait.png'), hype: require('../../assets/cameos/tanjiro/hype.png'), placeholder: false },
+  zenitsu: { portrait: require('../../assets/cameos/zenitsu/portrait.png'), hype: require('../../assets/cameos/zenitsu/hype.png'), placeholder: false },
   inosuke: { portrait: require('../../assets/cameos/inosuke/portrait.png'), hype: null, placeholder: true },
   rengoku: { portrait: require('../../assets/cameos/rengoku/portrait.png'), hype: null, placeholder: true },
-  giyu: { portrait: require('../../assets/cameos/giyu/portrait.png'), hype: null, placeholder: true },
+  giyu: { portrait: require('../../assets/cameos/giyu/portrait.png'), hype: require('../../assets/cameos/giyu/hype.png'), placeholder: false },
   allmight: { portrait: require('../../assets/cameos/allmight/portrait.png'), hype: null, placeholder: true },
   deku: { portrait: require('../../assets/cameos/deku/portrait.png'), hype: null, placeholder: true },
   bakugo: { portrait: require('../../assets/cameos/bakugo/portrait.png'), hype: null, placeholder: true },

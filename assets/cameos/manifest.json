@@ -1,1 +1,26 @@
-{}
+{
+ "tanjiro": {
+  "flip": true
+ },
+ "giyu-hype": {
+  "flip": false
+ },
+ "giyu": {
+  "flip": false
+ },
+ "tanjiro-hype": {
+  "flip": false
+ },
+ "urokodaki-hype": {
+  "flip": false
+ },
+ "urokodaki": {
+  "flip": false
+ },
+ "zenitsu-hype": {
+  "flip": false
+ },
+ "zenitsu": {
+  "flip": false
+ }
+}
