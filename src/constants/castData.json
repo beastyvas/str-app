@@ -1,0 +1,314 @@
+[
+ {
+  "id": "urokodaki",
+  "name": "Urokodaki",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "lead",
+  "bubbleColor": "#60A5FA"
+ },
+ {
+  "id": "tanjiro",
+  "name": "Tanjiro",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "dropin",
+  "bubbleColor": "#10B981"
+ },
+ {
+  "id": "zenitsu",
+  "name": "Zenitsu",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "dropin",
+  "bubbleColor": "#FACC15"
+ },
+ {
+  "id": "inosuke",
+  "name": "Inosuke",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "dropin",
+  "bubbleColor": "#64748B"
+ },
+ {
+  "id": "rengoku",
+  "name": "Rengoku",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "dropin",
+  "bubbleColor": "#F97316"
+ },
+ {
+  "id": "giyu",
+  "name": "Giyu",
+  "series": "Demon Slayer",
+  "tier": "mortal",
+  "role": "dropin",
+  "bubbleColor": "#2563EB"
+ },
+ {
+  "id": "allmight",
+  "name": "All Might",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "lead",
+  "bubbleColor": "#2563EB"
+ },
+ {
+  "id": "deku",
+  "name": "Deku",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "dropin",
+  "bubbleColor": "#16A34A"
+ },
+ {
+  "id": "bakugo",
+  "name": "Bakugo",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "dropin",
+  "bubbleColor": "#EA580C"
+ },
+ {
+  "id": "todoroki",
+  "name": "Todoroki",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "dropin",
+  "bubbleColor": "#DC2626"
+ },
+ {
+  "id": "kirishima",
+  "name": "Kirishima",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "dropin",
+  "bubbleColor": "#B91C1C"
+ },
+ {
+  "id": "aizawa",
+  "name": "Aizawa",
+  "series": "My Hero Academia",
+  "tier": "awakened",
+  "role": "dropin",
+  "bubbleColor": "#475569"
+ },
+ {
+  "id": "gojo",
+  "name": "Gojo",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "lead",
+  "bubbleColor": "#3B82F6"
+ },
+ {
+  "id": "yuji",
+  "name": "Yuji Itadori",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "dropin",
+  "bubbleColor": "#E11D48"
+ },
+ {
+  "id": "megumi",
+  "name": "Megumi",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "dropin",
+  "bubbleColor": "#1E293B"
+ },
+ {
+  "id": "maki",
+  "name": "Maki",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "dropin",
+  "bubbleColor": "#15803D"
+ },
+ {
+  "id": "todo",
+  "name": "Todo",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "dropin",
+  "bubbleColor": "#92400E"
+ },
+ {
+  "id": "sukuna",
+  "name": "Sukuna",
+  "series": "Jujutsu Kaisen",
+  "tier": "ascendant",
+  "role": "dropin",
+  "bubbleColor": "#B91C1C"
+ },
+ {
+  "id": "vegeta",
+  "name": "Vegeta",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "lead",
+  "bubbleColor": "#1D4ED8"
+ },
+ {
+  "id": "goku",
+  "name": "Goku",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "dropin",
+  "bubbleColor": "#EA580C"
+ },
+ {
+  "id": "gohan",
+  "name": "Gohan",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "dropin",
+  "bubbleColor": "#7C3AED"
+ },
+ {
+  "id": "piccolo",
+  "name": "Piccolo",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "dropin",
+  "bubbleColor": "#16A34A"
+ },
+ {
+  "id": "beerus",
+  "name": "Beerus",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "dropin",
+  "bubbleColor": "#9333EA"
+ },
+ {
+  "id": "whis",
+  "name": "Whis",
+  "series": "Dragon Ball",
+  "tier": "phantom",
+  "role": "dropin",
+  "bubbleColor": "#0EA5E9"
+ },
+ {
+  "id": "jinwoo",
+  "name": "Sung Jinwoo",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "lead",
+  "bubbleColor": "#7C3AED"
+ },
+ {
+  "id": "igris",
+  "name": "Igris",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "dropin",
+  "bubbleColor": "#B91C1C"
+ },
+ {
+  "id": "beru",
+  "name": "Beru",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "dropin",
+  "bubbleColor": "#4338CA"
+ },
+ {
+  "id": "chahaein",
+  "name": "Cha Hae-in",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "dropin",
+  "bubbleColor": "#DB2777"
+ },
+ {
+  "id": "thomasandre",
+  "name": "Thomas Andre",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "dropin",
+  "bubbleColor": "#CA8A04"
+ },
+ {
+  "id": "yoojinho",
+  "name": "Yoo Jinho",
+  "series": "Solo Leveling",
+  "tier": "sovereign",
+  "role": "dropin",
+  "bubbleColor": "#0D9488"
+ },
+ {
+  "id": "saitama",
+  "name": "Saitama",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "lead",
+  "bubbleColor": "#EAB308"
+ },
+ {
+  "id": "genos",
+  "name": "Genos",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "dropin",
+  "bubbleColor": "#F59E0B"
+ },
+ {
+  "id": "bang",
+  "name": "Bang",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "dropin",
+  "bubbleColor": "#64748B"
+ },
+ {
+  "id": "king",
+  "name": "King",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "dropin",
+  "bubbleColor": "#334155"
+ },
+ {
+  "id": "mumenrider",
+  "name": "Mumen Rider",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "dropin",
+  "bubbleColor": "#16A34A"
+ },
+ {
+  "id": "garou",
+  "name": "Garou",
+  "series": "One Punch Man",
+  "tier": "godhand",
+  "role": "dropin",
+  "bubbleColor": "#6B7280"
+ },
+ {
+  "id": "broly",
+  "name": "Broly",
+  "series": "Dragon Ball",
+  "tier": null,
+  "role": "guest",
+  "bubbleColor": "#16A34A"
+ },
+ {
+  "id": "yujiro",
+  "name": "Yujiro Hanma",
+  "series": "Baki",
+  "tier": null,
+  "role": "guest",
+  "bubbleColor": "#DC2626"
+ },
+ {
+  "id": "roshi",
+  "name": "Master Roshi",
+  "series": "Dragon Ball",
+  "tier": null,
+  "role": "guest",
+  "bubbleColor": "#F97316"
+ }
+]

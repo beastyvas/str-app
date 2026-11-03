@@ -25,6 +25,9 @@ import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
 import { computePowerReading, type LiftSet, type PowerReading } from '@/lib/powerLevel';
 import { fetchPowerInputs, savePowerReading } from '@/lib/powerData';
 import { useWorldStore } from '@/theme/useWorldStore';
+import {
+  afterSetLogged, fetchSessionCameoContext, finishFacts, freshSessionCameoState, type SessionCameoState,
+} from '@/lib/workoutCameos';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
 import { fmtVolume, unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
@@ -140,6 +143,8 @@ export default function WorkoutTab() {
   // and it works offline. Rank-up detection happens on the summary screen.
   const powerInputsRef = useRef<LiftSet[] | null>(null);
   const powerBeforeRef = useRef<PowerReading | null>(null);
+  // Cameo bookkeeping for this session (max 2 in-workout cameos)
+  const cameoRef = useRef<SessionCameoState>(freshSessionCameoState());
 
   // Smart suggestion + templates — SWR-cached hook; no reload flash on every
   // return to the idle tab.
@@ -247,6 +252,8 @@ export default function WorkoutTab() {
 
   const seedCurrentTier = async () => {
     if (!user) return;
+    cameoRef.current = freshSessionCameoState();
+    fetchSessionCameoContext(user.id).then(c => { Object.assign(cameoRef.current, c); });
     try {
       const inputs = await fetchPowerInputs(user.id);
       powerInputsRef.current = inputs;
@@ -378,6 +385,11 @@ export default function WorkoutTab() {
     if (ex && ex.sets.length > 0) {
       const lastSet = ex.sets[ex.sets.length - 1];
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
+      afterSetLogged(cameoRef.current, {
+        exerciseName: ex.exerciseName, weight: data.weight, reps: data.reps, isPR: result.isPR,
+      }, {
+        name: profile?.display_name?.split(' ')[0] ?? 'lifter', unit, restSeconds: restAlertSeconds,
+      });
     }
 
     // Lock screen notification + Live Activity update
@@ -466,6 +478,9 @@ export default function WorkoutTab() {
         })),
       );
 
+      const sessionVolume = sessionSets.filter(st => !st.isWarmup).reduce((n, st) => n + st.weight * st.reps, 0);
+      const cameo = finishFacts(cameoRef.current, sessionVolume);
+
       const summary = await finishWorkout(quick ? undefined : (finishNotes.trim() || undefined));
 
       // Power Level after = history (cached at start) + this session.
@@ -476,7 +491,7 @@ export default function WorkoutTab() {
           [...powerInputsRef.current, ...sessionSets], profile?.bodyweight_lbs, profile?.gender, unit,
         );
         savePowerReading(user.id, after);
-        if (after.confidence !== 'calibrating') useWorldStore.getState().setRank(after.rank.tier.key);
+        if (after.confidence !== 'calibrating') useWorldStore.getState().setRank(after.rank.tier.key, after.rank.subTier);
         power = {
           before: before && before.confidence !== 'calibrating' ? before.power : null,
           after: after.confidence !== 'calibrating' ? after.power : null,
@@ -499,7 +514,7 @@ export default function WorkoutTab() {
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
-      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify({ ...summary, power }) } });
+      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify({ ...summary, power, cameo }) } });
 
       // Photo uploads quietly in the background while the recap is on screen
       if (!quick && finishPhoto && summary?.workoutId && user) {

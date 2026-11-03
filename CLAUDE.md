@@ -78,6 +78,15 @@ Full rules in `src/components/ui/README.md`. The short version:
 - Bottom sheets use `SheetModal`. Never add a new `Modal animationType="slide"`.
 - Convert a screen to primitives **wholesale in its own commit**.
 - Dev builds: `app/dev/worlds.tsx` previews all six worlds.
+- **Cameos:** each world has a six-character cast (lead = coach) plus guests
+  (Broly, Yujiro, Roshi). Cast IDs live in `src/constants/cast.ts`
+  (`TIER_CHARACTER` in `ranks.ts` derives from it); names/colors in
+  `castData.json`; lines in `cameoLines.ts`; who-speaks-when in
+  `src/lib/cameoEngine.ts` (pure); queue + settings in
+  `src/components/cameo/useCameoStore.ts`; `<CameoRoot />` mounts in
+  `app/_layout.tsx` (native modals like the summary mount a local `<Cameo
+  host="local" />`). Art lives in `assets/cameos/<id>/` — see its README.
+  **Never draw or generate character art**; placeholders only.
 
 ## Architecture notes
 

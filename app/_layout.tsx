@@ -12,6 +12,7 @@ import { Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold } from '@expo-g
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { WorldProvider } from '@/theme';
 import { ImpactFrame } from '@/components/anime';
+import { CameoRoot } from '@/components/cameo';
 import { Colors, Fonts } from '@/constants/theme';
 
 // Initialize RevenueCat — skip in Expo Go (purchases only work in real builds)
@@ -95,6 +96,7 @@ export default function RootLayout() {
       <WorldProvider>
         <StatusBar style="light" backgroundColor={Colors.bg} />
         <RootLayoutNav fontsReady={fontsLoaded || !!fontError} />
+        <CameoRoot />
         <ImpactFrame />
       </WorldProvider>
     </AuthProvider>

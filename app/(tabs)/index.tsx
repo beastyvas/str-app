@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCameoStore } from '@/components/cameo';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -37,6 +38,16 @@ export default function HomeScreen() {
   // All Home data (SWR-cached: instant render on refocus, silent background
   // refresh, skeleton only on true first load) lives in useHomeData.
   const { data, loading, celebration, clearCelebration, refetch, markCoachStepDone } = useHomeData();
+
+  // Random Home drop-in: ~20% once a day, never on a rank-up day.
+  const weakest = data?.power?.weakest ?? undefined;
+  useFocusEffect(useCallback(() => {
+    if (!data) return;
+    useCameoStore.getState().maybeHomeDropin({
+      name: profile?.display_name?.split(' ')[0] ?? 'lifter',
+      weakest,
+    });
+  }, [!!data, weakest]));
 
   const [weeklyPlanModal, setWeeklyPlanModal] = useState(false);
   const [trainingDays, setTrainingDays] = useState('4');

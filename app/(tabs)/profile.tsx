@@ -26,6 +26,8 @@ import { getRankResult, ROMAN } from '@/constants/ranks';
 import { computePowerReading, type PowerReading } from '@/lib/powerLevel';
 import { fetchPowerInputs } from '@/lib/powerData';
 import { PowerBreakdown } from '@/components/power/PowerBreakdown';
+import { CastGallery } from '@/components/profile/CastGallery';
+import { CameoSettings } from '@/components/profile/CameoSettings';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
@@ -1162,6 +1164,10 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* ── CAST + CAMEOS ───────────────────────────────────────────────── */}
+          <CastGallery name={profile?.display_name?.split(' ')[0] ?? 'lifter'} />
+          <CameoSettings />
 
           {/* ── PUBLIC PROFILE ───────────────────────────────────────────────── */}
           <TouchableOpacity

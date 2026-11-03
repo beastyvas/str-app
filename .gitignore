@@ -19,3 +19,7 @@ dist/
 android/
 ios/
 *.p8
+
+# Cameo pipeline: raw drops + local preview
+assets/cameos/_inbox/
+assets/cameos/_preview.html

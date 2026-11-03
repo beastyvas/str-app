@@ -1,0 +1,10 @@
+{
+  "name": "str-asset-scripts",
+  "private": true,
+  "description": "Dev-only image tooling for assets/cameos. Kept out of the app's package.json so EAS builds never install onnxruntime/sharp. Install once with: npm --prefix scripts install",
+  "type": "module",
+  "devDependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
+    "sharp": "^0.33.5"
+  }
+}

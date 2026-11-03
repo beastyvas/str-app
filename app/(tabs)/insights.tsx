@@ -13,7 +13,9 @@ import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
 import { checkAndRecordPR } from '@/hooks/useWorkout';
 import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore } from '@/hooks/useChatStore';
-import { getRankResult, TIER_COACH_NAME, ROMAN } from '@/constants/ranks';
+import { RANK_TIERS, TIER_COACH_NAME, ROMAN } from '@/constants/ranks';
+import { useWorldStore } from '@/theme';
+import { CoachHeader } from '@/components/insights/CoachHeader';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -84,24 +86,16 @@ export default function InsightsTab() {
   const [coachTierColor, setCoachTierColor] = useState('#F97316');
   const [coachSubTier, setCoachSubTier] = useState(1);
 
+  // Coach tier follows the rank computed from the Power Level reading
+  // (cached in the world store by useHomeData / workout finish).
+  const worldRankKey = useWorldStore(st => st.rankKey);
+  const worldRankSub = useWorldStore(st => st.rankSub);
   useEffect(() => {
-    if (!user || !profile?.bodyweight_lbs) return;
-    supabase
-      .from('personal_records')
-      .select('weight, reps, achieved_at, exercises!inner(name)')
-      .eq('user_id', user.id)
-      .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
-      .then(({ data }) => {
-        const prs = (data ?? []).map((p: any) => ({
-          exerciseName: p.exercises?.name ?? '',
-          weight: p.weight, reps: p.reps, achievedAt: p.achieved_at,
-        }));
-        const result = getRankResult(prs, profile.bodyweight_lbs ?? 185, true);
-        setCoachTierKey(result.tier.key);
-        setCoachTierColor(result.tier.color);
-        setCoachSubTier(result.subTier);
-      });
-  }, [user, profile?.bodyweight_lbs]);
+    const t = RANK_TIERS.find(x => x.key === worldRankKey);
+    setCoachTierKey(worldRankKey);
+    if (t) setCoachTierColor(t.color);
+    setCoachSubTier(worldRankSub);
+  }, [worldRankKey, worldRankSub]);
 
   // Coach identity is the tier title plus the user's sub-tier, e.g. "The Tactician II"
   const coachName = (() => {
@@ -505,9 +499,7 @@ export default function InsightsTab() {
         borderBottomColor: Colors.border,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Text style={{ color: coachTierColor, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 }}>
-            {coachName}
-          </Text>
+          <CoachHeader />
           {!isPro && (
             <TouchableOpacity
               onPress={() => setShowPaywall(true)}

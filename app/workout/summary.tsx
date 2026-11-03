@@ -10,11 +10,13 @@ import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { PowerDeltaReveal } from '@/components/summary/PowerDeltaReveal';
 import { useRankAdvance } from '@/components/summary/useRankAdvance';
 import type { SummaryPower } from '@/components/summary/types';
+import { fireFinishCameo } from '@/components/summary/finishCameo';
+import { Cameo } from '@/components/cameo';
 
 export default function WorkoutSummaryScreen() {
   const { data } = useLocalSearchParams<{ data: string }>();
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
 
   let summary = null;
@@ -47,7 +49,21 @@ export default function WorkoutSummaryScreen() {
   const advance = useRankAdvance(power);
   const [showAdvance, setShowAdvance] = useState(false);
   const [advanceDone, setAdvanceDone] = useState(false);
-  const onRevealed = () => { if (advance && !advanceDone) setShowAdvance(true); };
+  const cameoFired = useRef(false);
+  const fireCameo = () => {
+    if (cameoFired.current) return;
+    cameoFired.current = true;
+    fireFinishCameo({
+      userId: user?.id,
+      name: profile?.display_name?.split(' ')[0] ?? 'lifter',
+      power, advance, facts: summary.cameo ?? null,
+    });
+  };
+  // Reveal → rank-up screen (if any) → one cameo.
+  const onRevealed = () => {
+    if (advance && !advanceDone) setShowAdvance(true);
+    else fireCameo();
+  };
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const statsAnim = useRef(new Animated.Value(0)).current;
@@ -55,6 +71,7 @@ export default function WorkoutSummaryScreen() {
   const listAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!power || power.after == null) setTimeout(fireCameo, 900);
     if (hasPRs) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
@@ -342,8 +359,9 @@ export default function WorkoutSummaryScreen() {
         liftName={advance?.liftName}
         liftTierName={advance?.liftTierName}
         liftTierColor={advance?.liftTierColor}
-        onDismiss={() => { setShowAdvance(false); setAdvanceDone(true); }}
+        onDismiss={() => { setShowAdvance(false); setAdvanceDone(true); fireCameo(); }}
       />
+      <Cameo host="local" />
     </SafeAreaView>
   );
 }

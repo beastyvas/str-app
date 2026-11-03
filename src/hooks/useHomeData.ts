@@ -184,7 +184,7 @@ export function useHomeData() {
         savePowerReading(uid, power);
       }
       // The active anime world follows the rank (cached for cold launches).
-      useWorldStore.getState().setRank(rankResult.tier.key);
+      useWorldStore.getState().setRank(rankResult.tier.key, rankResult.subTier);
 
       // Last workout
       let lastWorkout: LastWorkout | null = null;
