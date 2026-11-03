@@ -28,6 +28,10 @@ export interface Database {
           ai_asks_week_start: string | null;
           split_type: string | null;
           split_schedule: Json | null;
+          power_level: number | null;
+          power_confidence: 'full' | 'partial' | 'calibrating' | null;
+          rank_tier_key: string | null;
+          rank_sub_tier: number | null;
           grade_calls_count: number;
           grade_calls_day_start: string | null;
           monthly_analysis_count: number;
@@ -61,6 +65,10 @@ export interface Database {
           ai_asks_week_start?: string | null;
           split_type?: string | null;
           split_schedule?: Json | null;
+          power_level?: number | null;
+          power_confidence?: 'full' | 'partial' | 'calibrating' | null;
+          rank_tier_key?: string | null;
+          rank_sub_tier?: number | null;
           grade_calls_count?: number;
           grade_calls_day_start?: string | null;
           monthly_analysis_count?: number;
@@ -94,6 +102,10 @@ export interface Database {
           ai_asks_week_start?: string | null;
           split_type?: string | null;
           split_schedule?: Json | null;
+          power_level?: number | null;
+          power_confidence?: 'full' | 'partial' | 'calibrating' | null;
+          rank_tier_key?: string | null;
+          rank_sub_tier?: number | null;
           grade_calls_count?: number;
           grade_calls_day_start?: string | null;
           monthly_analysis_count?: number;
@@ -444,6 +456,11 @@ export interface Database {
           is_owner: boolean | null;
           split_type: string | null;
           split_schedule: Json | null;
+          profile_public: boolean | null;
+          power_level: number | null;
+          power_confidence: 'full' | 'partial' | 'calibrating' | null;
+          rank_tier_key: string | null;
+          rank_sub_tier: number | null;
         };
         Relationships: [];
       };
