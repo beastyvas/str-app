@@ -109,8 +109,11 @@ Full rules in `src/components/ui/README.md`. The short version:
 
 ## Open threads
 
+- **`coach-nudge` is dead.** The mid-workout coach banner (`WorkoutCoach`) was
+  deleted; nothing calls this edge function anymore. Safe to delete it and
+  `supabase functions delete coach-nudge` whenever.
 - **Supabase:** confirm migrations `026`–`028` have run; deploy the
-  `coach-nudge` and `monthly-analysis` edge functions (`supabase functions
+  `monthly-analysis` edge function (`supabase functions
   deploy <name>`; both need the `ANTHROPIC_API_KEY` secret).
 - **`is_owner` is unset** for the creator account. It gates the creator
   showcase, auto-accept-friend (migration 012), and the owner badge — all

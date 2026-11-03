@@ -14,8 +14,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWorkoutStore } from '@/hooks/useWorkout';
 import { Colors } from '@/constants/colors';
 import { RestTimer } from '@/components/workout/RestTimer';
-import { WorkoutCoach } from '@/components/workout/WorkoutCoach';
-import { useSubscription } from '@/hooks/useSubscription';
 import { WorkoutLiveActivity } from '../../modules/WorkoutLiveActivity';
 import { ExerciseCard } from '@/components/workout/ExerciseCard';
 import { ElapsedTime, formatElapsed } from '@/components/workout/ElapsedTime';
@@ -70,18 +68,6 @@ export default function WorkoutTab() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const unit = unitFromProfile(profile?.unit_pref);
-  const { isPro } = useSubscription();
-  const [coachLastSet, setCoachLastSet] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string } | null>(null);
-  const [coachHistory, setCoachHistory] = useState<{ weight: number; reps: number; rpe?: number; note?: string; exerciseName: string }[]>([]);
-  const [coachEnabled, setCoachEnabled] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-    import('@react-native-async-storage/async-storage').then(({ default: AS }) =>
-      AS.getItem(`coach_enabled_${user.id}`).then(v => { if (v !== null) setCoachEnabled(v === 'true'); })
-    );
-  }, [user]);
-
   const {
     activeWorkout,
     lastSetLoggedAt,
@@ -397,11 +383,6 @@ export default function WorkoutTab() {
     if (ex && ex.sets.length > 0) {
       const lastSet = ex.sets[ex.sets.length - 1];
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
-      // Feed coach
-      const coachSet = { weight: data.weight, reps: data.reps, rpe: data.rpe, note: data.note, exerciseName: ex.exerciseName };
-      const history = ex.sets.slice(0, -1).map(s => ({ weight: s.weight, reps: s.reps, rpe: s.rpe, note: s.note, exerciseName: ex.exerciseName }));
-      setCoachHistory(history);
-      setCoachLastSet(coachSet);
     }
 
     // Check for tier/sub-tier advancement on SBD PRs
@@ -866,15 +847,6 @@ export default function WorkoutTab() {
         </TouchableOpacity>
       )}
 
-      <WorkoutCoach
-        lastSet={coachLastSet}
-        allSetsThisExercise={coachHistory}
-        isPro={isPro}
-        enabled={coachEnabled}
-        trainingStyle={profile?.training_style}
-        rankTierKey={(profile as any)?.rank_tier_key}
-        onDismiss={() => setCoachLastSet(null)}
-      />
 
       {/* PR Flash Banner */}
       {newPRs.length > 0 && (
