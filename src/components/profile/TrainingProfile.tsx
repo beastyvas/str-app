@@ -27,11 +27,14 @@ interface Props {
   /** Training DNA (free text) — opens the existing editor */
   dna: string | null | undefined;
   onEditDna: () => void;
+  /** e.g. "Push / Pull / Legs" — null when unset */
+  splitLabel: string | null;
+  onEditSplit: () => void;
   onSaved: () => void;
 }
 
 /** Goal, style, and training DNA — optional context for the coach. */
-export function TrainingProfile({ userId, goal, style, dna, onEditDna, onSaved }: Props) {
+export function TrainingProfile({ userId, goal, style, dna, onEditDna, splitLabel, onEditSplit, onSaved }: Props) {
   const world = useWorld();
   const setField = async (field: 'primary_goal' | 'training_style', value: string | null) => {
     await supabase.from('users').update({ [field]: value } as any).eq('id', userId);
@@ -67,6 +70,13 @@ export function TrainingProfile({ userId, goal, style, dna, onEditDna, onSaved }
         <AppText variant="label">Style</AppText>
         {chips(STYLES, style, 'training_style')}
       </View>
+      <PressableScale onPress={onEditSplit} style={styles.row}>
+        <View style={styles.flex}>
+          <AppText variant="heading">My split</AppText>
+          <AppText variant="caption">{splitLabel ?? 'Set a session per day — Home and your coach use it'}</AppText>
+        </View>
+        <AppText variant="label" color={world.aura}>{splitLabel ? 'Edit' : 'Set up'}</AppText>
+      </PressableScale>
       <PressableScale onPress={onEditDna} style={styles.row}>
         <View style={styles.flex}>
           <AppText variant="heading">Training DNA</AppText>
