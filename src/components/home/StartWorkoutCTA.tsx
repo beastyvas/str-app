@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated';
-import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { AppText, PressableScale } from '@/components/ui';
 
 interface StartWorkoutCTAProps {
@@ -26,19 +25,14 @@ export function StartWorkoutCTA({ onPress }: StartWorkoutCTAProps) {
     <View style={styles.wrap}>
       <Animated.View style={[styles.glow, glowStyle]} />
       <PressableScale onPress={onPress} haptic="medium" scaleTo={0.98}>
-        <LinearGradient
-          colors={Gradients.brass}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.cta}
-        >
-          <AppText variant="overline" color="#141210" style={styles.kicker}>
+        <View style={styles.cta}>
+          <AppText variant="label" color="#141210" style={styles.kicker}>
             Ready to train?
           </AppText>
           <AppText variant="title" color="#141210" style={styles.label}>
             Start Workout →
           </AppText>
-        </LinearGradient>
+        </View>
       </PressableScale>
     </View>
   );
@@ -52,13 +46,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
   },
   cta: {
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
     padding: 22,
-    shadowColor: Colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+    backgroundColor: Colors.accent,
   },
   kicker: { opacity: 0.75, marginBottom: 6, color: '#141210' },
   label: { fontSize: 24 },

@@ -21,7 +21,7 @@ export function WeekdayDetailSheet({ day, unit, onClose }: WeekdayDetailSheetPro
           <View style={styles.headerRow}>
             <AppText style={styles.emoji}>{SESSION_EMOJI[day.sessionType] ?? '🏋️'}</AppText>
             <View style={styles.headerText}>
-              <AppText variant="overline" style={styles.dayLabel}>{DAY_LABELS[day.dow]}</AppText>
+              <AppText variant="label" style={styles.dayLabel}>{DAY_LABELS[day.dow]}</AppText>
               <AppText variant="heading" numberOfLines={1}>{day.name}</AppText>
               <AppText variant="caption" style={styles.meta}>
                 {day.durationMins >= 60
@@ -34,12 +34,12 @@ export function WeekdayDetailSheet({ day, unit, onClose }: WeekdayDetailSheetPro
 
           {day.topLifts.length > 0 && (
             <View style={styles.liftsBlock}>
-              <AppText variant="overline" style={styles.liftsLabel}>Top Lifts</AppText>
+              <AppText variant="label" style={styles.liftsLabel}>Top Lifts</AppText>
               <View style={styles.chips}>
                 {day.topLifts.map((lift, i) => (
                   <View key={i} style={styles.chip}>
                     <AppText variant="caption" color={Colors.text} style={styles.chipName}>{lift.name}</AppText>
-                    <AppText variant="micro" style={styles.chipStat}>
+                    <AppText variant="caption" style={styles.chipStat}>
                       {toDisplay(lift.weight, unit)} {unit} × {lift.reps}
                     </AppText>
                   </View>

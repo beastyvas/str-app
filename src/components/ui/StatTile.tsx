@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { AppText } from './AppText';
 import { IconSymbol, IconName } from './IconSymbol';
 import { PressableScale } from './PressableScale';
@@ -13,17 +13,16 @@ interface StatTileProps {
   onPress?: () => void;
 }
 
+/** One stat in a compact row: Chakra Petch value over a sentence-case label. No box. */
 export function StatTile({ label, value, sub, icon, tint, onPress }: StatTileProps) {
   const body = (
-    <View style={[styles.tile, tint != null && { borderColor: tint + '30' }]}>
+    <View style={styles.tile}>
+      <AppText variant="stat" color={tint ?? Colors.text}>{String(value)}</AppText>
       <View style={styles.labelRow}>
-        {icon && <IconSymbol name={icon} size={11} color={tint ?? Colors.textMuted} />}
-        <AppText variant="overline" style={styles.label}>{label}</AppText>
+        {icon && <IconSymbol name={icon} size={12} color={tint ?? Colors.textMuted} />}
+        <AppText variant="caption">{label}</AppText>
       </View>
-      <AppText variant="statValue" color={tint ?? Colors.text}>
-        {String(value)}
-      </AppText>
-      {sub != null && <AppText variant="micro">{sub}</AppText>}
+      {sub != null && <AppText variant="caption">{sub}</AppText>}
     </View>
   );
   if (!onPress) return body;
@@ -32,16 +31,6 @@ export function StatTile({ label, value, sub, icon, tint, onPress }: StatTilePro
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  tile: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg - 2,
-    alignItems: 'center',
-    gap: 4,
-  },
+  tile: { flex: 1, alignItems: 'flex-start', gap: 2, paddingVertical: Spacing.sm },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  label: { fontSize: 9, letterSpacing: 1.5 },
 });

@@ -75,7 +75,7 @@ export function TemplateBuilderSheet({ visible, onClose, onSaved }: TemplateBuil
                 <View key={i} style={styles.exRow}>
                   <View style={styles.exText}>
                     <AppText variant="caption" color={Colors.text} style={styles.exName}>{ex.name}</AppText>
-                    <AppText variant="micro">{ex.muscle_group}</AppText>
+                    <AppText variant="caption">{ex.muscle_group}</AppText>
                   </View>
                   <TouchableOpacity
                     onPress={() => setExercises(prev => prev.filter((_, idx) => idx !== i))}

@@ -54,20 +54,30 @@ workout start → log a set → finish.
 
 Full rules in `src/components/ui/README.md`. The short version:
 
-- Style with `@/constants/theme` tokens (`Spacing`, `Radius`, `Type`, `Shadow`,
-  `Gradients`) + `StyleSheet.create` + the `src/components/ui/` primitives
-  (`AppText`, `Button`, `Card`, `Screen`, `Section`, `StatTile`, `SheetModal`,
-  `SkeletonBlock`, `IconSymbol`, `PressableScale`, `EmptyState`).
-- `src/constants/colors.ts` is **read-only**: 6-digit hex only, because call
-  sites concat alpha suffixes (`Colors.accent + '40'`). An `rgba()` value there
-  breaks dozens of call sites.
-- Identity is dark + brass ("Iron & Brass"). Don't rebrand. No light mode, no
-  theming indirection — single static dark theme.
-- `IconSymbol` owns **chrome** icons. Emoji that are *content* (celebration
-  toasts, coach messages, session-type badges) may stay emoji.
+- **Fully anime, one world per rank tier.** Mortal = Demon Slayer, Awakened =
+  My Hero Academia, Ascendant = Jujutsu Kaisen, Phantom = Dragon Ball,
+  Sovereign = Solo Leveling, Godhand = One Punch Man. Worlds live in
+  `src/theme/worlds/` (`WorldTheme`: aura, motif, panel, SFX, Power Level
+  readout, rank-up scene, cast). `useWorld()` returns the active one;
+  `WorldProvider` (in `app/_layout.tsx`) follows the cached rank from
+  `useHomeData` via `useWorldStore`, with a Profile override.
+- Every world sits on the shared **Ink Night** ground. Style with
+  `@/constants/theme` tokens (`Spacing`, `Radius`, `Hit`, `Fonts`, `Type`,
+  `onColor`) + `StyleSheet.create` + `src/components/ui/` primitives +
+  `src/components/anime/` (`MangaPanel`, `PowerReadout`, `SfxLayer`,
+  `SpeedLines`, `ImpactFrame`, `RankUpScene`).
+- Fonts: Dela Gothic One (display/SFX), Chakra Petch (numbers/HUD), Barlow
+  (body). Per-weight family names are baked into `Type` — no `fontWeight`.
+  No `overline` variant; sentence case everywhere.
+- `src/constants/colors.ts`: base keys are **6-digit hex only** (call sites
+  concat alpha). World colors are in `src/theme/worlds/palette.ts`. Real code
+  reads `useWorld().aura`; `Colors.accent` is only a static fallback.
+- One hero per screen (a `MangaPanel`), plain grouped lists for the rest. No
+  card-in-card, no drop shadows. Motifs never sit behind logging inputs.
+- `IconSymbol` owns chrome icons. Emoji only inside character speech.
 - Bottom sheets use `SheetModal`. Never add a new `Modal animationType="slide"`.
-- Convert a screen to primitives **wholesale in its own commit** — never
-  partially as a drive-by from unrelated work.
+- Convert a screen to primitives **wholesale in its own commit**.
+- Dev builds: `app/dev/worlds.tsx` previews all six worlds.
 
 ## Architecture notes
 

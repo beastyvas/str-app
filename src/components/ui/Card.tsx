@@ -1,22 +1,26 @@
 import { ReactNode } from 'react';
 import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
-import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { PressableScale } from './PressableScale';
 
 interface CardProps {
   children: ReactNode;
   onPress?: () => void;
-  /** Renders the 3px top accent strip in this color */
+  /** Renders a 3px left rule in this color (e.g. the current set) */
   accent?: string;
   /** 'none' = full-bleed content (rows with edge-to-edge dividers) */
   padding?: keyof typeof Spacing | 'none';
   style?: StyleProp<ViewStyle>;
 }
 
+/**
+ * A plain grouped surface — the default container for lists and groups.
+ * Never nest Cards; heroes use `MangaPanel` instead. No shadows.
+ */
 export function Card({ children, onPress, accent, padding = 'lg', style }: CardProps) {
   const body = (
     <View style={[styles.card, style]}>
-      {accent && <View style={[styles.strip, { backgroundColor: accent }]} />}
+      {accent && <View style={[styles.rule, { backgroundColor: accent }]} />}
       <View style={{ padding: padding === 'none' ? 0 : Spacing[padding] }}>{children}</View>
     </View>
   );
@@ -31,11 +35,10 @@ export function Card({ children, onPress, accent, padding = 'lg', style }: CardP
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
-    ...Shadow.card,
   },
-  strip: { height: 3, width: '100%' },
+  rule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
 });

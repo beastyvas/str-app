@@ -1,58 +1,47 @@
 import { Tabs } from 'expo-router';
-import { View, Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import Svg, { Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/colors';
+import { Colors, onColor } from '@/constants/theme';
+import { useWorld } from '@/theme';
 
+const BTN = 56;
+const CUT = 14;
+
+/** Raised center button: a clipped-corner manga panel filled with the aura. */
 function WorkoutTabIcon({ focused }: { focused: boolean }) {
+  const world = useWorld();
+  const fill = focused ? world.aura : Colors.surface2;
+  const points = `1,1 ${BTN - CUT},1 ${BTN - 1},${CUT} ${BTN - 1},${BTN - 1} 1,${BTN - 1}`;
   return (
-    <View style={{
-      width: 56, height: 56, borderRadius: 28,
-      backgroundColor: focused ? Colors.accent : Colors.surface2,
-      alignItems: 'center', justifyContent: 'center',
-      marginBottom: 4,
-      borderWidth: focused ? 0 : 1,
-      borderColor: Colors.borderLight,
-      shadowColor: focused ? Colors.accent : 'transparent',
-      shadowOpacity: focused ? 0.55 : 0,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: focused ? 12 : 0,
-    }}>
-      <Ionicons name="barbell" size={26} color={Colors.text} />
+    <View style={styles.btn}>
+      <Svg width={BTN} height={BTN} style={StyleSheet.absoluteFill}>
+        <Polygon points={points} fill={fill} stroke={world.aura} strokeWidth={2} />
+      </Svg>
+      <Ionicons name="barbell" size={26} color={focused ? onColor(world.aura) : Colors.text} />
     </View>
   );
 }
 
 export default function TabLayout() {
+  const world = useWorld();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 72,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-          paddingTop: 10,
-        },
-        tabBarActiveTintColor: Colors.accent,
+        tabBarShowLabel: false,
+        tabBarStyle: [styles.bar, { borderTopColor: world.aura + '66' }],
+        tabBarActiveTintColor: world.aura,
         tabBarInactiveTintColor: Colors.textMuted,
-        tabBarLabelStyle: {
-          fontSize: 9,
-          fontWeight: '700',
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-          marginTop: 2,
-        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
+          tabBarAccessibilityLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -60,15 +49,17 @@ export default function TabLayout() {
         name="history"
         options={{
           title: 'History',
+          tabBarAccessibilityLabel: 'History',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'time' : 'time-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'time' : 'time-outline'} size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="workout"
         options={{
-          title: '',
+          title: 'Workout',
+          tabBarAccessibilityLabel: 'Workout',
           tabBarIcon: ({ focused }) => <WorkoutTabIcon focused={focused} />,
         }}
       />
@@ -76,8 +67,9 @@ export default function TabLayout() {
         name="friends"
         options={{
           title: 'Social',
+          tabBarAccessibilityLabel: 'Social',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -85,8 +77,9 @@ export default function TabLayout() {
         name="insights"
         options={{
           title: 'Coach',
+          tabBarAccessibilityLabel: 'Coach',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'flash' : 'flash-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'flash' : 'flash-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -94,11 +87,29 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          tabBarAccessibilityLabel: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  bar: {
+    backgroundColor: Colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    height: Platform.OS === 'ios' ? 84 : 68,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+    paddingTop: 10,
+  },
+  btn: {
+    width: BTN,
+    height: BTN,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+});

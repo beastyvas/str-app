@@ -6,6 +6,7 @@ import Animated, {
   runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming,
 } from 'react-native-reanimated';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useWorld } from '@/theme';
 import { AppText } from './AppText';
 
 const SLIDE_FROM = 80; // px below resting position the panel springs in from
@@ -29,6 +30,7 @@ export function SheetModal({
   visible, onClose, title, children, snapHeight, keyboardAware = true,
 }: SheetModalProps) {
   const [mounted, setMounted] = useState(visible);
+  const world = useWorld();
   const progress = useSharedValue(0); // 0 = hidden, 1 = shown
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function SheetModal({
   if (!mounted) return null;
 
   const panel = (
-    <Animated.View style={[styles.panel, snapHeight != null && { height: snapHeight }, panelStyle]}>
+    <Animated.View style={[styles.panel, { borderTopColor: world.aura }, snapHeight != null && { height: snapHeight }, panelStyle]}>
       <View style={styles.handle} />
       {title != null && (
         <AppText variant="title" style={styles.title}>{title}</AppText>
@@ -83,14 +85,12 @@ export function SheetModal({
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
   kav: { justifyContent: 'flex-end' },
-  backdrop: { backgroundColor: '#000000B3' },
+  backdrop: { backgroundColor: Colors.ink + 'B3' },
   panel: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xl + 4,
-    borderTopRightRadius: Radius.xl + 4,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: Colors.borderLight,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    borderTopWidth: 2,
     paddingHorizontal: Spacing.xl,
     paddingBottom: 34,
     paddingTop: Spacing.sm,

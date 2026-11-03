@@ -5,7 +5,14 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
+import { useFonts } from 'expo-font';
+import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
+import { ChakraPetch_600SemiBold, ChakraPetch_700Bold } from '@expo-google-fonts/chakra-petch';
+import { Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold } from '@expo-google-fonts/barlow';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { WorldProvider } from '@/theme';
+import { ImpactFrame } from '@/components/anime';
+import { Colors, Fonts } from '@/constants/theme';
 
 // Initialize RevenueCat — skip in Expo Go (purchases only work in real builds)
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -23,13 +30,15 @@ if (!isExpoGo) {
 
 SplashScreen.preventAutoHideAsync();
 
-function RootLayoutNav() {
+function RootLayoutNav({ fontsReady }: { fontsReady: boolean }) {
   const { session, profile, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    // Hold the splash until both auth and the custom fonts are ready, so the
+    // first frame never renders in the system font.
+    if (loading || !fontsReady) return;
     SplashScreen.hideAsync();
 
     const inAuth = segments[0] === '(auth)';
@@ -44,7 +53,7 @@ function RootLayoutNav() {
     } else {
       if (inAuth) router.replace('/(tabs)');
     }
-  }, [session, profile, loading]);
+  }, [session, profile, loading, fontsReady]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -64,15 +73,30 @@ function RootLayoutNav() {
           headerShown: false,
         }}
       />
+      {__DEV__ && <Stack.Screen name="dev/worlds" options={{ presentation: 'modal' }} />}
     </Stack>
   );
 }
 
 export default function RootLayout() {
+  // Fonts ship as JS assets (expo-font is already in the binary), so font
+  // changes are OTA-safe. A load error still lets the app boot in system type.
+  const [fontsLoaded, fontError] = useFonts({
+    [Fonts.display]: DelaGothicOne_400Regular,
+    [Fonts.hud]: ChakraPetch_600SemiBold,
+    [Fonts.hudBold]: ChakraPetch_700Bold,
+    [Fonts.body]: Barlow_400Regular,
+    [Fonts.bodyMedium]: Barlow_500Medium,
+    [Fonts.bodySemi]: Barlow_600SemiBold,
+  });
+
   return (
     <AuthProvider>
-      <StatusBar style="light" backgroundColor="#0C0C0C" />
-      <RootLayoutNav />
+      <WorldProvider>
+        <StatusBar style="light" backgroundColor={Colors.bg} />
+        <RootLayoutNav fontsReady={fontsLoaded || !!fontError} />
+        <ImpactFrame />
+      </WorldProvider>
     </AuthProvider>
   );
 }

@@ -36,7 +36,7 @@ export function HomeHeader({ firstName, avatarUrl, greeting, onAvatarPress }: Ho
   return (
     <View style={styles.row}>
       <View style={styles.textCol}>
-        <AppText variant="overline">{greeting}</AppText>
+        <AppText variant="label">{greeting}</AppText>
         <AppText variant="display" style={styles.name}>{firstName}</AppText>
       </View>
       <PressableScale onPress={onAvatarPress} haptic="light">

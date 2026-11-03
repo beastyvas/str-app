@@ -38,7 +38,7 @@ export function LastWorkoutCard({ lastWorkout, unit, onPress }: LastWorkoutCardP
       <Card onPress={onPress} padding="lg">
         <View style={styles.headerRow}>
           <View style={styles.titleCol}>
-            <AppText variant="overline" style={styles.kicker}>Last Session</AppText>
+            <AppText variant="label" style={styles.kicker}>Last Session</AppText>
             <AppText variant="heading" numberOfLines={1}>{lastWorkout.name}</AppText>
           </View>
           <AppText variant="caption">{timeAgo(lastWorkout.started_at)}</AppText>
@@ -46,7 +46,7 @@ export function LastWorkoutCard({ lastWorkout, unit, onPress }: LastWorkoutCardP
         <View style={styles.statsRow}>
           {stats.map((s, i) => (
             <View key={i}>
-              <AppText variant="overline" style={styles.statLabel}>{s.label}</AppText>
+              <AppText variant="label" style={styles.statLabel}>{s.label}</AppText>
               <AppText variant="heading" mono style={styles.statValue}>{s.value}</AppText>
             </View>
           ))}

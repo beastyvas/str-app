@@ -44,7 +44,7 @@ export function WorkoutIdleScreen({
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <AppText variant="overline">{todayName}</AppText>
+          <AppText variant="label">{todayName}</AppText>
           <AppText variant="display" style={styles.headline}>Your arc continues.</AppText>
         </View>
 
@@ -52,19 +52,19 @@ export function WorkoutIdleScreen({
         {daySuggestion && (
           <View style={styles.section}>
             <View style={styles.suggestionHeader}>
-              <AppText variant="overline" style={styles.kicker}>
+              <AppText variant="label" style={styles.kicker}>
                 {daySuggestion.isPinned ? daySuggestion.dayLabel : `${daySuggestion.dayLabel} you trained`}
               </AppText>
               {!daySuggestion.isPinned ? (
                 <TouchableOpacity onPress={onPinSuggestion} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <View style={styles.pinRow}>
                     <IconSymbol name="pin" size={12} color={Colors.accent} />
-                    <AppText variant="micro" color={Colors.accent} style={styles.pinText}>Pin for today</AppText>
+                    <AppText variant="caption" color={Colors.accent} style={styles.pinText}>Pin for today</AppText>
                   </View>
                 </TouchableOpacity>
               ) : daySuggestion.pinnedTemplateId ? (
                 <TouchableOpacity onPress={onUnpinSuggestion} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <AppText variant="micro">Unpin</AppText>
+                  <AppText variant="caption">Unpin</AppText>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -99,7 +99,7 @@ export function WorkoutIdleScreen({
         {/* Starter programs — "just tell me what to do" for new lifters */}
         {isNewLifter && (
           <View style={styles.section}>
-            <AppText variant="overline" style={styles.kicker}>Starter Programs</AppText>
+            <AppText variant="label" style={styles.kicker}>Starter Programs</AppText>
             <AppText variant="caption" color={Colors.textSecondary} style={styles.sectionSub}>
               No guesswork — pick a day, the exercises are loaded, just show up.
             </AppText>
@@ -107,7 +107,7 @@ export function WorkoutIdleScreen({
               {STARTER_PROGRAMS.map(program => (
                 <Card key={program.key} padding="lg">
                   <AppText variant="heading">{program.title}</AppText>
-                  <AppText variant="micro" style={styles.programSchedule}>{program.schedule}</AppText>
+                  <AppText variant="caption" style={styles.programSchedule}>{program.schedule}</AppText>
                   <AppText variant="caption" color={Colors.textSecondary} style={styles.programTagline}>
                     {program.tagline}
                   </AppText>
@@ -121,9 +121,9 @@ export function WorkoutIdleScreen({
                       >
                         <View style={styles.dayText}>
                           <AppText variant="caption" color={Colors.text} style={styles.dayName}>{day.name}</AppText>
-                          <AppText variant="micro">{day.focus} · {day.guidance}</AppText>
+                          <AppText variant="caption">{day.focus} · {day.guidance}</AppText>
                         </View>
-                        <AppText variant="micro" color={Colors.accent} style={styles.startChip}>Start →</AppText>
+                        <AppText variant="caption" color={Colors.accent} style={styles.startChip}>Start →</AppText>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -136,7 +136,7 @@ export function WorkoutIdleScreen({
         {/* Quick Start — saved templates + recent sessions, one calm list */}
         {(savedTemplates.length > 0 || quickStartRecents.length > 0) && (
           <View style={styles.section}>
-            <AppText variant="overline" style={styles.kicker}>Quick Start</AppText>
+            <AppText variant="label" style={styles.kicker}>Quick Start</AppText>
             <View style={styles.cardsCol}>
               {savedTemplates.map((tmpl: any) => (
                 <Card
@@ -148,13 +148,13 @@ export function WorkoutIdleScreen({
                   <View style={styles.tmplHeader}>
                     <AppText variant="heading" numberOfLines={1} style={styles.tmplName}>{tmpl.name}</AppText>
                     <View style={styles.tmplStartChip}>
-                      <AppText variant="micro" color={Colors.accent} style={styles.startChip}>Start →</AppText>
+                      <AppText variant="caption" color={Colors.accent} style={styles.startChip}>Start →</AppText>
                     </View>
                   </View>
                   <View style={styles.chips}>
                     {(tmpl.exercises as any[]).map((ex: any, i: number) => (
                       <View key={i} style={styles.chip}>
-                        <AppText variant="micro" color={Colors.textSecondary}>{ex.name}</AppText>
+                        <AppText variant="caption" color={Colors.textSecondary}>{ex.name}</AppText>
                       </View>
                     ))}
                   </View>
@@ -166,7 +166,7 @@ export function WorkoutIdleScreen({
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     style={styles.tmplFooter}
                   >
-                    <AppText variant="micro">
+                    <AppText variant="caption">
                       {(tmpl.exercises as any[]).length} exercises · tap to delete
                     </AppText>
                   </TouchableOpacity>
@@ -181,17 +181,17 @@ export function WorkoutIdleScreen({
                     <View style={styles.tmplHeader}>
                       <View style={styles.tmplName}>
                         <AppText variant="heading" numberOfLines={1}>{tmpl.name}</AppText>
-                        <AppText variant="micro" style={styles.recentAge}>Recent session · last done {ageLabel}</AppText>
+                        <AppText variant="caption" style={styles.recentAge}>Recent session · last done {ageLabel}</AppText>
                       </View>
                       <View style={styles.repeatChip}>
-                        <AppText variant="micro" color={Colors.textSecondary} style={styles.startChip}>Repeat →</AppText>
+                        <AppText variant="caption" color={Colors.textSecondary} style={styles.startChip}>Repeat →</AppText>
                       </View>
                     </View>
                     <View style={styles.chips}>
                       {tmpl.exercises.map((ex, i) => (
                         <View key={i} style={[styles.chip, styles.chipWithDot]}>
                           <View style={[styles.dot, { backgroundColor: MUSCLE_COLORS[ex.muscle_group] ?? Colors.textMuted }]} />
-                          <AppText variant="micro" color={Colors.textSecondary}>{ex.name}</AppText>
+                          <AppText variant="caption" color={Colors.textSecondary}>{ex.name}</AppText>
                         </View>
                       ))}
                     </View>
@@ -210,7 +210,7 @@ export function WorkoutIdleScreen({
             </View>
             <View style={styles.dayText}>
               <AppText variant="caption" color={Colors.text} style={styles.dayName}>Create Template</AppText>
-              <AppText variant="micro">Build a reusable workout from scratch</AppText>
+              <AppText variant="caption">Build a reusable workout from scratch</AppText>
             </View>
           </View>
         </Card>

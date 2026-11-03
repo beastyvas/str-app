@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { getRankResult, RankResult } from '@/constants/ranks';
 import { classifySessionFromNames as classifySession } from '@/lib/sessionType';
+import { useWorldStore } from '@/theme/useWorldStore';
 
 export interface FriendPR {
   display_name: string;
@@ -184,6 +185,8 @@ export function useHomeData() {
             true
           )
         : getRankResult([], bw);
+      // The active anime world follows the rank (cached for cold launches).
+      useWorldStore.getState().setRank(rankResult.tier.key);
 
       // Last workout
       let lastWorkout: LastWorkout | null = null;

@@ -28,7 +28,7 @@ export function SbdEntrySheet({ visible, unit, inputs, saving, onChange, onSave,
           { label: 'Deadlift', key: 'dl', placeholder: '405' },
         ] as const).map(({ label, key, placeholder }) => (
           <View key={key}>
-            <AppText variant="overline" style={styles.fieldLabel}>{label} ({unit})</AppText>
+            <AppText variant="label" style={styles.fieldLabel}>{label} ({unit})</AppText>
             <TextInput
               value={inputs[key]}
               onChangeText={v => onChange({ ...inputs, [key]: v })}

@@ -1,31 +1,41 @@
-// Iron & Brass — warm graphite ground, bone text, single brass accent.
-// All color tokens MUST stay 6-digit hex: call sites concat alpha suffixes
-// (e.g. Colors.accent + '40'), which breaks on rgba() strings.
+// Ink Night — the shared ground every anime world sits on. World colors
+// (aura, auraAlt) live in src/theme/worlds/*, NOT here: real code reads
+// `useWorld().aura`. `accent` is only a static fallback for places that run
+// outside a WorldProvider.
+//
+// Base tokens MUST stay 6-digit hex: call sites concat alpha suffixes
+// (e.g. Colors.accent + '40'), which breaks on rgba() strings. The *Dim
+// tokens are pre-mixed 8-digit hex and must never be concatenated onto.
 export const Colors = {
-  bg: '#101012',
-  surface: '#1A191C',
-  surface2: '#232125',
-  surface3: '#2B292E',
-  border: '#26242A',
-  borderLight: '#37343C',
+  bg: '#0C0E1A',
+  surface: '#151829',
+  surface2: '#1E2236',
+  surface3: '#272C44',
+  border: '#262B44',
+  borderLight: '#343A58',
 
-  text: '#F4F1EC',
-  textSecondary: '#A09B93',
-  textMuted: '#6D6862',
+  text: '#EEF0FA',
+  textSecondary: '#9096B4',
+  textMuted: '#5D6283',
 
-  accent: '#D9A441',
-  accentDim: 'rgba(217, 164, 65, 0.12)',
+  /** Impact-frame silhouettes, comic borders */
+  ink: '#000000',
+  /** Impact-frame flash ground, speech bubbles */
+  paper: '#FFFFFF',
 
-  gold: '#E3B341',
-  goldDim: 'rgba(227, 179, 65, 0.12)',
+  accent: '#F97316',
+  accentDim: '#F973161F',
 
-  success: '#22C55E',
-  successDim: 'rgba(34, 197, 94, 0.12)',
+  gold: '#FBBF24',
+  goldDim: '#FBBF241F',
 
-  danger: '#EF4444',
-  dangerDim: 'rgba(239, 68, 68, 0.12)',
+  success: '#34D399',
+  successDim: '#34D3991F',
 
-  // Strength tier colors
+  danger: '#F25555',
+  dangerDim: '#F255551F',
+
+  // Strength tier colors (legacy per-lift tiers — unchanged)
   tiers: {
     beginner: '#6D6862',
     bronze: '#CD7F32',

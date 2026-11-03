@@ -25,7 +25,7 @@ export function TodayPlanCard({ todaySession, workoutDays, onStartWorkout, onSel
         {todaySession && missionColor && (
           <View style={styles.missionRow}>
             <View>
-              <AppText variant="overline" style={styles.missionLabel}>Today's Mission</AppText>
+              <AppText variant="label" style={styles.missionLabel}>Today's Mission</AppText>
               <View style={styles.missionTitleRow}>
                 <AppText style={styles.missionEmoji}>{SESSION_EMOJI[todaySession] ?? '🏋️'}</AppText>
                 <AppText variant="title" color={missionColor}>{todaySession}</AppText>
@@ -41,7 +41,7 @@ export function TodayPlanCard({ todaySession, workoutDays, onStartWorkout, onSel
         )}
 
         {!todaySession && (
-          <AppText variant="overline" style={styles.weekLabel}>This Week</AppText>
+          <AppText variant="label" style={styles.weekLabel}>This Week</AppText>
         )}
 
         <View style={styles.strip}>
@@ -79,7 +79,7 @@ export function TodayPlanCard({ todaySession, workoutDays, onStartWorkout, onSel
                   ) : null}
                 </View>
                 <AppText
-                  variant="micro"
+                  variant="caption"
                   color={isToday ? Colors.text : Colors.textMuted}
                   style={isToday ? styles.dayLabelToday : undefined}
                 >

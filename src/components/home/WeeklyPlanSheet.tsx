@@ -19,7 +19,7 @@ export function WeeklyPlanSheet({ visible, trainingDays, onChangeDays, onBuild, 
         </AppText>
 
         <View>
-          <AppText variant="overline" style={styles.fieldLabel}>
+          <AppText variant="label" style={styles.fieldLabel}>
             How many days per week can you train?
           </AppText>
           <View style={styles.daysRow}>

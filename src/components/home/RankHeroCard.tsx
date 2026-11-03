@@ -1,6 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Gradients, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { AppText, PressableScale } from '@/components/ui';
 import { getNextTierGap, RankResult, ROMAN } from '@/constants/ranks';
 
@@ -18,16 +17,10 @@ export function RankHeroCard({ rankResult, onOpenLadder, onAskCoach }: RankHeroC
 
   return (
     <PressableScale onPress={onOpenLadder} scaleTo={0.98} style={styles.wrap}>
-      <View style={[styles.card, { borderColor: tierColor + '35' }, Shadow.card]}>
-        <LinearGradient
-          colors={Gradients.tierWash(tierColor)}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      <View style={[styles.card, { borderColor: tierColor + '35' }]}>
         <View style={styles.topRow}>
           <View style={styles.left}>
-            <AppText variant="overline" color={tierColor}>
+            <AppText variant="label" color={tierColor}>
               {rankResult.tier.label} {ROMAN[rankResult.subTier]}
             </AppText>
             <AppText variant="caption" style={styles.tagline} numberOfLines={1}>
@@ -35,10 +28,10 @@ export function RankHeroCard({ rankResult, onOpenLadder, onAskCoach }: RankHeroC
             </AppText>
           </View>
           <View style={styles.scoreCol}>
-            <AppText variant="statValue" color={tierColor}>
+            <AppText variant="stat" color={tierColor}>
               {rankResult.avgScore.toFixed(1)}
             </AppText>
-            <AppText variant="micro">/ 5.0</AppText>
+            <AppText variant="caption">/ 5.0</AppText>
           </View>
         </View>
 
@@ -49,7 +42,7 @@ export function RankHeroCard({ rankResult, onOpenLadder, onAskCoach }: RankHeroC
 
         {gap && (
           <View style={styles.gapRow}>
-            <AppText variant="micro" style={styles.gapText}>
+            <AppText variant="caption" style={styles.gapText}>
               {gap.replace('+', '').replace(' lbs on ', ' lbs needed on ').replace(/(\w+)$/, '$1 to rank up')}
             </AppText>
             <PressableScale
@@ -60,7 +53,7 @@ export function RankHeroCard({ rankResult, onOpenLadder, onAskCoach }: RankHeroC
               }}
               style={[styles.coachChip, { backgroundColor: tierColor + '25' }]}
             >
-              <AppText variant="micro" color={tierColor} style={styles.coachChipText}>
+              <AppText variant="caption" color={tierColor} style={styles.coachChipText}>
                 Ask Coach ⚡
               </AppText>
             </PressableScale>

@@ -42,7 +42,7 @@ export function FriendActivityCard({ post, onPress }: FriendActivityCardProps) {
         </View>
         <View style={styles.headerText}>
           <AppText variant="caption" color={Colors.text} style={styles.name}>{post.displayName}</AppText>
-          <AppText variant="micro">{post.workoutName} · {timeAgo(post.endedAt)}</AppText>
+          <AppText variant="caption">{post.workoutName} · {timeAgo(post.endedAt)}</AppText>
         </View>
         <AppText variant="caption" color={Colors.accent} style={styles.feedLink}>Feed →</AppText>
       </View>
@@ -55,11 +55,11 @@ export function FriendActivityCard({ post, onPress }: FriendActivityCardProps) {
         <View style={styles.chips}>
           {post.exercises.slice(0, 4).map((ex, i) => (
             <View key={i} style={styles.chip}>
-              <AppText variant="micro">{ex}</AppText>
+              <AppText variant="caption">{ex}</AppText>
             </View>
           ))}
           {post.exercises.length > 4 && (
-            <AppText variant="micro" style={styles.more}>+{post.exercises.length - 4}</AppText>
+            <AppText variant="caption" style={styles.more}>+{post.exercises.length - 4}</AppText>
           )}
         </View>
       )}

@@ -41,7 +41,7 @@ function StepRow({
         >
           {title}
         </AppText>
-        <AppText variant="micro" style={styles.stepSub}>{sub}</AppText>
+        <AppText variant="caption" style={styles.stepSub}>{sub}</AppText>
       </View>
       {!done && <IconSymbol name="chevronRight" size={14} color={Colors.accent} />}
     </TouchableOpacity>
@@ -60,7 +60,7 @@ export function FirstStepsCard({
           <IconSymbol name="target" size={18} color={Colors.accent} />
           <View style={styles.headerText}>
             <AppText variant="caption" color={Colors.text} style={styles.headerTitle}>Getting Started</AppText>
-            <AppText variant="micro">{doneCount} of 3 complete</AppText>
+            <AppText variant="caption">{doneCount} of 3 complete</AppText>
           </View>
           <View style={styles.dots}>
             {[firstSteps.hasWorkout, firstSteps.hasFriend, firstSteps.hasCoach].map((done, i) => (
@@ -87,7 +87,7 @@ export function FirstStepsCard({
           done={firstSteps.hasFriend}
           icon="people"
           title="Add your first friend"
-          sub={<>Tap to add <AppText variant="micro" color={Colors.accent}>@beastyvas</AppText> — the creator 👑</>}
+          sub={<>Tap to add <AppText variant="caption" color={Colors.accent}>@beastyvas</AppText> — the creator 👑</>}
           last
           onPress={onAddFriend}
         />
