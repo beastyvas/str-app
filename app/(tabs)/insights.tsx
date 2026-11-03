@@ -1,1154 +1,142 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useFocusEffect, useNavigation } from 'expo-router';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
-} from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Colors } from '@/constants/colors';
-import { parseAnyFormat, ParsedWorkout } from '@/lib/workoutParser';
-import { checkAndRecordPR } from '@/hooks/useWorkout';
-import { PaywallModal } from '@/components/PaywallModal';
 import { useChatStore } from '@/hooks/useChatStore';
-import { RANK_TIERS, TIER_COACH_NAME, ROMAN } from '@/constants/ranks';
-import { useWorldStore } from '@/theme';
+import { Colors, Hit, Radius, Spacing } from '@/constants/theme';
+import { AppText, Button } from '@/components/ui';
+import { PaywallModal } from '@/components/PaywallModal';
+import { useWorld, useWorldStore } from '@/theme';
 import { CoachHeader } from '@/components/insights/CoachHeader';
+import { ChatView, type ChatMessage } from '@/components/insights/ChatView';
+import { MonthlyAnalysis } from '@/components/insights/MonthlyAnalysis';
+import { ImportSection } from '@/components/insights/ImportSection';
+import { buildCoachContext } from '@/components/insights/buildCoachContext';
+import { STARTER_PROMPTS_BY_TIER } from '@/components/insights/coachPrompts';
 
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
+type Tab = 'chat' | 'insights';
 
-// Starter prompts grow with the lifter's rank — the same tier that picks the
-// coach persona. A nervous day-one Mortal gets "where do I even start?";
-// a Sovereign gets meet-prep energy. Nobody gets questions they can't relate to.
-const STARTER_PROMPTS_BY_TIER: Record<string, { prompts: string[]; emojis: string[] }> = {
-  mortal: {
-    prompts: [
-      "I'm new and honestly a little nervous. Where do I start?",
-      "How do I know if my form is right without a trainer?",
-      "How many days a week should I train?",
-      "What gym etiquette should I know so I fit right in?",
-    ],
-    emojis: ['🙋', '✅', '📅', '🤝'],
-  },
-  awakened: {
-    prompts: [
-      "How do I keep progressing now that newbie gains are slowing?",
-      "Should I add weight or reps first?",
-      "How sore is too sore to train?",
-      "What should I eat to actually build muscle?",
-    ],
-    emojis: ['📈', '🏋️', '😮‍💨', '🍗'],
-  },
-  ascendant: {
-    prompts: [
-      "What muscle groups am I neglecting?",
-      "Teach me how to actually use RPE",
-      "How's my volume trending this month?",
-      "How do I bring up a lagging lift?",
-    ],
-    emojis: ['📊', '🎯', '💪', '🔧'],
-  },
-  phantom: {
-    prompts: [
-      "Any signs of overtraining in my recent logs?",
-      "What's my strongest lift relative to bodyweight?",
-      "How should I structure my next deload?",
-      "Where are my sticking points costing me?",
-    ],
-    emojis: ['🔍', '⚖️', '🔄', '🧱'],
-  },
-  sovereign: {
-    prompts: [
-      "Read my logs — where am I leaving strength on the table?",
-      "Plan the shape of my next peaking block",
-      "Critique my volume distribution like a meet-prep coach",
-      "What is my RPE trend telling you?",
-    ],
-    emojis: ['👑', '🗓️', '🧠', '📉'],
-  },
-};
-STARTER_PROMPTS_BY_TIER.godhand = STARTER_PROMPTS_BY_TIER.sovereign;
-
-type Tab = 'coach' | 'analysis' | 'import';
-
-export default function InsightsTab() {
+/** Coach. Hero: the chat. Monthly analysis + import sit behind "Insights". */
+export default function CoachTab() {
+  const world = useWorld();
   const { user, profile, refreshProfile } = useAuth();
   const { isPro, canAskCoach, aiAsksRemaining, aiAsksResetDate, recordAIAsk } = useSubscription();
-
-  // Derive coach identity from user's tier
-  const [coachTierKey, setCoachTierKey] = useState('mortal');
-  const [coachTierColor, setCoachTierColor] = useState('#F97316');
-  const [coachSubTier, setCoachSubTier] = useState(1);
-
-  // Coach tier follows the rank computed from the Power Level reading
-  // (cached in the world store by useHomeData / workout finish).
-  const worldRankKey = useWorldStore(st => st.rankKey);
-  const worldRankSub = useWorldStore(st => st.rankSub);
-  useEffect(() => {
-    const t = RANK_TIERS.find(x => x.key === worldRankKey);
-    setCoachTierKey(worldRankKey);
-    if (t) setCoachTierColor(t.color);
-    setCoachSubTier(worldRankSub);
-  }, [worldRankKey, worldRankSub]);
-
-  // Coach identity is the tier title plus the user's sub-tier, e.g. "The Tactician II"
-  const coachName = (() => {
-    const base = TIER_COACH_NAME[coachTierKey] ?? 'Coach';
-    const roman = ROMAN[coachSubTier];
-    return roman ? `${base} ${roman}` : base;
-  })();
-  // Prompts follow rank tier. One guard: a lifter who told onboarding they're
-  // experienced but hasn't logged PRs yet sits at mortal rank — don't greet
-  // them like it's their first day.
-  const promptTierKey =
-    coachTierKey === 'mortal' &&
-    ['advanced', 'competitive'].includes(profile?.experience_level ?? '')
-      ? 'ascendant'
-      : coachTierKey;
-  const { prompts: starterPrompts, emojis: starterEmojis } =
-    STARTER_PROMPTS_BY_TIER[promptTierKey] ?? STARTER_PROMPTS_BY_TIER.mortal;
-
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [tab, setTab] = useState<Tab>('coach');
-  const [input, setInput] = useState('');
+  // Coach tier = the rank from the Power Level (cached in the world store).
+  const tierKey = useWorldStore(s => s.rankKey);
+  const subTier = useWorldStore(s => s.rankSub);
+  const { messages, addMessage } = useChatStore();
+  const [tab, setTab] = useState<Tab>('chat');
   const [loading, setLoading] = useState(false);
+  const [paywall, setPaywall] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Chat lives in memory for the current app session only (clears on restart)
-  const { messages, addMessage } = useChatStore();
+  // A lifter who's experienced but hasn't logged yet sits at Mortal — don't
+  // greet them like it's their first day.
+  const promptTier = tierKey === 'mortal' && ['advanced', 'competitive'].includes(profile?.experience_level ?? '') ? 'ascendant' : tierKey;
+  const prompts = STARTER_PROMPTS_BY_TIER[promptTier] ?? STARTER_PROMPTS_BY_TIER.mortal;
+  const refill = aiAsksResetDate ? ` · refills ${aiAsksResetDate.toLocaleDateString('en-US', { weekday: 'long' })}` : '';
 
-  // ── Monthly Analysis (premium deep-dive) ───────────────────────────────────
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisReport, setAnalysisReport] = useState<string | null>(null);
-  const [analysisLastRun, setAnalysisLastRun] = useState<string | null>(null);
-
-  // Hydrate the last saved report from the profile (persisted server-side)
-  useEffect(() => {
-    const p = profile as any;
-    if (p?.monthly_analysis_last_report && analysisReport === null) {
-      setAnalysisReport(p.monthly_analysis_last_report);
-      setAnalysisLastRun(p.monthly_analysis_last_run ?? null);
-    }
-  }, [profile]);
-
-  // Free users get 1 run per calendar month — mirror the server check so the UI
-  // shows the upsell without needing a round-trip.
-  const analysisUsedThisMonth = (() => {
-    const p = profile as any;
-    if (!p?.monthly_analysis_month_start) return false;
-    const d = new Date(p.monthly_analysis_month_start);
-    const now = new Date();
-    const sameMonth = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
-    return sameMonth && (p.monthly_analysis_count ?? 0) >= 1;
-  })();
-  const canRunAnalysis = isPro || !analysisUsedThisMonth;
-
-  const generateAnalysis = async () => {
-    if (!user || analysisLoading) return;
-    if (!canRunAnalysis) { setShowPaywall(true); return; }
-    setAnalysisLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('monthly-analysis', {
-        body: { tierKey: coachTierKey, subTier: coachSubTier },
-      });
-      if (error) {
-        // Non-2xx — pull the structured payload out of the response if we can
-        const ctx = (error as any).context;
-        if (ctx && typeof ctx.json === 'function') {
-          try {
-            const payload = await ctx.json();
-            if (payload?.error === 'limit') { setShowPaywall(true); return; }
-            Alert.alert('Monthly Analysis', payload?.message ?? 'Could not generate your analysis.');
-            return;
-          } catch {}
-        }
-        Alert.alert('Monthly Analysis', 'Could not generate your analysis. Try again.');
-        return;
-      }
-      if (data?.error) {
-        if (data.error === 'limit') { setShowPaywall(true); return; }
-        Alert.alert('Monthly Analysis', data.message ?? 'Could not generate your analysis.');
-        return;
-      }
-      setAnalysisReport(data.report);
-      setAnalysisLastRun(data.lastRun);
-      refreshProfile();
-    } catch (e) {
-      Alert.alert('Monthly Analysis', 'Could not reach the analyzer. Check your connection.');
-    } finally {
-      setAnalysisLoading(false);
-    }
-  };
-
-  // Import tab state
-  const [importText, setImportText] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [parsedWorkouts, setParsedWorkouts] = useState<ParsedWorkout[] | null>(null);
-  const [allExercises, setAllExercises] = useState<{ id: string; name: string; muscle_group: string }[]>([]);
-  const [expandedWorkouts, setExpandedWorkouts] = useState<Set<number>>(new Set());
-  // Exercise picker modal
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState('');
-  const [pickingTarget, setPickingTarget] = useState<{ wi: number; ei: number } | null>(null);
-
-  // Handle pre-fill from other screens (e.g. tapping a coach prompt on the home tab)
-  useFocusEffect(useCallback(() => {
-    const preFill = (global as any).__coachPreFill;
-    if (preFill) {
-      (global as any).__coachPreFill = null;
-      setTab('coach');
-      setTimeout(() => sendMessage(preFill), 100);
-    }
-  }, []));
-
-  const buildContext = async () => {
-    const [{ data: prs }, { data: recentWorkouts }] = await Promise.all([
-      supabase
-        .from('personal_records')
-        .select('weight, reps, achieved_at, exercises(name, muscle_group)')
-        .eq('user_id', user!.id)
-        .order('achieved_at', { ascending: false }),
-      supabase
-        .from('workouts')
-        .select('name, started_at, ended_at, workout_sets(weight, reps, rpe, note, exercises(name))')
-        .eq('user_id', user!.id)
-        .order('started_at', { ascending: false })
-        .limit(20),
-    ]);
-
-    const workoutSummary = (recentWorkouts ?? []).map((w: any) => {
-      const sets = w.workout_sets ?? [];
-      const vol = sets.reduce((s: number, x: any) => s + x.weight * x.reps, 0);
-
-      // Group by exercise, preserve set order
-      const byExercise: Record<string, any[]> = {};
-      sets.forEach((s: any) => {
-        const name = s.exercises?.name ?? 'Unknown';
-        if (!byExercise[name]) byExercise[name] = [];
-        byExercise[name].push(s);
-      });
-
-      const exerciseLines = Object.entries(byExercise).map(([name, exSets]) => {
-        const setStr = (exSets as any[]).map((s: any) => {
-          let str = `${s.weight === 0 ? 'BW' : s.weight}×${s.reps}`;
-          if (s.rpe) str += ` @${s.rpe}`;
-          if (s.note) str += ` (${s.note})`;
-          return str;
-        }).join(', ');
-        return `  ${name}: ${setStr}`;
-      }).join('\n');
-
-      const date = new Date(w.started_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' });
-      return `${w.name} (${date}) — ${sets.length} sets, ${vol} lbs total\n${exerciseLines}`;
-    }).join('\n\n');
-
-    const GOAL_LABELS: Record<string, string> = {
-      strength: 'get stronger (SBD focus)',
-      muscle: 'build muscle (hypertrophy)',
-      fat_loss: 'lose fat / recomp',
-      compete: 'compete (powerlifting or bodybuilding)',
-      athletic: 'general athletic performance',
-    };
-    const EXP_LABELS: Record<string, string> = {
-      beginner: 'beginner (under 1 year)',
-      intermediate: 'intermediate (1–3 years)',
-      advanced: 'advanced (3+ years)',
-      competitive: 'competitive athlete',
-    };
-    const STYLE_LABELS: Record<string, string> = {
-      powerlifting: 'powerlifting',
-      bodybuilding: 'bodybuilding',
-      hybrid: 'hybrid strength/size',
-      calisthenics: 'calisthenics',
-      athletic: 'athletic/sport performance',
-    };
-
-    const athleteProfile = [
-      profile?.experience_level ? `Experience: ${EXP_LABELS[profile.experience_level] ?? profile.experience_level}` : null,
-      profile?.primary_goal ? `Goal: ${GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal}` : null,
-      profile?.training_style ? `Training style: ${STYLE_LABELS[profile.training_style] ?? profile.training_style}` : null,
-      profile?.bodyweight_lbs ? `Bodyweight: ${profile.bodyweight_lbs} lbs` : null,
-    ].filter(Boolean).join('\n');
-
-    const sections = [
-      athleteProfile || `Bodyweight: ${profile?.bodyweight_lbs ?? 'unknown'} lbs`,
-      `PRs: ${(prs ?? []).map((p: any) => `${p.exercises?.name} ${p.weight}lbs×${p.reps}`).join(', ') || 'none logged'}`,
-      `Recent workouts:\n${workoutSummary}`,
-    ];
-
-    if (profile?.split_type || profile?.split_schedule) {
-      const schedule = (profile.split_schedule ?? {}) as Record<string, string>;
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const scheduleStr = Object.entries(schedule)
-        .sort((a, b) => Number(a[0]) - Number(b[0]))
-        .map(([d, t]) => `${days[Number(d)]}: ${t}`)
-        .join(', ');
-      sections.unshift(`TRAINING SPLIT: ${profile.split_type ?? 'Custom'}${scheduleStr ? `\nSchedule: ${scheduleStr}` : ''}`);
-    }
-
-    if (profile?.training_notes) {
-      sections.unshift(`ABOUT THIS ATHLETE (their own words, gym context — read charitably, not literally):\n${profile.training_notes}`);
-    }
-
-    // Pro: include recent chat history so Coach remembers past conversations
-    if (isPro && messages.length > 2) {
-      const recentHistory = messages
-        .slice(-10) // last 10 messages
-        .map(m => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.content}`)
-        .join('\n');
-      sections.push(`RECENT CONVERSATION HISTORY:\n${recentHistory}`);
-    }
-
-    return sections.join('\n\n');
-  };
-
-  const sendMessage = async (text: string) => {
+  const send = async (text: string) => {
     if (!text.trim() || loading || !user) return;
-    if (!canAskCoach) {
-      setShowPaywall(true);
-      return;
-    }
-    const allowed = await recordAIAsk();
-    if (!allowed) { setShowPaywall(true); return; }
-    const userMsg: Message = { role: 'user', content: text.trim(), timestamp: Date.now() };
-    addMessage(userMsg);
-    setInput('');
+    if (!canAskCoach) { setPaywall(true); return; }
+    if (!(await recordAIAsk())) { setPaywall(true); return; }
+    addMessage({ role: 'user', content: text.trim(), timestamp: Date.now() });
     setLoading(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-
     try {
-      // The instruction skeleton + tier personality live server-side in the
-      // ai-coach edge function — the client only ships athlete data and a
-      // tier key, so the function can't be repurposed as an open Claude proxy.
-      const context = await buildContext();
-
-      const { data: fnData, error: fnError } = await supabase.functions.invoke('ai-coach', {
+      // The prompt skeleton + tier personality live server-side in ai-coach;
+      // the client ships only athlete data and a tier key.
+      const context = await buildCoachContext(user.id, profile, isPro ? messages : null);
+      const { data, error } = await supabase.functions.invoke('ai-coach', {
         body: {
-          context,
-          tierKey: coachTierKey,
-          subTier: coachSubTier,
-          messages: [
-            ...messages.map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: text.trim() },
-          ],
+          context, tierKey, subTier,
+          messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text.trim() }],
         },
       });
-
-      if (fnError) throw fnError;
-      const reply = fnData?.content?.[0]?.text ?? 'Something went wrong. Try again.';
-      const assistantMsg: Message = { role: 'assistant', content: reply, timestamp: Date.now() };
-      addMessage(assistantMsg);
+      if (error) throw error;
+      addMessage({ role: 'assistant', content: data?.content?.[0]?.text ?? 'Something went wrong. Try again.', timestamp: Date.now() });
       if (!isPro) refreshProfile();
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch (e) {
-      const errMsg: Message = { role: 'assistant', content: 'Could not reach the AI. Check your connection.', timestamp: Date.now() };
-      addMessage(errMsg);
+    } catch {
+      addMessage({ role: 'assistant', content: 'Could not reach your coach. Check your connection.', timestamp: Date.now() });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleParse = async () => {
-    if (!importText.trim()) return;
-    setParsing(true);
-    setParsedWorkouts(null);
-    try {
-      const { data: exercises } = await supabase
-        .from('exercises')
-        .select('id, name, muscle_group')
-        .order('name');
-      setAllExercises(exercises ?? []);
-      const workouts = parseAnyFormat(importText, exercises ?? []);
-      if (workouts.length === 0) {
-        Alert.alert('Nothing found', 'Could not detect any workouts. Make sure exercises have sets in "Weight x Reps" format.');
-        return;
-      }
-      setParsedWorkouts(workouts);
-    } finally {
-      setParsing(false);
+  // Pre-fill from other screens (e.g. Home's weekly-plan task)
+  useFocusEffect(useCallback(() => {
+    const preFill = (global as any).__coachPreFill;
+    if (preFill) {
+      (global as any).__coachPreFill = null;
+      setTab('chat');
+      setTimeout(() => send(preFill), 100);
     }
-  };
-
-  // Manually match an exercise from the picker
-  const handlePickExercise = (ex: { id: string; name: string }) => {
-    if (!pickingTarget || !parsedWorkouts) return;
-    const { wi, ei } = pickingTarget;
-    const updated = parsedWorkouts.map((w, wIdx) => ({
-      ...w,
-      exercises: w.exercises.map((e, eIdx) =>
-        wIdx === wi && eIdx === ei
-          ? { ...e, matchedName: ex.name, matchedId: ex.id }
-          : e
-      ),
-    }));
-    setParsedWorkouts(updated);
-    setPickerOpen(false);
-    setPickerSearch('');
-    setPickingTarget(null);
-  };
-
-  // Merge duplicate exercises (same matchedId) within each workout
-  const mergeExercises = (workouts: ParsedWorkout[]): ParsedWorkout[] => {
-    return workouts.map(w => {
-      const seen = new Map<string, number>(); // matchedId → index in merged array
-      const merged: typeof w.exercises = [];
-      for (const ex of w.exercises) {
-        if (ex.matchedId && seen.has(ex.matchedId)) {
-          // Append sets to existing entry
-          merged[seen.get(ex.matchedId)!].sets.push(...ex.sets);
-        } else {
-          seen.set(ex.matchedId ?? `__${merged.length}`, merged.length);
-          merged.push({ ...ex, sets: [...ex.sets] });
-        }
-      }
-      return { ...w, exercises: merged };
-    });
-  };
-
-  const handleMergeAll = () => {
-    if (!parsedWorkouts) return;
-    setParsedWorkouts(mergeExercises(parsedWorkouts));
-  };
-
-  const handleSaveImport = async () => {
-    if (!parsedWorkouts || !user) return;
-    setSaving(true);
-    let savedCount = 0;
-    // Best set per exercise across the whole import (by e1RM), so imported
-    // history counts toward PRs — and therefore rank. Without this an import
-    // wrote sets but never touched personal_records.
-    const bestByExercise = new Map<string, { weight: number; reps: number; e1rm: number; at: string }>();
-    try {
-      // Auto-merge duplicates before saving
-      const merged = mergeExercises(parsedWorkouts);
-      for (const workout of merged) {
-        const { data: wRow, error: wErr } = await supabase
-          .from('workouts')
-          .insert({
-            user_id: user.id,
-            name: workout.name,
-            started_at: workout.date.toISOString(),
-            ended_at: new Date(workout.date.getTime() + 60 * 60 * 1000).toISOString(),
-            is_imported: true,  // never show in social feed
-          })
-          .select()
-          .single();
-        if (wErr || !wRow) continue;
-
-        const setsToInsert: any[] = [];
-        for (const ex of workout.exercises) {
-          if (!ex.matchedId) continue;
-          ex.sets.forEach((s, i) => {
-            const at = new Date(workout.date.getTime() + i * 60000).toISOString();
-            if (s.weight > 0 && s.reps > 0) {
-              const e1rm = s.weight * (1 + s.reps / 30);
-              const prev = bestByExercise.get(ex.matchedId!);
-              if (!prev || e1rm > prev.e1rm) bestByExercise.set(ex.matchedId!, { weight: s.weight, reps: s.reps, e1rm, at });
-            }
-            setsToInsert.push({
-              workout_id: wRow.id,
-              exercise_id: ex.matchedId,
-              set_number: i + 1,
-              weight: s.weight,
-              reps: s.reps,
-              rpe: s.rpe ?? null,
-              note: s.note ?? null,
-              logged_at: new Date(workout.date.getTime() + i * 60000).toISOString(),
-            });
-          });
-        }
-        if (setsToInsert.length > 0) {
-          await supabase.from('workout_sets').insert(setsToInsert);
-        }
-        savedCount++;
-      }
-      // Same rule as live logging: only upgrades an existing PR, never lowers it
-      let prCount = 0;
-      for (const [exerciseId, best] of bestByExercise) {
-        if (await checkAndRecordPR(user.id, exerciseId, best.weight, best.reps, best.at)) prCount++;
-      }
-      setParsedWorkouts(null);
-      setImportText('');
-      Alert.alert(
-        'Imported!',
-        `Saved ${savedCount} workout${savedCount !== 1 ? 's' : ''} to your history.` +
-          (prCount > 0 ? ` ${prCount} PR${prCount !== 1 ? 's' : ''} updated — your rank reflects them now.` : ''),
-      );
-    } catch (e: any) {
-      Alert.alert('Save failed', e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [user?.id, messages.length]));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }} edges={['top']}>
-      {/* Header */}
-      <View style={{
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 0,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-      }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
           <CoachHeader />
-          {!isPro && (
-            <TouchableOpacity
-              onPress={() => setShowPaywall(true)}
-              style={{
-                backgroundColor: Colors.accentDim,
-                borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
-                borderWidth: 1, borderColor: Colors.accent + '40',
-              }}
-            >
-              <Text style={{ color: Colors.accent, fontSize: 11, fontWeight: '700' }}>
-                {aiAsksRemaining > 0 ? `${aiAsksRemaining} questions left · Go Pro` : 'Limit reached · Go Pro'}
-              </Text>
-            </TouchableOpacity>
-          )}
-          {isPro && (
-            <View style={{ backgroundColor: Colors.accent + '20', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-              <Text style={{ color: Colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>PRO</Text>
-            </View>
-          )}
+          {isPro
+            ? <AppText variant="label" color={world.aura}>Pro</AppText>
+            : <Button label={aiAsksRemaining > 0 ? `${aiAsksRemaining} left` : 'Go Pro'} variant="tinted" size="sm" onPress={() => setPaywall(true)} />}
         </View>
-        {/* Tab toggle */}
-        <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 2 }}>
-          {([
-            { key: 'coach', label: 'Chat' },
-            { key: 'analysis', label: 'Monthly' },
-            { key: 'import', label: 'Import' },
-          ] as { key: Tab; label: string }[]).map(t => (
+        <View style={styles.segment}>
+          {(['chat', 'insights'] as Tab[]).map(t => (
             <TouchableOpacity
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              style={{
-                paddingHorizontal: 16, paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: tab === t.key ? coachTierColor + '18' : 'transparent',
-                borderWidth: 1,
-                borderColor: tab === t.key ? coachTierColor + '55' : 'transparent',
-              }}
+              key={t}
+              onPress={() => setTab(t)}
+              style={[styles.seg, tab === t && { backgroundColor: world.aura + '1F', borderColor: world.aura }]}
+              accessibilityState={{ selected: tab === t }}
             >
-              <Text style={{
-                color: tab === t.key ? coachTierColor : Colors.textMuted,
-                fontSize: 13,
-                fontWeight: tab === t.key ? '800' : '500',
-              }}>
-                {t.label}
-              </Text>
+              <AppText variant="label" color={tab === t ? world.aura : Colors.textSecondary}>{t === 'chat' ? 'Chat' : 'Insights'}</AppText>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* ── CHAT TAB ── */}
-      {tab === 'coach' && (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView
-            ref={scrollRef}
-            contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {messages.length === 0 && (
-              <View style={{ gap: 12, paddingTop: 8 }}>
-                {/* Coach avatar + intro */}
-                <View style={{ alignItems: 'center', paddingVertical: 28, gap: 14 }}>
-                  <View style={{
-                    width: 84, height: 84, borderRadius: 42,
-                    backgroundColor: coachTierColor + '18',
-                    borderWidth: 2, borderColor: coachTierColor + '70',
-                    alignItems: 'center', justifyContent: 'center',
-                    shadowColor: coachTierColor,
-                    shadowOpacity: 0.4,
-                    shadowRadius: 20,
-                    shadowOffset: { width: 0, height: 0 },
-                    elevation: 8,
-                  }}>
-                    <Text style={{ fontSize: 38 }}>⚡</Text>
-                  </View>
-                  <View style={{ alignItems: 'center', gap: 6 }}>
-                    <Text style={{
-                      color: coachTierColor, fontSize: 22, fontWeight: '800', letterSpacing: -0.5,
-                      textShadowColor: coachTierColor, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8,
-                    }}>
-                      {coachName}
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                      20+ years in the weight room.{'\n'}Reads your logs. Talks like it.
-                    </Text>
-                  </View>
-                  {!isPro && (
-                    <View style={{
-                      backgroundColor: Colors.surface,
-                      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8,
-                      borderWidth: 1, borderColor: Colors.border,
-                    }}>
-                      <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                        {aiAsksRemaining} of 5 coach questions left this week
-                        {aiAsksResetDate ? ` · refills ${aiAsksResetDate.toLocaleDateString('en-US', { weekday: 'long' })}` : ''}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Divider */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Ask your coach anything</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
-                </View>
-
-                {/* Prompt cards — 2 column grid */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {starterPrompts.map((p, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => sendMessage(p)}
-                      activeOpacity={0.75}
-                      style={{
-                        width: '47%',
-                        backgroundColor: Colors.surface,
-                        borderRadius: 16,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: coachTierColor + '30',
-                        gap: 10,
-                        shadowColor: coachTierColor,
-                        shadowOpacity: 0.06,
-                        shadowRadius: 8,
-                        shadowOffset: { width: 0, height: 3 },
-                        elevation: 2,
-                      }}
-                    >
-                      <View style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        backgroundColor: coachTierColor + '18',
-                        borderWidth: 1, borderColor: coachTierColor + '35',
-                        alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Text style={{ fontSize: 18 }}>
-                          {starterEmojis[i] ?? '⚡'}
-                        </Text>
-                      </View>
-                      <Text style={{ color: Colors.text, fontSize: 12, fontWeight: '600', lineHeight: 18 }}>
-                        {p}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Messages */}
-            {messages.map((m, i) => (
-              <View key={i} style={{
-                flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
-                alignItems: 'flex-end',
-                gap: 8,
-                marginBottom: 14,
-              }}>
-                {/* Coach avatar on assistant messages */}
-                {m.role === 'assistant' && (
-                  <View style={{
-                    width: 30, height: 30, borderRadius: 15,
-                    backgroundColor: coachTierColor + '20',
-                    borderWidth: 1, borderColor: coachTierColor + '40',
-                    alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    <Text style={{ fontSize: 14 }}>⚡</Text>
-                  </View>
-                )}
-                <View style={{ maxWidth: '80%' }}>
-                  <View style={{
-                    backgroundColor: m.role === 'user' ? Colors.accent : Colors.surface,
-                    borderRadius: 18,
-                    borderBottomRightRadius: m.role === 'user' ? 4 : 18,
-                    borderBottomLeftRadius: m.role === 'assistant' ? 4 : 18,
-                    padding: 14,
-                    borderWidth: m.role === 'assistant' ? 1 : 0,
-                    borderColor: Colors.border,
-                  }}>
-                    <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 22 }}>
-                      {m.content}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-
-            {/* Typing indicator */}
-            {loading && (
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 14 }}>
-                <View style={{
-                  width: 30, height: 30, borderRadius: 15,
-                  backgroundColor: Colors.accent + '20',
-                  borderWidth: 1, borderColor: Colors.accent + '40',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Text style={{ fontSize: 14 }}>⚡</Text>
-                </View>
-                <View style={{
-                  backgroundColor: Colors.surface,
-                  borderRadius: 18, borderBottomLeftRadius: 4,
-                  padding: 14, borderWidth: 1, borderColor: Colors.border,
-                }}>
-                  <ActivityIndicator color={coachTierColor} size="small" />
-                </View>
-              </View>
-            )}
-          </ScrollView>
-
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            borderTopWidth: 1,
-            borderTopColor: Colors.border,
-            backgroundColor: Colors.bg,
-            gap: 10,
-          }}>
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder="Ask your coach..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              style={{
-                flex: 1,
-                backgroundColor: Colors.surface2,
-                borderRadius: 20,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                color: Colors.text,
-                fontSize: 15,
-                maxHeight: 120,
-                borderWidth: 1,
-                borderColor: Colors.border,
-                lineHeight: 20,
-              }}
-            />
-            <TouchableOpacity
-              onPress={() => sendMessage(input)}
-              disabled={!input.trim() || loading}
-              style={{
-                width: 40, height: 40, borderRadius: 20,
-                backgroundColor: input.trim() && !loading ? Colors.accent : Colors.surface2,
-                alignItems: 'center', justifyContent: 'center',
-                shadowColor: Colors.accent,
-                shadowOpacity: input.trim() && !loading ? 0.45 : 0,
-                shadowRadius: 12,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: input.trim() && !loading ? 6 : 0,
-              }}
-            >
-              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '700' }}>↑</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      )}
-
-      {/* ── MONTHLY ANALYSIS TAB ── */}
-      {tab === 'analysis' && (
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          {/* Intro */}
-          <View style={{ alignItems: 'center', paddingVertical: 16, gap: 10 }}>
-            <View style={{
-              width: 72, height: 72, borderRadius: 36,
-              backgroundColor: coachTierColor + '18',
-              borderWidth: 2, borderColor: coachTierColor + '70',
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Text style={{ fontSize: 32 }}>📈</Text>
-            </View>
-            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 }}>
-              Monthly Analysis
-            </Text>
-            <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
-              A deep-dive into your last 30 days — volume balance, RPE creep, stalled lifts,
-              and recurring themes in your notes. {coachName} reads your actual numbers.
-            </Text>
-            {!isPro && (
-              <View style={{
-                backgroundColor: Colors.surface, borderRadius: 10,
-                paddingHorizontal: 14, paddingVertical: 8,
-                borderWidth: 1, borderColor: Colors.border,
-              }}>
-                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                  {analysisUsedThisMonth ? "You've used your free analysis this month" : 'Free plan: 1 analysis per month'}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Saved / generated report */}
-          {analysisReport && (
-            <View style={{
-              backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
-              borderWidth: 1, borderColor: coachTierColor + '35', marginTop: 8,
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ color: coachTierColor, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-                  Your Report
-                </Text>
-                {analysisLastRun && (
-                  <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                    {new Date(analysisLastRun).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                )}
-              </View>
-              <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 22 }}>
-                {analysisReport}
-              </Text>
-            </View>
-          )}
-
-          {/* Action */}
-          <View style={{ marginTop: 16 }}>
-            {analysisLoading ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
-                <ActivityIndicator color={coachTierColor} />
-                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>Reading your last 30 days…</Text>
-              </View>
-            ) : canRunAnalysis ? (
-              <TouchableOpacity
-                onPress={generateAnalysis}
-                style={{
-                  backgroundColor: coachTierColor, borderRadius: 14,
-                  paddingVertical: 16, alignItems: 'center',
-                  shadowColor: coachTierColor, shadowOpacity: 0.4, shadowRadius: 12,
-                  shadowOffset: { width: 0, height: 4 }, elevation: 6,
-                }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
-                  {analysisReport ? 'Run New Analysis' : 'Generate Analysis'}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setShowPaywall(true)}
-                style={{
-                  backgroundColor: Colors.accentDim, borderRadius: 14, padding: 16,
-                  borderWidth: 1, borderColor: Colors.accent + '45', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Text style={{ color: Colors.accent, fontWeight: '800', fontSize: 14 }}>
-                  Go Pro for unlimited analyses ⚡
-                </Text>
-                <Text style={{ color: Colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 17 }}>
-                  You'll get a fresh free one next month, or upgrade for unlimited deep-dives anytime.
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+      {tab === 'chat' ? (
+        <ChatView
+          messages={messages as ChatMessage[]}
+          loading={loading}
+          prompts={prompts}
+          asksNote={isPro ? null : `${aiAsksRemaining} of 5 coach questions left this week${refill}`}
+          onSend={send}
+          scrollRef={scrollRef}
+        />
+      ) : (
+        <ScrollView contentContainerStyle={styles.insights} keyboardShouldPersistTaps="handled">
+          <MonthlyAnalysis
+            profile={profile}
+            isPro={isPro}
+            tierKey={tierKey}
+            subTier={subTier}
+            onRefreshProfile={refreshProfile}
+            onPaywall={() => setPaywall(true)}
+          />
+          <ImportSection userId={user?.id} />
         </ScrollView>
       )}
 
-      {/* ── IMPORT TAB ── */}
-      {tab === 'import' && (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: parsedWorkouts ? 8 : 40 }} keyboardShouldPersistTaps="handled">
-
-            {!parsedWorkouts ? (
-              <>
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
-                    Paste your workout log
-                  </Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 13, lineHeight: 19 }}>
-                    Google Docs, Apple Notes, or export CSV from{' '}
-                    <Text style={{ color: Colors.textSecondary }}>Hevy</Text> or{' '}
-                    <Text style={{ color: Colors.textSecondary }}>Strong</Text>.{' '}
-                    Format auto-detected. Sets like 225x5, 70x10(e), 2.25platesx8.
-                  </Text>
-                </View>
-
-                <TextInput
-                  value={importText}
-                  onChangeText={setImportText}
-                  placeholder={`4/2/24\nBench Press: 225x5, 235x4, 235x4\nSquats: 315x5x3 @8\nRDL: 275x8, 275x8, 275x8\n\n4/4/24\nOHP: 155x5x3\nLat Pulldowns: 150x10, 160x8x2`}
-                  placeholderTextColor={Colors.textMuted}
-                  multiline
-                  style={{
-                    backgroundColor: Colors.surface,
-                    borderRadius: 14,
-                    padding: 16,
-                    color: Colors.text,
-                    fontSize: 13,
-                    minHeight: 200,
-                    textAlignVertical: 'top',
-                    borderWidth: 1,
-                    borderColor: Colors.border,
-                    lineHeight: 22,
-                    marginBottom: 14,
-                  }}
-                />
-
-                <TouchableOpacity
-                  onPress={handleParse}
-                  disabled={!importText.trim() || parsing}
-                  style={{
-                    backgroundColor: importText.trim() && !parsing ? Colors.accent : Colors.surface2,
-                    borderRadius: 12,
-                    paddingVertical: 16,
-                    alignItems: 'center',
-                  }}
-                >
-                  {parsing
-                    ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Parse Log</Text>
-                  }
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* Preview header */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <View>
-                    <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
-                      {parsedWorkouts.length} workout{parsedWorkouts.length !== 1 ? 's' : ''} found
-                    </Text>
-                    <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                      Tap a workout to review · Save when ready
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => { setParsedWorkouts(null); setExpandedWorkouts(new Set()); }}>
-                    <Text style={{ color: Colors.accent, fontWeight: '700' }}>← Edit</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Summary row */}
-                {(() => {
-                  const hasDupes = parsedWorkouts.some(w => {
-                    const ids = w.exercises.filter(e => e.matchedId).map(e => e.matchedId);
-                    return ids.length !== new Set(ids).size;
-                  });
-                  const unmatchedCount = parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => !e.matchedId).length, 0);
-                  return (
-                    <>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: (hasDupes || unmatchedCount > 0) ? 10 : 16 }}>
-                        {[
-                          { label: 'Workouts', value: parsedWorkouts.length },
-                          { label: 'Matched', value: parsedWorkouts.reduce((n, w) => n + w.exercises.filter(e => e.matchedId).length, 0) },
-                          { label: 'Sets', value: parsedWorkouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0) },
-                        ].map((s, i) => (
-                          <View key={i} style={{
-                            flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
-                            padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
-                          }}>
-                            <Text style={{ color: Colors.textMuted, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</Text>
-                            <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '800' }}>{s.value}</Text>
-                          </View>
-                        ))}
-                      </View>
-                      {unmatchedCount > 0 && (
-                        <View style={{
-                          backgroundColor: Colors.gold + '12', borderRadius: 10, padding: 12, marginBottom: 10,
-                          borderWidth: 1, borderColor: Colors.gold + '35', flexDirection: 'row', alignItems: 'center', gap: 8,
-                        }}>
-                          <Text style={{ fontSize: 14 }}>⚠️</Text>
-                          <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: '600', flex: 1 }}>
-                            {unmatchedCount} exercise{unmatchedCount !== 1 ? 's' : ''} need matching — tap to fix
-                          </Text>
-                        </View>
-                      )}
-                      {hasDupes && (
-                        <TouchableOpacity
-                          onPress={handleMergeAll}
-                          style={{
-                            backgroundColor: Colors.accentDim, borderRadius: 10, padding: 12, marginBottom: 10,
-                            borderWidth: 1, borderColor: Colors.accent + '40', flexDirection: 'row', alignItems: 'center', gap: 10,
-                          }}
-                        >
-                          <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
-                            Duplicates detected — tap to merge
-                          </Text>
-                          <Text style={{ color: Colors.accent, fontWeight: '800' }}>Merge →</Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  );
-                })()}
-
-                {/* Collapsible workout cards */}
-                {parsedWorkouts.map((w, wi) => {
-                  const isExpanded = expandedWorkouts.has(wi);
-                  const idCounts = new Map<string, number>();
-                  w.exercises.forEach(e => { if (e.matchedId) idCounts.set(e.matchedId, (idCounts.get(e.matchedId) ?? 0) + 1); });
-                  const unmatchedInCard = w.exercises.filter(e => !e.matchedId).length;
-                  const totalSets = w.exercises.reduce((n, e) => n + e.sets.length, 0);
-
-                  return (
-                    <View key={wi} style={{
-                      backgroundColor: Colors.surface, borderRadius: 14, marginBottom: 8,
-                      borderWidth: 1, borderColor: unmatchedInCard > 0 ? Colors.gold + '40' : Colors.border,
-                      overflow: 'hidden',
-                    }}>
-                      {/* Tappable header — toggles expand */}
-                      <TouchableOpacity
-                        onPress={() => setExpandedWorkouts(prev => {
-                          const next = new Set(prev);
-                          next.has(wi) ? next.delete(wi) : next.add(wi);
-                          return next;
-                        })}
-                        activeOpacity={0.75}
-                        style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: Colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
-                            {w.name}
-                          </Text>
-                          <Text style={{ color: Colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                            {w.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            {' · '}{w.exercises.length} exercises · {totalSets} sets
-                            {unmatchedInCard > 0 && (
-                              <Text style={{ color: Colors.gold }}>{` · ${unmatchedInCard} unmatched`}</Text>
-                            )}
-                          </Text>
-                        </View>
-                        <Text style={{ color: Colors.textMuted, fontSize: 10, fontWeight: '800' }}>
-                          {isExpanded ? '▲' : '▼'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* Exercises — only when expanded */}
-                      {isExpanded && w.exercises.map((ex, ei) => {
-                        const isMatched = !!ex.matchedId;
-                        const isDuplicate = isMatched && (idCounts.get(ex.matchedId!) ?? 0) > 1;
-                        const topWeight = ex.sets.reduce((m, s) => s.weight > m ? s.weight : m, 0);
-                        return (
-                          <TouchableOpacity
-                            key={ei}
-                            onPress={() => {
-                              setPickingTarget({ wi, ei });
-                              setPickerSearch(isMatched ? '' : ex.rawName.replace(/^[∙•\s\t]+/, '').split('—')[0].trim());
-                              setPickerOpen(true);
-                            }}
-                            style={{
-                              flexDirection: 'row', alignItems: 'center',
-                              paddingHorizontal: 14, paddingVertical: 10,
-                              borderTopWidth: 1, borderTopColor: Colors.border, gap: 10,
-                            }}
-                          >
-                            <View style={{
-                              width: 8, height: 8, borderRadius: 4,
-                              backgroundColor: isMatched ? Colors.success : Colors.gold,
-                            }} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ color: isMatched ? Colors.text : Colors.gold, fontSize: 13, fontWeight: '600' }}>
-                                {ex.matchedName}
-                              </Text>
-                              {!isMatched && ex.rawName !== ex.matchedName && (
-                                <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 1 }} numberOfLines={1}>
-                                  "{ex.rawName.replace(/^[∙•\s\t]+/, '').slice(0, 50)}"
-                                </Text>
-                              )}
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                              <Text style={{ color: Colors.textMuted, fontSize: 11 }}>
-                                {ex.sets.length} set{ex.sets.length !== 1 ? 's' : ''}
-                                {topWeight > 0 ? ` · ${topWeight} lbs` : ''}
-                              </Text>
-                              <Text style={{ color: isDuplicate ? Colors.accent : isMatched ? Colors.textMuted : Colors.gold, fontSize: 10, marginTop: 2 }}>
-                                {isDuplicate ? 'duplicate — will merge' : isMatched ? 'tap to change' : 'tap to match →'}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  );
-                })}
-              </>
-            )}
-          </ScrollView>
-
-          {/* Sticky Save button — always visible when reviewing */}
-          {parsedWorkouts && !pickerOpen && (
-            <SafeAreaView edges={['bottom']} style={{ backgroundColor: Colors.bg }}>
-              <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: Colors.border }}>
-                <TouchableOpacity
-                  onPress={handleSaveImport}
-                  disabled={saving}
-                  style={{
-                    backgroundColor: saving ? Colors.surface2 : Colors.accent,
-                    borderRadius: 14, paddingVertical: 17, alignItems: 'center',
-                    shadowColor: Colors.accent, shadowOpacity: saving ? 0 : 0.4,
-                    shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: saving ? 0 : 6,
-                  }}
-                >
-                  {saving
-                    ? <ActivityIndicator color={Colors.text} />
-                    : <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
-                        Save {parsedWorkouts.length} Workout{parsedWorkouts.length !== 1 ? 's' : ''} to STR
-                      </Text>
-                  }
-                </TouchableOpacity>
-              </View>
-            </SafeAreaView>
-          )}
-
-          {/* Exercise picker overlay — covers full screen including footer */}
-          {pickerOpen && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: Colors.bg, zIndex: 100 }}>
-              <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.bg }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12 }}>
-                  <TextInput
-                    value={pickerSearch}
-                    onChangeText={setPickerSearch}
-                    placeholder="Search exercises..."
-                    placeholderTextColor={Colors.textMuted}
-                    autoFocus
-                    style={{
-                      flex: 1, backgroundColor: Colors.surface2, borderRadius: 10,
-                      paddingHorizontal: 14, paddingVertical: 10,
-                      color: Colors.text, fontSize: 15, borderWidth: 1, borderColor: Colors.border,
-                    }}
-                  />
-                  <TouchableOpacity onPress={() => { setPickerOpen(false); setPickerSearch(''); }}>
-                    <Text style={{ color: Colors.accent, fontWeight: '700', fontSize: 14 }}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </SafeAreaView>
-              <ScrollView keyboardShouldPersistTaps="handled">
-                {allExercises
-                  .filter(e => !pickerSearch.trim() || e.name.toLowerCase().includes(pickerSearch.toLowerCase()))
-                  .map(ex => (
-                    <TouchableOpacity
-                      key={ex.id}
-                      onPress={() => handlePickExercise(ex)}
-                      style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border }}
-                    >
-                      <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>{ex.name}</Text>
-                      <Text style={{ color: Colors.textMuted, fontSize: 12, marginTop: 2 }}>{ex.muscle_group}</Text>
-                    </TouchableOpacity>
-                  ))
-                }
-              </ScrollView>
-            </View>
-          )}
-        </KeyboardAvoidingView>
-      )}
       <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        reason={aiAsksRemaining === 0
-          ? `You've used your 5 free coach questions this week.${aiAsksResetDate ? ` They refill ${aiAsksResetDate.toLocaleDateString('en-US', { weekday: 'long' })}` : ''} — or go Pro for unlimited coaching.`
-          : undefined}
+        visible={paywall}
+        onClose={() => setPaywall(false)}
+        reason={aiAsksRemaining === 0 ? `You've used your 5 free coach questions this week${refill}. Or go Pro for unlimited.` : undefined}
       />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  header: { paddingHorizontal: Spacing.screenH, gap: Spacing.sm, paddingBottom: Spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  segment: { flexDirection: 'row', gap: Spacing.sm },
+  seg: { flex: 1, minHeight: Hit.min - 4, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  insights: { padding: Spacing.screenH, gap: Spacing.group, paddingBottom: 60 },
+});
