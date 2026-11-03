@@ -17,7 +17,6 @@ import {
   HomeHeader,
   HomeSkeleton,
   LastWorkoutCard,
-  RankHeroCard,
   SbdEntrySheet,
   SbdInputs,
   StartWorkoutCTA,
@@ -26,6 +25,7 @@ import {
   WeeklyPlanSheet,
   getSmartGreetingLine,
 } from '@/components/home';
+import { PowerHero } from '@/components/power/PowerHero';
 
 export default function HomeScreen() {
   const { profile, user } = useAuth();
@@ -160,15 +160,11 @@ export default function HomeScreen() {
           onAvatarPress={() => router.push('/(tabs)/profile')}
         />
 
-        {rankResult && (
-          <RankHeroCard
-            rankResult={rankResult}
-            // Unranked lifters get sent straight to SBD entry; ranked ones
-            // open the ladder (Home previously had no path to SBD entry at all)
-            onOpenLadder={() => (rankResult.avgScore > 0 ? setShowTierLadder(true) : setSbdModalOpen(true))}
-            onAskCoach={goToCoachWithQuestion}
-          />
-        )}
+        <PowerHero
+          reading={data?.power ?? null}
+          onOpenLadder={() => setShowTierLadder(true)}
+          onStartWorkout={() => router.push('/(tabs)/workout')}
+        />
 
         <TodayPlanCard
           todaySession={todaySession}

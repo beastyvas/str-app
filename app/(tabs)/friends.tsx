@@ -12,7 +12,9 @@ import { CameraView, Camera } from 'expo-camera';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
-import { getRankResult } from '@/constants/ranks';
+import { getRankResult, RANK_TIERS } from '@/constants/ranks';
+import { AppText } from '@/components/ui';
+import { formatPower } from '@/components/anime';
 import { FriendProfileModal } from '@/components/FriendProfileModal';
 import { UserBadges } from '@/components/UserBadges';
 import { useModeration } from '@/hooks/useModeration';
@@ -70,6 +72,8 @@ interface Friend {
   friendshipId: string;
   rankTierLabel?: string;
   rankTierColor?: string;
+  powerLevel?: number | null;
+  powerPartial?: boolean;
   recentPR?: { exerciseName: string; weight: number; achieved_at: string };
   is_owner?: boolean;
   is_og?: boolean;
@@ -205,7 +209,7 @@ export default function SocialScreen() {
         `);
       if (!global) feedQuery = feedQuery.in('user_id', feedUserIds);
 
-      const [profilesRes, sbdRes, recentRes, feedRes] = await Promise.all([
+      const [profilesRes, sbdRes, recentRes, feedRes, powerRes] = await Promise.all([
         supabase
           .from('public_profiles')
           .select('id, display_name, avatar_url, bio, bodyweight_lbs, is_owner, is_og, is_pro')
@@ -225,7 +229,15 @@ export default function SocialScreen() {
           .or('is_imported.is.null,is_imported.eq.false')
           .order('ended_at', { ascending: false })
           .limit(30),
+        // Power Level + stored rank (migration 029). Separate query so the
+        // list still loads if 029 hasn't run — the error is just ignored.
+        supabase
+          .from('public_profiles')
+          .select('id, power_level, power_confidence, rank_tier_key')
+          .in('id', profileIds),
       ]);
+      const powerById: Record<string, any> = {};
+      if (!powerRes.error) (powerRes.data ?? []).forEach((p: any) => { powerById[p.id] = p; });
 
       const profilesById: Record<string, any> = {};
       (profilesRes.data ?? []).forEach((p: any) => { profilesById[p.id] = p; });
@@ -271,6 +283,8 @@ export default function SocialScreen() {
       const rankByUser: Record<string, { label: string; color: string } | null> = {};
       const rankFor = (uid: string, bw: number | undefined) => {
         if (!(uid in rankByUser)) {
+          const stored = RANK_TIERS.find(t => t.key === powerById[uid]?.rank_tier_key);
+          if (stored) { rankByUser[uid] = { label: stored.label, color: stored.color }; return rankByUser[uid]; }
           const prs = sbdByUser[uid] ?? [];
           rankByUser[uid] = prs.length > 0
             ? (() => {
@@ -408,6 +422,8 @@ export default function SocialScreen() {
             friendshipId: f.id,
             rankTierLabel: rank.label,
             rankTierColor: rank.color,
+            powerLevel: powerById[other.id]?.power_level ?? null,
+            powerPartial: powerById[other.id]?.power_confidence === 'partial',
             is_owner: other.is_owner ?? false,
             is_og: other.is_og ?? false,
             is_pro: other.is_pro ?? false,
@@ -1234,6 +1250,11 @@ export default function SocialScreen() {
                           {f.rankTierLabel}
                         </Text>
                       </View>
+                      {f.powerLevel != null && (
+                        <AppText variant="stat" color={f.rankTierColor ?? Colors.text}>
+                          {f.powerPartial ? '≈' : ''}{formatPower(f.powerLevel)}
+                        </AppText>
+                      )}
                       {f.recentPR && (
                         <Text style={{ color: Colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
                           🏆 {f.recentPR.exerciseName} — {toDisplay(f.recentPR.weight, unit)} {unit}

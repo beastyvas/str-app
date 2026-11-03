@@ -23,6 +23,9 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getTierForWeight, TIER_LABELS, TIER_ORDER } from '@/constants/strengthStandards';
 import { getRankResult, ROMAN } from '@/constants/ranks';
+import { computePowerReading, type PowerReading } from '@/lib/powerLevel';
+import { fetchPowerInputs } from '@/lib/powerData';
+import { PowerBreakdown } from '@/components/power/PowerBreakdown';
 import { toLbs, fmtVolume as fmtVolumeUnit, unitFromProfile } from '@/lib/units';
 import { SESSION_COLORS, SESSION_TYPES } from '@/lib/sessionType';
 import { computeStreak } from '@/lib/streak';
@@ -167,6 +170,7 @@ function WeeklyChart({
 interface ProfileCacheEntry {
   stats: ProfileStats;
   rankResult: ReturnType<typeof getRankResult>;
+  power: PowerReading;
   friendCount: number;
   weeklyData: { day: string; volume: number; duration: number; sets: number }[];
   muscleVolume: Record<string, number>;
@@ -213,6 +217,7 @@ export default function ProfileScreen() {
   const [stats, setStats] = useState<ProfileStats | null>(cached?.stats ?? null);
   const [loadingStats, setLoadingStats] = useState(!cached);
   const [rankResult, setRankTier] = useState<ReturnType<typeof getRankResult> | null>(cached?.rankResult ?? null);
+  const [power, setPower] = useState<PowerReading | null>(cached?.power ?? null);
   const [friendCount, setFriendCount] = useState(cached?.friendCount ?? 0);
   const [weeklyData, setWeeklyData] = useState<{ day: string; volume: number; duration: number; sets: number }[]>(cached?.weeklyData ?? []);
   const [muscleVolume, setMuscleVolume] = useState<Record<string, number>>(cached?.muscleVolume ?? {});
@@ -267,6 +272,7 @@ export default function ProfileScreen() {
         { data: weekWorkouts },
         { data: recentWorkouts },
         lifetime,
+        powerInputs,
       ] = await Promise.all([
         supabase.from('workouts').select('id, started_at').eq('user_id', user.id).not('ended_at', 'is', null),
         supabase.from('personal_records').select('weight, reps, achieved_at, exercises(name)').eq('user_id', user.id).order('achieved_at', { ascending: false }),
@@ -276,6 +282,7 @@ export default function ProfileScreen() {
         supabase.from('workouts').select('id').eq('user_id', user.id).not('ended_at', 'is', null).gte('started_at', thirtyDaysAgo),
         // All-time volume/sets — paged past the 1000-row response cap
         fetchLifetimeTotals(user.id),
+        fetchPowerInputs(user.id),
       ]);
 
       setFriendCount(friends ?? 0);
@@ -365,7 +372,11 @@ export default function ProfileScreen() {
       const sbdPRs = allPRs
         .filter(p => ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'].includes(p.exerciseName))
         .map(p => ({ exerciseName: p.exerciseName, weight: p.weight, reps: p.reps }));
-      setRankTier(getRankResult(sbdPRs, bw));
+      // Rank comes from the Power Level's per-lift e1RMs (every set in the
+      // last 180 days, proxies included) — the same source Home uses.
+      const reading = computePowerReading(powerInputs, profile?.bodyweight_lbs, profile?.gender, displayUnit);
+      setPower(reading);
+      setRankTier(reading.rank);
 
       const totalVolume = lifetime.volume;
       const totalSets = lifetime.sets;
@@ -394,11 +405,12 @@ export default function ProfileScreen() {
         allPRs,
         muscleGroupTiers,
       };
-      const nextRank = getRankResult(sbdPRs, bw);
+      const nextRank = reading.rank;
       setStats(nextStats);
       profileCache.set(user.id, {
         stats: nextStats,
         rankResult: nextRank,
+        power: reading,
         friendCount: friends ?? 0,
         weeklyData: weekly,
         muscleVolume: volByGroup,
@@ -962,6 +974,9 @@ export default function ProfileScreen() {
               ))}
             </View>
           )}
+
+          {/* ── POWER LEVEL SOURCES ─────────────────────────────────────────── */}
+          {power && <PowerBreakdown reading={power} unit={displayUnit} />}
 
           {/* ── SBD TIERS ───────────────────────────────────────────────────── */}
           {rankResult && <SbdStrengthCard result={rankResult} />}

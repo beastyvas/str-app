@@ -21,9 +21,10 @@ import { WorkoutIdleScreen } from '@/components/workout/WorkoutIdleScreen';
 import { TemplateBuilderSheet } from '@/components/workout/TemplateBuilderSheet';
 import { useWorkoutTemplates } from '@/hooks/useWorkoutTemplates';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
-import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
 import { FirstWorkoutTooltip } from '@/components/workout/FirstWorkoutTooltip';
-import { getRankResult, RankTier } from '@/constants/ranks';
+import { computePowerReading, type LiftSet, type PowerReading } from '@/lib/powerLevel';
+import { fetchPowerInputs, savePowerReading } from '@/lib/powerData';
+import { useWorldStore } from '@/theme/useWorldStore';
 import { STARTER_PROGRAMS, StarterProgramDay } from '@/constants/starterPrograms';
 import { fmtVolume, unitFromProfile } from '@/lib/units';
 import { screenText } from '@/lib/contentFilter';
@@ -97,6 +98,7 @@ export default function WorkoutTab() {
       if (restored) {
         const name = useWorkoutStore.getState().activeWorkout?.name ?? 'Workout';
         notifyWorkoutStarted(name);
+        seedCurrentTier();
       }
       // Push anything logged offline last session now that we may be back online
       syncPending();
@@ -133,16 +135,11 @@ export default function WorkoutTab() {
   type TutorialStep = 'add_exercise' | 'log_set' | 'finish' | 'done';
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>('add_exercise');
 
-  // Tier advancement
-  const [tierAdvancement, setTierAdvancement] = useState<RankTier | null>(null);
-  const [tierAdvSubTier, setTierAdvSubTier] = useState<number | undefined>(undefined);
-  const [isSubTierAdvance, setIsSubTierAdvance] = useState(false);
-  const [showTierAdvancement, setShowTierAdvancement] = useState(false);
-  // Track { key, subTier, minScore } so we can detect advancement vs regression
-  const currentTierRef = useRef<{
-    key: string; subTier: number; minScore: number;
-    sqTier?: string; bpTier?: string; dlTier?: string;
-  } | null>(null);
+  // Power Level: read once at workout start (history inputs cached), then
+  // recomputed locally on finish with this session's sets — never per set,
+  // and it works offline. Rank-up detection happens on the summary screen.
+  const powerInputsRef = useRef<LiftSet[] | null>(null);
+  const powerBeforeRef = useRef<PowerReading | null>(null);
 
   // Smart suggestion + templates — SWR-cached hook; no reload flash on every
   // return to the idle tab.
@@ -250,19 +247,17 @@ export default function WorkoutTab() {
 
   const seedCurrentTier = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('personal_records')
-      .select('weight, reps, exercises!inner(name)')
-      .eq('user_id', user.id);
-    const prs = (data ?? []).map((p: any) => ({
-      exerciseName: p.exercises?.name ?? '', weight: p.weight, reps: p.reps,
-    }));
-    const result = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
-    currentTierRef.current = {
-      key: result.tier.key,
-      subTier: result.subTier,
-      minScore: result.tier.minScore,
-    };
+    try {
+      const inputs = await fetchPowerInputs(user.id);
+      powerInputsRef.current = inputs;
+      powerBeforeRef.current = computePowerReading(
+        inputs, profile?.bodyweight_lbs, profile?.gender, unit,
+      );
+    } catch {
+      // Offline at start: the summary just skips the Power Level delta.
+      powerInputsRef.current = null;
+      powerBeforeRef.current = null;
+    }
   };
 
   const checkFirstWorkout = async () => {
@@ -385,82 +380,6 @@ export default function WorkoutTab() {
       setPrMap(prev => ({ ...prev, [lastSet.localId]: result.isPR }));
     }
 
-    // Check for tier/sub-tier advancement on SBD PRs
-    if (result.isPR) {
-      const SBD_NAMES = ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'];
-      const exName = ex?.exerciseName ?? '';
-      if (SBD_NAMES.some(n => exName.toLowerCase() === n.toLowerCase())) {
-        // Fetch ALL PRs (filter to SBD inside getRankResult)
-        const { data: allPrs } = await supabase
-          .from('personal_records')
-          .select('weight, reps, exercises!inner(name)')
-          .eq('user_id', user.id);
-
-        const prs = (allPrs ?? []).map((p: any) => ({
-          exerciseName: p.exercises?.name ?? '',
-          weight: p.weight, reps: p.reps,
-        }));
-        const newResult = getRankResult(prs, profile?.bodyweight_lbs ?? 185);
-        const newKey = newResult.tier.key;
-        const newMinScore = newResult.tier.minScore;
-        const newSubTier = newResult.subTier;
-
-        const prev = currentTierRef.current as any;
-        const thisLift = newResult.lifts.find(l => l.exercise.toLowerCase() === exName.toLowerCase());
-        const SBD_KEY: Record<string, string> = {
-          'barbell back squats': 'sqTier',
-          'barbell bench press': 'bpTier',
-          'deadlifts': 'dlTier',
-        };
-        const prevLiftTierKey = SBD_KEY[exName.toLowerCase()];
-        const prevLiftTier = prev?.[prevLiftTierKey] ?? 'beginner';
-        const TIER_COLORS_INLINE: Record<string, string> = {
-          beginner: Colors.tiers.beginner, bronze: Colors.tiers.bronze,
-          silver: Colors.tiers.silver, gold: Colors.tiers.gold,
-          platinum: Colors.tiers.platinum, diamond: Colors.tiers.diamond,
-        };
-
-        if (!prev) {
-          // First ever SBD PR — always fire
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(newSubTier);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        } else if (newMinScore > prev.minScore) {
-          // Full overall rank advance
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(undefined);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        } else if (newKey === prev.key && newSubTier > prev.subTier) {
-          // Sub-tier advance within same rank
-          setTierAdvancement(newResult.tier);
-          setTierAdvSubTier(newSubTier);
-          setIsSubTierAdvance(true);
-          setShowTierAdvancement(true);
-        } else if (thisLift && thisLift.tier !== prevLiftTier && thisLift.tier !== 'beginner') {
-          // Individual lift tier advanced (squat/bench/deadlift tier went up)
-          // even if the overall weakest-link rank didn't change yet
-          const liftLabel = exName.replace('Barbell ', '').replace(' Squats', ' Squat').toUpperCase();
-          const tierLabel = (thisLift.tier.charAt(0).toUpperCase() + thisLift.tier.slice(1)).toUpperCase();
-          const liftColor = TIER_COLORS_INLINE[thisLift.tier];
-          // Mutate the tier object temporarily to pass lift info
-          const liftTierObj = { ...newResult.tier, __liftName: liftLabel, __liftTierName: tierLabel, __liftTierColor: liftColor };
-          setTierAdvancement(liftTierObj as any);
-          setTierAdvSubTier(undefined);
-          setIsSubTierAdvance(false);
-          setShowTierAdvancement(true);
-        }
-
-        currentTierRef.current = {
-          key: newKey, subTier: newSubTier, minScore: newMinScore,
-          sqTier: newResult.lifts[0]?.tier ?? 'beginner',
-          bpTier: newResult.lifts[1]?.tier ?? 'beginner',
-          dlTier: newResult.lifts[2]?.tier ?? 'beginner',
-        };
-      }
-    }
-
     // Lock screen notification + Live Activity update
     const exName = ex?.exerciseName ?? '';
     const setNum = ex?.sets.length ?? 1;
@@ -539,7 +458,39 @@ export default function WorkoutTab() {
       setSaveAsTemplate(false);
       setTemplateName('');
 
+      // This session's sets, captured before the store clears them.
+      const sessionSets: LiftSet[] = (activeWorkout?.exercises ?? []).flatMap(e =>
+        e.sets.map(st => ({
+          exerciseName: e.exerciseName, weight: st.weight, reps: st.reps,
+          achievedAt: st.loggedAt, isWarmup: st.isWarmup,
+        })),
+      );
+
       const summary = await finishWorkout(quick ? undefined : (finishNotes.trim() || undefined));
+
+      // Power Level after = history (cached at start) + this session.
+      let power: any = null;
+      if (powerInputsRef.current && user) {
+        const before = powerBeforeRef.current;
+        const after = computePowerReading(
+          [...powerInputsRef.current, ...sessionSets], profile?.bodyweight_lbs, profile?.gender, unit,
+        );
+        savePowerReading(user.id, after);
+        if (after.confidence !== 'calibrating') useWorldStore.getState().setRank(after.rank.tier.key);
+        power = {
+          before: before && before.confidence !== 'calibrating' ? before.power : null,
+          after: after.confidence !== 'calibrating' ? after.power : null,
+          confidence: after.confidence,
+          beforeRank: before && before.confidence !== 'calibrating'
+            ? { key: before.rank.tier.key, sub: before.rank.subTier, lifts: before.rank.lifts.map(l => l.tier) }
+            : null,
+          afterRank: after.confidence !== 'calibrating'
+            ? { key: after.rank.tier.key, sub: after.rank.subTier, lifts: after.rank.lifts.map(l => l.tier) }
+            : null,
+        };
+      }
+      powerInputsRef.current = null;
+      powerBeforeRef.current = null;
 
       // Recap first, everything else after — the transition should feel instant.
       setPrMap({});
@@ -548,7 +499,7 @@ export default function WorkoutTab() {
       setTutorialStep('done');
       clearWorkoutNotifications();
       WorkoutLiveActivity.endActivity();
-      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify(summary) } });
+      router.push({ pathname: '/workout/summary', params: { data: JSON.stringify({ ...summary, power }) } });
 
       // Photo uploads quietly in the background while the recap is on screen
       if (!quick && finishPhoto && summary?.workoutId && user) {
@@ -993,25 +944,9 @@ export default function WorkoutTab() {
         </TouchableOpacity>
       </View>
 
-      {/* Tier Advancement */}
       {/* Rest timer — floating pill above the tab bar, appears after first set */}
       <RestTimer lastSetLoggedAt={lastSetLoggedAt} lastSetWasWarmup={lastSetWasWarmup} />
 
-      <TierAdvancementScreen
-        visible={showTierAdvancement}
-        tier={tierAdvancement}
-        subTier={tierAdvSubTier}
-        isSubTierAdvance={isSubTierAdvance}
-        liftName={(tierAdvancement as any)?.__liftName}
-        liftTierName={(tierAdvancement as any)?.__liftTierName}
-        liftTierColor={(tierAdvancement as any)?.__liftTierColor}
-        onDismiss={() => {
-          setShowTierAdvancement(false);
-          setTierAdvancement(null);
-          setTierAdvSubTier(undefined);
-          setIsSubTierAdvance(false);
-        }}
-      />
 
       {/* Exercise Picker */}
       <ExercisePickerModal

@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { getRankResult, RankResult } from '@/constants/ranks';
+import { RankResult } from '@/constants/ranks';
+import { computePowerReading, powerLevelSelfCheck, type PowerReading } from '@/lib/powerLevel';
+import { fetchPowerInputs, savePowerReading } from '@/lib/powerData';
+import { unitFromProfile } from '@/lib/units';
+
+if (__DEV__) powerLevelSelfCheck();
 import { classifySessionFromNames as classifySession } from '@/lib/sessionType';
 import { useWorldStore } from '@/theme/useWorldStore';
 
@@ -47,6 +52,8 @@ export interface HomeData {
   firstSteps: FirstSteps | null;
   creatorId: string | null;
   rankResult: RankResult | null;
+  /** Power Level + the rank computed from the same per-lift e1RMs */
+  power: PowerReading | null;
   lastWorkout: LastWorkout | null;
   friendPRs: FriendPR[];
   recentFriendPost: {
@@ -98,7 +105,7 @@ export function useHomeData() {
         friendCelebrated,
         onboardingDone,
         planPending,
-        prRes,
+        powerInputs,
         workoutRes,
         friendshipsRes,
         weekRes,
@@ -112,13 +119,8 @@ export function useHomeData() {
         AsyncStorage.getItem(`celebrated_friend_${uid}`),
         AsyncStorage.getItem(`onboarding_done_${uid}`),
         AsyncStorage.getItem(`celebrated_plan_${uid}`),
-        // SBD PRs for rank tier
-        supabase
-          .from('personal_records')
-          .select('weight, reps, achieved_at, exercises!inner(name)')
-          .eq('user_id', uid)
-          .in('exercises.name', ['Barbell Back Squats', 'Barbell Bench Press', 'Deadlifts'])
-          .order('achieved_at', { ascending: false }),
+        // Last 180 days of canonical + proxy lift sets, plus PRs → Power Level
+        fetchPowerInputs(uid),
         // Last completed workout
         supabase
           .from('workouts')
@@ -171,20 +173,16 @@ export function useHomeData() {
         setCelebration({ emoji: '👥', title: 'Squad secured!', sub: 'Your crew is building.' });
       }
 
-      // Rank — always computed fresh, never from stale state
-      const bw = Math.max(profile?.bodyweight_lbs ?? 185, 50);
-      const rankResult = prRes.data
-        ? getRankResult(
-            prRes.data.map((p: any) => ({
-              exerciseName: p.exercises?.name ?? '',
-              weight: p.weight,
-              reps: p.reps,
-              achievedAt: p.achieved_at,
-            })),
-            bw,
-            true
-          )
-        : getRankResult([], bw);
+      // Power Level + rank — always computed fresh from every relevant set,
+      // never from stale state. Rank is the weakest lift; power the average.
+      const power = computePowerReading(
+        powerInputs, profile?.bodyweight_lbs, profile?.gender, unitFromProfile(profile?.unit_pref),
+      );
+      const rankResult = power.rank;
+      // Backfill the shared copy (friends' leaderboard) when it has drifted.
+      if ((profile as any)?.power_level !== (power.confidence === 'calibrating' ? null : power.power)) {
+        savePowerReading(uid, power);
+      }
       // The active anime world follows the rank (cached for cold launches).
       useWorldStore.getState().setRank(rankResult.tier.key);
 
@@ -308,6 +306,7 @@ export function useHomeData() {
         firstSteps,
         creatorId: creator?.id ?? null,
         rankResult,
+        power,
         lastWorkout,
         friendPRs,
         recentFriendPost,
@@ -321,7 +320,7 @@ export function useHomeData() {
       inFlight.current = false;
       setLoading(false);
     }
-  }, [user?.id, profile?.bodyweight_lbs, (profile as any)?.weekly_plan_done]);
+  }, [user?.id, profile?.bodyweight_lbs, profile?.gender, profile?.unit_pref, (profile as any)?.weekly_plan_done]);
 
   // Focus = render cache instantly (already in state), refresh silently.
   useFocusEffect(

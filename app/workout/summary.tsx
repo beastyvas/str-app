@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,6 +6,10 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { fmtVolume, toDisplay, unitFromProfile } from '@/lib/units';
+import { TierAdvancementScreen } from '@/components/TierAdvancementScreen';
+import { PowerDeltaReveal } from '@/components/summary/PowerDeltaReveal';
+import { useRankAdvance } from '@/components/summary/useRankAdvance';
+import type { SummaryPower } from '@/components/summary/types';
 
 export default function WorkoutSummaryScreen() {
   const { data } = useLocalSearchParams<{ data: string }>();
@@ -22,6 +26,7 @@ export default function WorkoutSummaryScreen() {
   }
 
   const { name, duration, totalSets, totalVolume, prs, exercises } = summary;
+  const power: SummaryPower | null = summary.power ?? null;
   const hasPRs = prs?.length > 0;
 
   // Best lift of the session by estimated 1RM (bodyweight sets excluded —
@@ -37,6 +42,12 @@ export default function WorkoutSummaryScreen() {
     }
     return best;
   })();
+
+  // Rank-up chains off the Power Level reveal (detected once, on finish).
+  const advance = useRankAdvance(power);
+  const [showAdvance, setShowAdvance] = useState(false);
+  const [advanceDone, setAdvanceDone] = useState(false);
+  const onRevealed = () => { if (advance && !advanceDone) setShowAdvance(true); };
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const statsAnim = useRef(new Animated.Value(0)).current;
@@ -91,6 +102,12 @@ export default function WorkoutSummaryScreen() {
             {name}
           </Text>
         </Animated.View>
+
+        {power && (
+          <View style={{ marginBottom: 24 }}>
+            <PowerDeltaReveal power={power} onRevealed={onRevealed} />
+          </View>
+        )}
 
         {/* Stats */}
         <Animated.View style={[slideUp(statsAnim), { flexDirection: 'row', gap: 12, marginBottom: 24 }]}>
@@ -316,6 +333,17 @@ export default function WorkoutSummaryScreen() {
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
+
+      <TierAdvancementScreen
+        visible={showAdvance}
+        tier={advance?.tier ?? null}
+        subTier={advance?.subTier}
+        isSubTierAdvance={advance?.isSubTierAdvance}
+        liftName={advance?.liftName}
+        liftTierName={advance?.liftTierName}
+        liftTierColor={advance?.liftTierColor}
+        onDismiss={() => { setShowAdvance(false); setAdvanceDone(true); }}
+      />
     </SafeAreaView>
   );
 }
