@@ -26,7 +26,7 @@ Anime illustration of an older man wearing a red tengu mask, white hair, blue cl
 ```
 **Hype edit** (attach the portrait) → save as `urokodaki-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: sword drawn mid-swing with flowing water-breathing swirls around the blade, intense powered-up expression, glowing blue water energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: sword drawn mid-swing with flowing water-breathing swirls around the blade, intense powered-up expression, glowing blue water energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Tanjiro Kamado — `tanjiro`
@@ -41,7 +41,7 @@ Anime illustration of a teen boy with dark red hair, scar on forehead, hanafuda 
 ```
 **Hype edit** (attach the portrait) → save as `tanjiro-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: katana raised overhead wreathed in sun-breathing flames, determined shout, intense powered-up expression, glowing orange fire energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: katana raised overhead wreathed in sun-breathing flames, determined shout, intense powered-up expression, glowing orange fire energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Zenitsu Agatsuma — `zenitsu`
@@ -56,7 +56,7 @@ Anime illustration of a teen boy with blond hair fading to orange, yellow haori 
 ```
 **Hype edit** (attach the portrait) → save as `zenitsu-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: eyes closed, crouched in thunder-breathing stance, hand on sheathed sword, intense powered-up expression, glowing yellow lightning energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: eyes closed, crouched in thunder-breathing stance, hand on sheathed sword, intense powered-up expression, glowing yellow lightning energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Inosuke Hashibira — `inosuke`
@@ -71,7 +71,7 @@ Anime illustration of a shirtless muscular teen wearing a boar's head mask, fur 
 ```
 **Hype edit** (attach the portrait) → save as `inosuke-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: charging with two jagged serrated swords crossed, intense powered-up expression, glowing grey-blue energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: charging with two jagged serrated swords crossed, intense powered-up expression, glowing grey-blue energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Kyojuro Rengoku — `rengoku`
@@ -86,7 +86,7 @@ Anime illustration of a man with flame-like yellow-and-red hair, white haori wit
 ```
 **Hype edit** (attach the portrait) → save as `rengoku-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: sword held overhead engulfed in roaring flames, intense powered-up expression, glowing red-orange fire energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: sword held overhead engulfed in roaring flames, intense powered-up expression, glowing red-orange fire energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Giyu Tomioka — `giyu`
@@ -101,7 +101,7 @@ Anime illustration of a man with long dark hair in a low ponytail, haori split h
 ```
 **Hype edit** (attach the portrait) → save as `giyu-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: calm water-breathing slash, sword trailing waves of water, intense powered-up expression, glowing deep blue water energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: calm water-breathing slash, sword trailing waves of water, intense powered-up expression, glowing deep blue water energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -120,7 +120,7 @@ Anime illustration of a huge muscular hero with blond hair in two antenna-like b
 ```
 **Hype edit** (attach the portrait) → save as `allmight-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: fist thrust forward, steam rising off his body, intense powered-up expression, glowing golden-white energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: fist thrust forward, steam rising off his body, intense powered-up expression, glowing golden-white energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Izuku Midoriya (Deku) — `deku`
@@ -135,7 +135,7 @@ Anime illustration of a teen boy with messy dark green hair, freckles, green her
 ```
 **Hype edit** (attach the portrait) → save as `deku-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: fist clenched, green lightning crackling over his body, intense powered-up expression, glowing green lightning energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: fist clenched, green lightning crackling over his body, intense powered-up expression, glowing green lightning energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Katsuki Bakugo — `bakugo`
@@ -150,7 +150,7 @@ Anime illustration of a teen boy with spiky ash-blond hair, red eyes, black-and-
 ```
 **Hype edit** (attach the portrait) → save as `bakugo-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: both palms erupting in explosions, wild shouting grin, intense powered-up expression, glowing orange explosion energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: both palms erupting in explosions, wild shouting grin, intense powered-up expression, glowing orange explosion energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Shoto Todoroki — `todoroki`
@@ -165,7 +165,7 @@ Anime illustration of a teen boy with hair split half white half red, burn scar 
 ```
 **Hype edit** (attach the portrait) → save as `todoroki-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: left side flames and right side ice erupting at once, intense powered-up expression, glowing red fire and blue ice energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: left side flames and right side ice erupting at once, intense powered-up expression, glowing red fire and blue ice energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Eijiro Kirishima — `kirishima`
@@ -180,7 +180,7 @@ Anime illustration of a teen boy with spiky red hair, sharp shark-like teeth, op
 ```
 **Hype edit** (attach the portrait) → save as `kirishima-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: arms flexed and hardened into jagged rock-like armor, shouting, intense powered-up expression, glowing red energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: arms flexed and hardened into jagged rock-like armor, shouting, intense powered-up expression, glowing red energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Shota Aizawa (Eraser Head) — `aizawa`
@@ -195,7 +195,7 @@ Anime illustration of a tired man with long messy black hair, stubble, black out
 ```
 **Hype edit** (attach the portrait) → save as `aizawa-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: hair floating upward, eyes glowing red, scarf whipping around him, intense powered-up expression, glowing red glow energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: hair floating upward, eyes glowing red, scarf whipping around him, intense powered-up expression, glowing red glow energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -214,7 +214,7 @@ Anime illustration of a tall man with spiky white hair, black blindfold, dark hi
 ```
 **Hype edit** (attach the portrait) → save as `gojo-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: hand raised with crackling blue cursed energy, eyes glowing, hair windswept, intense powered-up expression, glowing blue energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: hand raised with crackling blue cursed energy, eyes glowing, hair windswept, intense powered-up expression, glowing blue energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Yuji Itadori — `yuji`
@@ -229,7 +229,7 @@ Anime illustration of a teen boy with short pink spiky hair with dark undercut, 
 ```
 **Hype edit** (attach the portrait) → save as `yuji-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: fist cocked back with blue cursed energy crackling around it, intense powered-up expression, glowing blue-black energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: fist cocked back with blue cursed energy crackling around it, intense powered-up expression, glowing blue-black energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Megumi Fushiguro — `megumi`
@@ -244,7 +244,7 @@ Anime illustration of a teen boy with spiky black hair, dark high-collared schoo
 ```
 **Hype edit** (attach the portrait) → save as `megumi-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: hands forming a shadow-dog hand sign, dark shadow energy rising, intense powered-up expression, glowing dark purple shadow energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: hands forming a shadow-dog hand sign, dark shadow energy rising, intense powered-up expression, glowing dark purple shadow energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Maki Zen'in — `maki`
@@ -259,7 +259,7 @@ Anime illustration of a young woman with dark green hair in a ponytail, glasses,
 ```
 **Hype edit** (attach the portrait) → save as `maki-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: mid-swing with a polearm, fierce expression, intense powered-up expression, glowing green energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: mid-swing with a polearm, fierce expression, intense powered-up expression, glowing green energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Aoi Todo — `todo`
@@ -274,7 +274,7 @@ Anime illustration of a very muscular man with a topknot, scar over eye, open un
 ```
 **Hype edit** (attach the portrait) → save as `todo-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: mid-clap with hands together, shouting with intensity, intense powered-up expression, glowing golden energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: mid-clap with hands together, shouting with intensity, intense powered-up expression, glowing golden energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Ryomen Sukuna — `sukuna`
@@ -289,7 +289,7 @@ Anime illustration of a pink-haired man with black tattoo markings on face, extr
 ```
 **Hype edit** (attach the portrait) → save as `sukuna-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: laughing maniacally, markings glowing red, intense powered-up expression, glowing dark red energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: laughing maniacally, markings glowing red, intense powered-up expression, glowing dark red energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -308,7 +308,7 @@ Anime illustration of a man with tall black flame-shaped hair, widow's peak, blu
 ```
 **Hype edit** (attach the portrait) → save as `vegeta-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: Super Saiyan with golden spiky hair, shouting, fists clenched, intense powered-up expression, glowing golden flame energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: Super Saiyan with golden spiky hair, shouting, fists clenched, intense powered-up expression, glowing golden flame energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Goku — `goku`
@@ -323,7 +323,7 @@ Anime illustration of a man with spiky black hair, orange and blue martial arts 
 ```
 **Hype edit** (attach the portrait) → save as `goku-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: Super Saiyan with golden spiky hair, powering up with clenched fists, intense powered-up expression, glowing golden flame energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: Super Saiyan with golden spiky hair, powering up with clenched fists, intense powered-up expression, glowing golden flame energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Gohan — `gohan`
@@ -338,7 +338,7 @@ Anime illustration of a young man with short black hair, glasses, purple martial
 ```
 **Hype edit** (attach the portrait) → save as `gohan-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: glasses off, glowing serious eyes, powering up, intense powered-up expression, glowing white-gold energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: glasses off, glowing serious eyes, powering up, intense powered-up expression, glowing white-gold energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Piccolo — `piccolo`
@@ -353,7 +353,7 @@ Anime illustration of a tall green-skinned man with antennae, white turban and c
 ```
 **Hype edit** (attach the portrait) → save as `piccolo-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: two fingers pressed to forehead charging a spiraling energy beam, intense powered-up expression, glowing yellow-green energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: two fingers pressed to forehead charging a spiraling energy beam, intense powered-up expression, glowing yellow-green energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Beerus — `beerus`
@@ -368,7 +368,7 @@ Anime illustration of a slim purple cat-like god with large ears, gold jewelry, 
 ```
 **Hype edit** (attach the portrait) → save as `beerus-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: one hand raised holding a glowing purple-orange energy sphere, intense powered-up expression, glowing purple energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: one hand raised holding a glowing purple-orange energy sphere, intense powered-up expression, glowing purple energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Whis — `whis`
@@ -383,7 +383,7 @@ Anime illustration of a tall pale blue-skinned attendant with white hair, black 
 ```
 **Hype edit** (attach the portrait) → save as `whis-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: staff glowing, playful knowing grin, intense powered-up expression, glowing cyan energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: staff glowing, playful knowing grin, intense powered-up expression, glowing cyan energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -402,7 +402,7 @@ Anime illustration of a young man with black hair, long black coat with hood. Ho
 ```
 **Hype edit** (attach the portrait) → save as `jinwoo-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: eyes glowing violet, dark shadow smoke and shadow soldiers rising behind him, intense powered-up expression, glowing violet shadow energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: eyes glowing violet, dark shadow smoke and shadow soldiers rising behind him, intense powered-up expression, glowing violet shadow energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Igris — `igris`
@@ -417,7 +417,7 @@ Anime illustration of a tall knight in dark crimson-black armor with a red plume
 ```
 **Hype edit** (attach the portrait) → save as `igris-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: standing with sword raised, red plume flowing, armor glowing, intense powered-up expression, glowing dark red energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: standing with sword raised, red plume flowing, armor glowing, intense powered-up expression, glowing dark red energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Beru — `beru`
@@ -432,7 +432,7 @@ Anime illustration of a humanoid ant soldier with dark armored exoskeleton and w
 ```
 **Hype edit** (attach the portrait) → save as `beru-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: roaring with claws extended, wings spread, intense powered-up expression, glowing purple-black energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: roaring with claws extended, wings spread, intense powered-up expression, glowing purple-black energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Cha Hae-in — `chahaein`
@@ -447,7 +447,7 @@ Anime illustration of a young woman with short blonde hair, white hunter armor. 
 ```
 **Hype edit** (attach the portrait) → save as `chahaein-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: sword drawn, focused expression, wind swirling, intense powered-up expression, glowing white-gold energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: sword drawn, focused expression, wind swirling, intense powered-up expression, glowing white-gold energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Thomas Andre — `thomasandre`
@@ -462,7 +462,7 @@ Anime illustration of a huge blond American man with sunglasses and slicked-back
 ```
 **Hype edit** (attach the portrait) → save as `thomasandre-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: shouting, flexing, glowing armor-like aura, intense powered-up expression, glowing gold energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: shouting, flexing, glowing armor-like aura, intense powered-up expression, glowing gold energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Yoo Jinho — `yoojinho`
@@ -477,7 +477,7 @@ Anime illustration of a young man with neat brown hair, light hunter gear. Starr
 ```
 **Hype edit** (attach the portrait) → save as `yoojinho-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: both fists raised in excitement, sparkles around him, intense powered-up expression, glowing teal energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: both fists raised in excitement, sparkles around him, intense powered-up expression, glowing teal energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -496,7 +496,7 @@ Anime illustration of a completely bald man, yellow jumpsuit, white cape, red gl
 ```
 **Hype edit** (attach the portrait) → save as `saitama-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: rare serious face, fist punching forward with an impact shockwave, intense powered-up expression, glowing white impact energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: rare serious face, fist punching forward with an impact shockwave, intense powered-up expression, glowing white impact energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Genos — `genos`
@@ -511,7 +511,7 @@ Anime illustration of a young cyborg with blond hair, black sclera with yellow i
 ```
 **Hype edit** (attach the portrait) → save as `genos-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: cannon arm glowing and firing, incinerating heat, intense powered-up expression, glowing orange-red heat energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: cannon arm glowing and firing, incinerating heat, intense powered-up expression, glowing orange-red heat energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Silver Fang (Bang) — `bang`
@@ -526,7 +526,7 @@ Anime illustration of an elderly man with long white hair, white mustache, purpl
 ```
 **Hype edit** (attach the portrait) → save as `bang-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: flowing martial arts stance with water-like streams around his hands, intense powered-up expression, glowing blue water energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: flowing martial arts stance with water-like streams around his hands, intense powered-up expression, glowing blue water energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### King — `king`
@@ -541,7 +541,7 @@ Anime illustration of a tall man with blond hair and three scars over his left e
 ```
 **Hype edit** (attach the portrait) → save as `king-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: frozen in terror with wide eyes, dramatic shading behind him, intense powered-up expression, glowing dark green energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: frozen in terror with wide eyes, dramatic shading behind him, intense powered-up expression, glowing dark green energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Mumen Rider — `mumenrider`
@@ -556,7 +556,7 @@ Anime illustration of a young man in a green helmet and goggles, green and white
 ```
 **Hype edit** (attach the portrait) → save as `mumenrider-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: holding his bicycle up defiantly, battered but refusing to give up, intense powered-up expression, glowing green energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: holding his bicycle up defiantly, battered but refusing to give up, intense powered-up expression, glowing green energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Garou — `garou`
@@ -571,7 +571,7 @@ Anime illustration of a young man with wild white spiky hair, sharp grin, black 
 ```
 **Hype edit** (attach the portrait) → save as `garou-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: martial arts stance, fierce wild expression, flowing energy, intense powered-up expression, glowing silver-white energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: martial arts stance, fierce wild expression, flowing energy, intense powered-up expression, glowing silver-white energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ---
@@ -590,7 +590,7 @@ Anime illustration of a huge muscular man with wild black hair, scar on cheek, m
 ```
 **Hype edit** (attach the portrait) → save as `broly-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: Legendary Super Saiyan with green-gold hair, roaring, intense powered-up expression, glowing green energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: Legendary Super Saiyan with green-gold hair, roaring, intense powered-up expression, glowing green energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Yujiro Hanma — `yujiro`
@@ -605,7 +605,7 @@ Anime illustration of a huge muscular man with long red hair, grin, black shirt.
 ```
 **Hype edit** (attach the portrait) → save as `yujiro-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: shirt torn off, back muscles flexed into a demon face shape, intense, intense powered-up expression, glowing red energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: shirt torn off, back muscles flexed into a demon face shape, intense, intense powered-up expression, glowing red energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
 
 ### Master Roshi — `roshi`
@@ -620,5 +620,5 @@ Anime illustration of an old bald man with long white beard, sunglasses, Hawaiia
 ```
 **Hype edit** (attach the portrait) → save as `roshi-hype.png`
 ```
-Same character, same art style, same outfit and face as the attached image. Now: shirtless, suddenly huge and muscular, serious expression, intense powered-up expression, glowing white energy aura around the body, dramatic speed lines. Keep chest-up framing, facing LEFT, plain flat light-gray background, no text, vertical 3:4.
+Same character, same art style, same outfit and face as the attached image. Now: shirtless, suddenly huge and muscular, serious expression, intense powered-up expression, glowing white energy aura glowing tightly around the body only. NO speed lines, no background effects, no motion lines. Keep the same chest-up crop as the attached image (head and shoulders, not full body), facing LEFT, plain flat light-gray background, no text, vertical 3:4.
 ```
