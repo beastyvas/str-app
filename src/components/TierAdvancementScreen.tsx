@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Animated, Modal, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Animated, Modal, Dimensions, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { Fonts } from '@/constants/theme';
+import { RankUpScene } from '@/components/anime/RankUpScene';
+import { WORLDS } from '@/theme/worlds';
 import { RankTier, ROMAN } from '@/constants/ranks';
 
 interface Props {
@@ -63,6 +67,7 @@ export function TierAdvancementScreen({
       ]),
     );
 
+    Haptics.impactAsync(isSubTierAdvance || isLiftAdvance ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
     Animated.sequence([
       Animated.timing(glowAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
       Animated.parallel([
@@ -106,10 +111,10 @@ export function TierAdvancementScreen({
       : tier.label;
 
   const topLabel = isLiftAdvance
-    ? liftName ?? 'PR'
+    ? `${liftName ?? 'Lift'} tier up`
     : isSubTierAdvance
-      ? 'LEVEL UP'
-      : 'RANK UP';
+      ? 'Level up'
+      : 'Rank up';
 
   const tagline = isLiftAdvance
     ? `New ${liftName?.toLowerCase() ?? ''} tier unlocked.`
@@ -117,155 +122,62 @@ export function TierAdvancementScreen({
       ? `${tier.label} ${ROMAN[subTier ?? 1]} unlocked.`
       : tier.tagline;
 
-  const outerGlowSize = width * 1.5;
-  const innerGlowSize = width * 0.9;
+  // Restyle only: the timing, auto-dismiss and tap logic above are unchanged.
+  // The world's signature RankUpScene plays behind the text.
+  const world = WORLDS[tier.key] ?? WORLDS.mortal;
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={handleTap}
-        style={{ flex: 1 }}
-      >
-        <Animated.View style={{
-          flex: 1,
-          backgroundColor: Colors.bg,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: fadeAnim,
-        }}>
-          {/* Outer radial glow */}
-          <Animated.View style={{
-            position: 'absolute',
-            width: outerGlowSize,
-            height: outerGlowSize,
-            borderRadius: outerGlowSize / 2,
-            backgroundColor: activeColor,
-            opacity: glowAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, isSubTierAdvance ? 0.05 : 0.09],
-            }),
-          }} />
+      <TouchableOpacity activeOpacity={1} onPress={handleTap} style={styles.fill} accessibilityLabel="Continue">
+        <Animated.View style={[styles.root, { opacity: fadeAnim }]}>
+          {!isLiftAdvance && <RankUpScene world={world} playKey={`${tier.key}-${subTier ?? 0}`} />}
 
-          {/* Inner glow */}
-          <Animated.View style={{
-            position: 'absolute',
-            width: innerGlowSize,
-            height: innerGlowSize,
-            borderRadius: innerGlowSize / 2,
-            backgroundColor: activeColor,
-            opacity: glowAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, isSubTierAdvance ? 0.08 : 0.14],
-            }),
-          }} />
+          {/* Aura ring pulse */}
+          <Animated.View style={[styles.ring, {
+            width: width * 0.7, height: width * 0.7, borderRadius: width * 0.35,
+            borderColor: activeColor, opacity: ringOpacity, transform: [{ scale: ringScale }],
+          }]} />
 
-          {/* Pulsing ring */}
-          <Animated.View style={{
-            position: 'absolute',
-            width: width * 0.7,
-            height: width * 0.7,
-            borderRadius: width * 0.35,
-            borderWidth: 1.5,
-            borderColor: activeColor,
-            opacity: ringOpacity,
-            transform: [{ scale: ringScale }],
-          }} />
+          <Animated.Text style={[styles.top, { color: activeColor, opacity: fadeAnim }]}>{topLabel}</Animated.Text>
 
-          {/* Top label */}
-          <Animated.Text style={{
+          <Animated.Text style={[styles.hero, {
             color: activeColor,
-            fontSize: 11,
-            fontWeight: '800',
-            letterSpacing: 5,
-            textTransform: 'uppercase',
-            marginBottom: 24,
-            opacity: fadeAnim,
-          }}>
-            {topLabel}
-          </Animated.Text>
-
-          {/* Hero tier name */}
-          <Animated.Text style={{
-            color: activeColor,
-            fontSize: heroText.length > 12 ? 38 : heroText.length > 8 ? 46 : 58,
-            fontWeight: '800',
-            letterSpacing: -2,
-            textAlign: 'center',
-            marginBottom: 24,
+            fontSize: heroText.length > 12 ? 34 : heroText.length > 8 ? 42 : 52,
+            lineHeight: heroText.length > 12 ? 42 : heroText.length > 8 ? 52 : 62,
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }],
-            textShadowColor: activeColor,
-            textShadowOffset: { width: 0, height: 0 },
-            textShadowRadius: isSubTierAdvance ? 16 : 28,
-          }}>
+          }]}>
             {heroText}
           </Animated.Text>
 
-          {/* Sub-tier dots */}
           {isSubTierAdvance && subTier && (
-            <Animated.View style={{
-              flexDirection: 'row',
-              gap: 10,
-              marginBottom: 24,
-              opacity: fadeAnim,
-            }}>
+            <Animated.View style={[styles.dots, { opacity: fadeAnim }]}>
               {[1, 2, 3, 4].map(n => (
-                <View key={n} style={{
-                  width: n <= subTier ? 12 : 8,
-                  height: n <= subTier ? 12 : 8,
-                  borderRadius: 6,
-                  backgroundColor: n <= subTier ? activeColor : activeColor + '25',
-                  borderWidth: n === subTier ? 0 : 1,
-                  borderColor: activeColor + '50',
-                  shadowColor: n === subTier ? activeColor : 'transparent',
-                  shadowOpacity: 0.6,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 0 },
-                }} />
+                <View key={n} style={[styles.dot, { backgroundColor: n <= subTier ? activeColor : activeColor + '30' }]} />
               ))}
             </Animated.View>
           )}
 
-          {/* Divider */}
-          <Animated.View style={{
-            width: 56,
-            height: 2,
-            backgroundColor: activeColor,
-            opacity: fadeAnim,
-            marginBottom: 24,
-            shadowColor: activeColor,
-            shadowOpacity: 0.8,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 0 },
-          }} />
-
-          {/* Tagline */}
-          <Animated.Text style={{
-            color: Colors.textSecondary,
-            fontSize: isSubTierAdvance ? 13 : 15,
-            fontStyle: 'italic',
-            textAlign: 'center',
-            paddingHorizontal: 52,
-            lineHeight: 24,
-            opacity: taglineAnim,
-          }}>
-            "{tagline}"
-          </Animated.Text>
-
-          {/* Tap hint */}
-          <Animated.Text style={{
-            color: activeColor + '60',
-            fontSize: 10,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
-            marginTop: 64,
-            opacity: hintAnim,
-          }}>
-            Tap to continue
-          </Animated.Text>
+          {!isLiftAdvance && (
+            <Animated.Text style={[styles.series, { opacity: taglineAnim }]}>{world.series} world</Animated.Text>
+          )}
+          <Animated.Text style={[styles.tagline, { opacity: taglineAnim }]}>{tagline}</Animated.Text>
+          <Animated.Text style={[styles.hint, { opacity: hintAnim }]}>Tap to continue</Animated.Text>
         </Animated.View>
       </TouchableOpacity>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  root: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ring: { position: 'absolute', borderWidth: 1.5 },
+  top: { fontFamily: Fonts.bodySemi, fontSize: 15, marginBottom: 20 },
+  hero: { fontFamily: Fonts.display, textAlign: 'center', marginBottom: 20, paddingHorizontal: 20 },
+  dots: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  dot: { width: 12, height: 12, transform: [{ rotate: '45deg' }] },
+  series: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textSecondary, marginBottom: 8 },
+  tagline: { fontFamily: Fonts.body, fontSize: 15, lineHeight: 22, color: Colors.text, textAlign: 'center', paddingHorizontal: 48 },
+  hint: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 56 },
+});
