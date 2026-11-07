@@ -1,15 +1,18 @@
 import { ReactNode, useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View,
+  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions,
 } from 'react-native';
 import Animated, {
-  runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming,
+  runOnJS, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withSpring, withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useWorld } from '@/theme';
 import { AppText } from './AppText';
 
 const SLIDE_FROM = 80; // px below resting position the panel springs in from
+const TOP_GAP = 12;    // breathing room between the panel and the status bar
+const IOS = Platform.OS === 'ios';
 
 interface SheetModalProps {
   visible: boolean;
@@ -32,6 +35,14 @@ export function SheetModal({
   const [mounted, setMounted] = useState(visible);
   const world = useWorld();
   const progress = useSharedValue(0); // 0 = hidden, 1 = shown
+  const { height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const keyboard = useAnimatedKeyboard();
+  // iOS: ride the keyboard frame-by-frame AND clamp the panel so it always
+  // fits between the status bar and the keyboard. A fixed snapHeight plus a
+  // keyboard-height lift used to push the header/search off the top.
+  const tracksKeyboard = IOS && keyboardAware;
+  const maxH = winH - insets.top - TOP_GAP;
 
   useEffect(() => {
     if (visible) {
@@ -45,15 +56,24 @@ export function SheetModal({
   }, [visible]);
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
-  const panelStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ translateY: (1 - progress.value) * SLIDE_FROM }],
-  }));
+  const panelStyle = useAnimatedStyle(() => {
+    const kb = tracksKeyboard ? keyboard.height.value : 0;
+    const room = maxH - kb;
+    return {
+      opacity: progress.value,
+      transform: [{ translateY: (1 - progress.value) * SLIDE_FROM }],
+      marginBottom: kb,
+      maxHeight: room,
+      // Home-indicator padding is pointless while the keyboard covers it.
+      paddingBottom: kb > 0 ? Spacing.md : 34,
+      ...(snapHeight != null ? { height: Math.min(snapHeight, room) } : null),
+    };
+  });
 
   if (!mounted) return null;
 
   const panel = (
-    <Animated.View style={[styles.panel, { borderTopColor: world.aura }, snapHeight != null && { height: snapHeight }, panelStyle]}>
+    <Animated.View style={[styles.panel, { borderTopColor: world.aura }, panelStyle]}>
       <View style={styles.handle} />
       {title != null && (
         <AppText variant="title" style={styles.title}>{title}</AppText>
@@ -68,9 +88,9 @@ export function SheetModal({
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
-        {keyboardAware ? (
+        {keyboardAware && !IOS ? (
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="height"
             style={styles.kav}
             pointerEvents="box-none"
           >
@@ -92,9 +112,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.lg,
     borderTopWidth: 2,
     paddingHorizontal: Spacing.xl,
-    paddingBottom: 34,
     paddingTop: Spacing.sm,
-    maxHeight: '88%',
   },
   handle: {
     alignSelf: 'center',
